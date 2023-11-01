@@ -125,3 +125,7 @@ This go struct would be marshaled back out to YAML equivalent to the original in
 ## What's up with the ordered module?
 
 While implementing the pipeline module, we ran into a problem: in some cases, in the buildkite pipeline.yaml, the order of map fields is significant. Because of this, whenever the pipeline gets unmarshaled from YAML or JSON, it needs to be stored in a way that preserves the order of the fields. The `ordered` module is a simple implementation of an ordered map. In most cases, when the pipeline is dealing with user-input maps, it will store them internally as `ordered.Map`s. When the pipeline is marshaled back out to YAML or JSON, the `ordered.Map`s will be marshaled in the correct order.
+
+## Contributing
+
+Contributions, bugfixes, issues and PRs are always welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
