@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buildkite/agent/v3/env"
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/google/go-cmp/cmp"
 )
@@ -14,14 +13,14 @@ import (
 func ptr[T any](x T) *T { return &x }
 
 func TestParserParsesYAML(t *testing.T) {
-	envMap := env.FromSlice([]string{"ENV_VAR_FRIEND=friend"})
+	env := map[string]string{"ENV_VAR_FRIEND": "friend"}
 	input := strings.NewReader("steps:\n  - command: \"hello ${ENV_VAR_FRIEND}\"")
 	got, err := Parse(input)
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(envMap); err != nil {
-		t.Fatalf("p.Interpolate(%v) error = %v", envMap, err)
+	if err := got.Interpolate(env); err != nil {
+		t.Fatalf("p.Interpolate(%v) error = %v", env, err)
 	}
 
 	want := &Pipeline{
@@ -365,7 +364,7 @@ func TestParserParsesNoSteps(t *testing.T) {
 }
 
 func TestParserParsesGroups(t *testing.T) {
-	envMap := env.FromSlice([]string{"ENV_VAR_FRIEND=friend"})
+	env := map[string]string{"ENV_VAR_FRIEND": "friend"}
 
 	input := strings.NewReader(`---
 steps:
@@ -381,8 +380,8 @@ steps:
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(envMap); err != nil {
-		t.Fatalf("p.Interpolate(%v) error = %v", envMap, err)
+	if err := got.Interpolate(env); err != nil {
+		t.Fatalf("p.Interpolate(%v) error = %v", env, err)
 	}
 
 	want := &Pipeline{
@@ -506,14 +505,14 @@ func TestParserReturnsJSONParsingErrors(t *testing.T) {
 }
 
 func TestParserParsesJSON(t *testing.T) {
-	envMap := env.FromSlice([]string{"ENV_VAR_FRIEND=friend"})
+	env := map[string]string{"ENV_VAR_FRIEND": "friend"}
 	input := strings.NewReader("\n\n     \n  { \"steps\": [{\"command\" : \"bye ${ENV_VAR_FRIEND}\"  } ] }\n")
 	got, err := Parse(input)
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(envMap); err != nil {
-		t.Fatalf("p.Interpolate(%v) error = %v", envMap, err)
+	if err := got.Interpolate(env); err != nil {
+		t.Fatalf("p.Interpolate(%v) error = %v", env, err)
 	}
 
 	want := &Pipeline{
@@ -543,14 +542,14 @@ func TestParserParsesJSON(t *testing.T) {
 }
 
 func TestParserParsesJSONArrays(t *testing.T) {
-	envMap := env.FromSlice([]string{"ENV_VAR_FRIEND=friend"})
+	env := map[string]string{"ENV_VAR_FRIEND": "friend"}
 	input := strings.NewReader("\n\n     \n  [ { \"command\": \"bye ${ENV_VAR_FRIEND}\" } ]\n")
 	got, err := Parse(input)
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(envMap); err != nil {
-		t.Fatalf("p.Interpolate(%v) error = %v", envMap, err)
+	if err := got.Interpolate(env); err != nil {
+		t.Fatalf("p.Interpolate(%v) error = %v", env, err)
 	}
 
 	want := &Pipeline{
@@ -868,7 +867,7 @@ func TestParserHandlesDates(t *testing.T) {
 }
 
 func TestParserInterpolatesKeysAsWellAsValues(t *testing.T) {
-	envMap := env.FromSlice([]string{"FROM_ENV=llamas"})
+	env := map[string]string{"FROM_ENV": "llamas"}
 	input := strings.NewReader(`{
 	"env": {
 		"${FROM_ENV}TEST1": "MyTest",
@@ -881,8 +880,8 @@ func TestParserInterpolatesKeysAsWellAsValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(envMap); err != nil {
-		t.Fatalf("p.Interpolate(%v) error = %v", envMap, err)
+	if err := got.Interpolate(env); err != nil {
+		t.Fatalf("p.Interpolate(%v) error = %v", env, err)
 	}
 	want := &Pipeline{
 		Env: ordered.MapFromItems(
@@ -899,7 +898,7 @@ func TestParserInterpolatesKeysAsWellAsValues(t *testing.T) {
 }
 
 func TestParserInterpolatesPluginConfigs(t *testing.T) {
-	envMap := env.New()
+	env := map[string]string{}
 	input := strings.NewReader(`env:
   ECR_PLUGIN_VER: "v2.7.0"
   ECR_ACCOUNT: "0123456789"
@@ -916,8 +915,8 @@ steps:
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(envMap); err != nil {
-		t.Fatalf("p.Interpolate(%v) error = %v", envMap, err)
+	if err := got.Interpolate(env); err != nil {
+		t.Fatalf("p.Interpolate(%v) error = %v", env, err)
 	}
 	want := &Pipeline{
 		Env: ordered.MapFromItems(
@@ -948,7 +947,7 @@ steps:
 }
 
 func TestParserLoadsGlobalEnvBlockFirst(t *testing.T) {
-	envMap := env.FromSlice([]string{"YEAR_FROM_SHELL=1912"})
+	env := map[string]string{"YEAR_FROM_SHELL": "1912"}
 	input := strings.NewReader(`
 {
 	"env": {
@@ -964,8 +963,8 @@ func TestParserLoadsGlobalEnvBlockFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(envMap); err != nil {
-		t.Fatalf("p.Interpolate(%v) error = %v", envMap, err)
+	if err := got.Interpolate(env); err != nil {
+		t.Fatalf("p.Interpolate(%v) error = %v", env, err)
 	}
 	want := &Pipeline{
 		Env: ordered.MapFromItems(
@@ -1239,93 +1238,6 @@ steps:
 				t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 			}
 			if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
-				t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestPipelinePropagatesTracingDataIfAvailable(t *testing.T) {
-	tests := []struct {
-		desc     string
-		pipeline string
-		want     *Pipeline
-		wantJSON string
-	}{
-		{
-			desc: "without existing env",
-			pipeline: `---
-steps:
- - command: echo asd
-`,
-			want: &Pipeline{
-				Env: ordered.MapFromItems(
-					ordered.TupleSS{Key: "BUILDKITE_TRACE_CONTEXT", Value: "123"},
-				),
-				Steps: Steps{
-					&CommandStep{Command: "echo asd"},
-				},
-			},
-			wantJSON: `{
-  "env": {
-    "BUILDKITE_TRACE_CONTEXT": "123"
-  },
-  "steps": [
-    {
-      "command": "echo asd"
-    }
-  ]
-}`,
-		},
-		{
-			desc: "with existing env",
-			pipeline: `---
-env:
-  ASD: 1
-steps:
- - command: echo asd
-`,
-			want: &Pipeline{
-				Env: ordered.MapFromItems(
-					ordered.TupleSS{Key: "ASD", Value: "1"},
-					ordered.TupleSS{Key: "BUILDKITE_TRACE_CONTEXT", Value: "123"},
-				),
-				Steps: Steps{
-					&CommandStep{Command: "echo asd"},
-				},
-			},
-			wantJSON: `{
-  "env": {
-    "ASD": "1",
-    "BUILDKITE_TRACE_CONTEXT": "123"
-  },
-  "steps": [
-    {
-      "command": "echo asd"
-    }
-  ]
-}`,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			input := strings.NewReader(test.pipeline)
-			e := env.New()
-			e.Set("BUILDKITE_TRACE_CONTEXT", "123")
-			got, err := Parse(input)
-			if err != nil {
-				t.Fatalf("Parse(input) error = %v", err)
-			}
-			if err := got.Interpolate(e); err != nil {
-				t.Fatalf("p.Interpolate(%v) error = %v", e, err)
-			}
-
-			gotJSON, err := json.MarshalIndent(got, "", "  ")
-			if err != nil {
-				t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
-			}
-			if diff := cmp.Diff(string(gotJSON), test.wantJSON); diff != "" {
 				t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
 			}
 		})

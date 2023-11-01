@@ -16,12 +16,12 @@ type stringTransformer interface {
 // envInterpolator returns a reusable string transform that replaces
 // variables (${FOO}) with their values from a map.
 type envInterpolator struct {
-	envMap interpolate.Env
+	env interpolate.Env
 }
 
 // Transform calls interpolate.Interpolate to transform the string.
 func (e envInterpolator) Transform(s string) (string, error) {
-	return interpolate.Interpolate(e.envMap, s)
+	return interpolate.Interpolate(e.env, s)
 }
 
 // selfInterpolater describes types that can interpolate themselves in-place.
