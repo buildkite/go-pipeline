@@ -1,4 +1,4 @@
-package pipeline
+package signature
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	pipeline "github.com/buildkite/go-pipeline"
 	"github.com/buildkite/go-pipeline/jwkutil"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -16,9 +17,9 @@ import (
 const keyID = "chartreuse" // chosen by fair dice roll (unimportant what the value actually is)
 
 func TestSignVerify(t *testing.T) {
-	step := &CommandStep{
+	step := &pipeline.CommandStep{
 		Command: "llamas",
-		Plugins: Plugins{
+		Plugins: pipeline.Plugins{
 			{
 				Source: "some-plugin#v1.0.0",
 				Config: nil,
@@ -154,7 +155,7 @@ func TestSignVerify(t *testing.T) {
 				}
 			}
 
-			if err := sig.Verify(verifier, verifyEnv, stepWithInvariants); err != nil {
+			if err := Verify(sig, verifier, verifyEnv, stepWithInvariants); err != nil {
 				t.Errorf("sig.Verify(CommandStep, verifier) = %v", err)
 			}
 		})
@@ -252,7 +253,7 @@ func TestUnknownAlgorithm(t *testing.T) {
 	if _, err := Sign(
 		key,
 		nil,
-		&CommandStepWithPipelineInvariants{CommandStep: CommandStep{Command: "llamas"}},
+		&CommandStepWithPipelineInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}},
 	); err == nil {
 		t.Errorf("Sign(nil, CommandStep, signer) = %v, want non-nil error", err)
 	}
@@ -261,9 +262,9 @@ func TestUnknownAlgorithm(t *testing.T) {
 func TestVerifyBadSignature(t *testing.T) {
 	t.Parallel()
 
-	cs := &CommandStepWithPipelineInvariants{CommandStep: CommandStep{Command: "llamas"}}
+	cs := &CommandStepWithPipelineInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}}
 
-	sig := &Signature{
+	sig := &pipeline.Signature{
 		Algorithm:    "HS256",
 		SignedFields: []string{"command"},
 		Value:        "YWxwYWNhcw==", // base64("alpacas")
@@ -274,7 +275,7 @@ func TestVerifyBadSignature(t *testing.T) {
 		t.Fatalf("NewSymmetricKeyPairFromString(alpacas) error = %v", err)
 	}
 
-	if err := sig.Verify(verifier, nil, cs); err == nil {
+	if err := Verify(sig, verifier, nil, cs); err == nil {
 		t.Errorf("sig.Verify(CommandStep, alpacas) = %v, want non-nil error", err)
 	}
 }
@@ -282,8 +283,8 @@ func TestVerifyBadSignature(t *testing.T) {
 func TestSignUnknownStep(t *testing.T) {
 	t.Parallel()
 
-	steps := Steps{
-		&UnknownStep{
+	steps := pipeline.Steps{
+		&pipeline.UnknownStep{
 			Contents: "secret third thing",
 		},
 	}
@@ -298,7 +299,7 @@ func TestSignUnknownStep(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	if err := steps.sign(key, nil, nil); !errors.Is(err, errSigningRefusedUnknownStepType) {
+	if err := SignSteps(steps, key, nil, nil); !errors.Is(err, errSigningRefusedUnknownStepType) {
 		t.Errorf("steps.sign(signer) = %v, want %v", err, errSigningRefusedUnknownStepType)
 	}
 }
@@ -308,14 +309,14 @@ func TestSignVerifyEnv(t *testing.T) {
 
 	cases := []struct {
 		name               string
-		step               *CommandStep
+		step               *pipeline.CommandStep
 		pipelineInvariants *PipelineInvariants
 		pipelineEnv        map[string]string
 		verifyEnv          map[string]string
 	}{
 		{
 			name: "step env only",
-			step: &CommandStep{
+			step: &pipeline.CommandStep{
 				Command: "llamas",
 				Env: map[string]string{
 					"CONTEXT": "cats",
@@ -331,7 +332,7 @@ func TestSignVerifyEnv(t *testing.T) {
 		},
 		{
 			name: "pipeline env only",
-			step: &CommandStep{
+			step: &pipeline.CommandStep{
 				Command: "llamas",
 			},
 			pipelineEnv: map[string]string{
@@ -347,7 +348,7 @@ func TestSignVerifyEnv(t *testing.T) {
 		},
 		{
 			name: "step and pipeline env",
-			step: &CommandStep{
+			step: &pipeline.CommandStep{
 				Command: "llamas",
 				Env: map[string]string{
 					"CONTEXT": "cats",
@@ -392,7 +393,7 @@ func TestSignVerifyEnv(t *testing.T) {
 				t.Fatalf("Sign(CommandStep, signer) error = %v", err)
 			}
 
-			if err := sig.Verify(verifier, tc.verifyEnv, stepWithInvariants); err != nil {
+			if err := Verify(sig, verifier, tc.verifyEnv, stepWithInvariants); err != nil {
 				t.Errorf("sig.Verify(CommandStep, verifier) = %v", err)
 			}
 		})
@@ -409,10 +410,10 @@ func TestSignatureStability(t *testing.T) {
 	pluginCfg := map[string]any{
 		"subcfg": pluginSubCfg,
 	}
-	step := &CommandStep{
+	step := &pipeline.CommandStep{
 		Command: "echo 'hello friend'",
 		Env:     make(map[string]string),
-		Plugins: Plugins{&Plugin{
+		Plugins: pipeline.Plugins{&pipeline.Plugin{
 			Source: "huge-config#v1.0.0",
 			Config: pluginCfg,
 		}},
@@ -448,7 +449,7 @@ func TestSignatureStability(t *testing.T) {
 		t.Fatalf("Sign(env, CommandStep, signer) error = %v", err)
 	}
 
-	if err := sig.Verify(verifier, env, stepWithInvariants); err != nil {
+	if err := Verify(sig, verifier, env, stepWithInvariants); err != nil {
 		t.Errorf("sig.Verify(env, CommandStep, verifier) = %v", err)
 	}
 }

@@ -15,6 +15,13 @@ var _ interface {
 	ordered.Unmarshaler
 } = (*CommandStep)(nil)
 
+// Signature models a signature (on a step, etc).
+type Signature struct {
+	Algorithm    string   `json:"algorithm" yaml:"algorithm"`
+	SignedFields []string `json:"signed_fields" yaml:"signed_fields"`
+	Value        string   `json:"value" yaml:"value"`
+}
+
 // CommandStep models a command step.
 //
 // Standard caveats apply - see the package comment.
