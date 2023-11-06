@@ -1,4 +1,4 @@
-package pipeline
+package signature
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/buildkite/go-pipeline"
 	"github.com/gowebpki/jcs"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -15,13 +16,6 @@ import (
 // namespace. This is used to separate signed data that came from the
 // environment from data that came from an object.
 const EnvNamespacePrefix = "env::"
-
-// Signature models a signature (on a step, etc).
-type Signature struct {
-	Algorithm    string   `json:"algorithm" yaml:"algorithm"`
-	SignedFields []string `json:"signed_fields" yaml:"signed_fields"`
-	Value        string   `json:"value" yaml:"value"`
-}
 
 // SignedFielder describes types that can be signed and have signatures
 // verified.
@@ -43,11 +37,7 @@ type SignedFielder interface {
 
 // Sign computes a new signature for an environment (env) combined with an
 // object containing values (sf) using a given key.
-func Sign(
-	key jwk.Key,
-	env map[string]string,
-	sf SignedFielder,
-) (*Signature, error) {
+func Sign(key jwk.Key, env map[string]string, sf SignedFielder) (*pipeline.Signature, error) {
 	values, err := sf.SignedFields()
 	if err != nil {
 		return nil, err
@@ -92,7 +82,7 @@ func Sign(
 		return nil, err
 	}
 
-	return &Signature{
+	return &pipeline.Signature{
 		Algorithm:    key.Algorithm().String(),
 		SignedFields: fields,
 		Value:        string(sig),
@@ -101,11 +91,7 @@ func Sign(
 
 // Verify verifies an existing signature against environment (env) combined with
 // an object containing values (sf) using keys from a keySet.
-func (s *Signature) Verify(
-	keySet jwk.Set,
-	env map[string]string,
-	sf SignedFielder,
-) error {
+func Verify(s *pipeline.Signature, keySet jwk.Set, env map[string]string, sf SignedFielder) error {
 	if len(s.SignedFields) == 0 {
 		return errors.New("signature covers no fields")
 	}

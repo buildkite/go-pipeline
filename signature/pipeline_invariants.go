@@ -1,8 +1,10 @@
-package pipeline
+package signature
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/buildkite/go-pipeline"
 )
 
 type PipelineInvariants struct {
@@ -14,7 +16,7 @@ type PipelineInvariants struct {
 var _ SignedFielder = (*CommandStepWithPipelineInvariants)(nil)
 
 type CommandStepWithPipelineInvariants struct {
-	CommandStep
+	pipeline.CommandStep
 	PipelineInvariants
 }
 

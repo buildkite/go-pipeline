@@ -3,11 +3,8 @@ package pipeline
 import (
 	"fmt"
 
-	"github.com/buildkite/agent/v3/env"
-	"github.com/buildkite/agent/v3/tracetools"
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/buildkite/interpolate"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
 // Pipeline models a pipeline.
@@ -58,32 +55,31 @@ func (p *Pipeline) UnmarshalOrdered(o any) error {
 	return nil
 }
 
-// Interpolate interpolates variables defined in both envMap and p.Env into the
+// needed to plug a reggo map into a interpolate.Env
+type mapGetter map[string]string
+
+func (m mapGetter) Get(key string) (string, bool) {
+	v, ok := m[key]
+	return v, ok
+}
+
+// Interpolate interpolates variables defined in both env and p.Env into the
 // pipeline.
 // More specifically, it does these things:
-//   - Copy tracing context keys from envMap into pipeline.Env.
-//   - Interpolate pipeline.Env and copy the results into envMap to apply later.
+//   - Interpolate pipeline.Env and copy the results into env to apply later.
 //   - Interpolate any string value in the rest of the pipeline.
-func (p *Pipeline) Interpolate(envMap *env.Environment) error {
-	if envMap == nil {
-		envMap = env.New()
-	}
-
-	// Propagate distributed tracing context to the new pipelines if available
-	if tracing, has := envMap.Get(tracetools.EnvVarTraceContextKey); has {
-		if p.Env == nil {
-			p.Env = ordered.NewMap[string, string](1)
-		}
-		p.Env.Set(tracetools.EnvVarTraceContextKey, tracing)
+func (p *Pipeline) Interpolate(env map[string]string) error {
+	if env == nil {
+		env = map[string]string{}
 	}
 
 	// Preprocess any env that are defined in the top level block and place them
 	// into env for later interpolation into the rest of the pipeline.
-	if err := p.interpolateEnvBlock(envMap); err != nil {
+	if err := p.interpolateEnvBlock(env); err != nil {
 		return err
 	}
 
-	tf := envInterpolator{envMap: envMap}
+	tf := envInterpolator{env: mapGetter(env)}
 
 	// Recursively go through the rest of the pipeline and perform environment
 	// variable interpolation on strings. Interpolation is performed in-place.
@@ -94,20 +90,20 @@ func (p *Pipeline) Interpolate(envMap *env.Environment) error {
 }
 
 // interpolateEnvBlock runs interpolate.Interpolate on each pair in p.Env,
-// interpolating with the variables defined in envMap, and then adding the
-// results back into both p.Env and envMap. Each environment variable can
+// interpolating with the variables defined in env, and then adding the
+// results back into both p.Env and env. Each environment variable can
 // be interpolated into later environment variables, making the input ordering
 // of p.Env potentially important.
-func (p *Pipeline) interpolateEnvBlock(envMap *env.Environment) error {
+func (p *Pipeline) interpolateEnvBlock(env map[string]string) error {
 	return p.Env.Range(func(k, v string) error {
 		// We interpolate both keys and values.
-		intk, err := interpolate.Interpolate(envMap, k)
+		intk, err := interpolate.Interpolate(mapGetter(env), k)
 		if err != nil {
 			return err
 		}
 
 		// v is always a string in this case.
-		intv, err := interpolate.Interpolate(envMap, v)
+		intv, err := interpolate.Interpolate(mapGetter(env), v)
 		if err != nil {
 			return err
 		}
@@ -115,17 +111,8 @@ func (p *Pipeline) interpolateEnvBlock(envMap *env.Environment) error {
 		p.Env.Replace(k, intk, intv)
 
 		// Bonus part for the env block!
-		// Add the results back into envMap.
-		envMap.Set(intk, intv)
+		// Add the results back into env.
+		env[intk] = intv
 		return nil
 	})
-}
-
-// Sign signs each signable part of the pipeline. Currently this is limited to
-// command steps (including command steps within group steps), including all
-// plugin configurations and the pipeline "env". Parts of the pipeline are
-// mutated directly, so an error part-way through may leave some steps
-// un-signed.
-func (p *Pipeline) Sign(key jwk.Key, inv *PipelineInvariants) error {
-	return p.Steps.sign(key, p.Env.ToMap(), inv)
 }
