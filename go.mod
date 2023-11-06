@@ -2,7 +2,11 @@ module github.com/buildkite/go-pipeline
 
 go 1.21.0
 
-retract v1.0.0 // Published accidentally. We'll skip this version and jump straight to v1.0.1 when we're ready to publish
+retract (
+    v1.0.0 // Published accidentally. 
+    v1.0.1 // Solely to publish the retraction of v1.0.0.
+    // We'll skip straight to v1.0.2 when we're ready to publish
+)
 
 require (
 	github.com/buildkite/interpolate v0.0.0-20200526001904-07f35b4ae251
