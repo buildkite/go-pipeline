@@ -60,9 +60,6 @@ func interpolateAny[T any](tf stringTransformer, o T) (T, error) {
 	case []string:
 		err = interpolateSlice(tf, t)
 
-	case ordered.Slice:
-		err = interpolateSlice(tf, t)
-
 	case map[string]any:
 		err = interpolateMap(tf, t)
 
