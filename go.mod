@@ -2,6 +2,8 @@ module github.com/buildkite/go-pipeline
 
 go 1.21.0
 
+retract v1.0.0 // Published accidentally. We'll skip this version and jump straight to v1.0.1 when we're ready to publish
+
 require (
 	github.com/buildkite/interpolate v0.0.0-20200526001904-07f35b4ae251
 	github.com/google/go-cmp v0.6.0
