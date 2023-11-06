@@ -45,8 +45,8 @@ func SignSteps(s pipeline.Steps, key jwk.Key, env map[string]string, pInv *Pipel
 	return nil
 }
 
-func SignPipeline(p *pipeline.Pipeline, key jwk.Key, env map[string]string, pInv *PipelineInvariants) error {
-	if err := SignSteps(p.Steps, key, env, pInv); err != nil {
+func SignPipeline(p *pipeline.Pipeline, key jwk.Key, pInv *PipelineInvariants) error {
+	if err := SignSteps(p.Steps, key, p.Env.ToMap(), pInv); err != nil {
 		return fmt.Errorf("signing steps: %w", err)
 	}
 	return nil
