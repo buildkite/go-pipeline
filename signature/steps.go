@@ -10,9 +10,8 @@ import (
 
 var errSigningRefusedUnknownStepType = errors.New("refusing to sign pipeline containing a step of unknown type, because the pipeline could be incorrectly parsed - please contact support")
 
-// sign adds signatures to each command step (and recursively to any command
-// steps that are within group steps. The steps are mutated directly, so an
-// error part-way through may leave some steps un-signed.
+// SignSteps adds signatures to each command step (and recursively to any command steps that are within group steps).
+// The steps are mutated directly, so an error part-way through may leave some steps un-signed.
 func SignSteps(s pipeline.Steps, key jwk.Key, env map[string]string, pInv *PipelineInvariants) error {
 	for _, step := range s {
 		switch step := step.(type) {
@@ -45,6 +44,7 @@ func SignSteps(s pipeline.Steps, key jwk.Key, env map[string]string, pInv *Pipel
 	return nil
 }
 
+// SignPipeline adds signatures to each command step (and recursively to any command steps that are within group steps) within a pipeline
 func SignPipeline(p *pipeline.Pipeline, key jwk.Key, pInv *PipelineInvariants) error {
 	if err := SignSteps(p.Steps, key, p.Env.ToMap(), pInv); err != nil {
 		return fmt.Errorf("signing steps: %w", err)
