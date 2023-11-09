@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"slices"
+	"golang.org/x/exp/slices"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
