@@ -7,14 +7,16 @@ import (
 	"strings"
 	"testing"
 
-	pipeline "github.com/buildkite/go-pipeline"
+	"github.com/buildkite/go-pipeline"
 	"github.com/buildkite/go-pipeline/jwkutil"
-
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
-const keyID = "chartreuse" // chosen by fair dice roll (unimportant what the value actually is)
+const (
+	keyID             = "chartreuse" // chosen by fair dice roll (unimportant what the value actually is)
+	fakeRepositoryURL = "fake-repo"
+)
 
 func TestSignVerify(t *testing.T) {
 	step := &pipeline.CommandStep{
@@ -45,15 +47,9 @@ func TestSignVerify(t *testing.T) {
 		"MISC":    "llama drama",
 	}
 
-	pInv := &PipelineInvariants{
-		OrganizationSlug: "dummy-org",
-		PipelineSlug:     "dummy-pipeline",
-		Repository:       "dummy-repo",
-	}
-
-	stepWithInvariants := &CommandStepWithPipelineInvariants{
-		CommandStep:        *step,
-		PipelineInvariants: *pInv,
+	stepWithInvariants := &CommandStepWithInvariants{
+		CommandStep:   *step,
+		RepositoryURL: "fake-repo",
 	}
 
 	cases := []struct {
@@ -68,7 +64,7 @@ func TestSignVerify(t *testing.T) {
 				return jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", alg)
 			},
 			alg:                            jwa.HS256,
-			expectedDeterministicSignature: "eyJhbGciOiJIUzI1NiIsImtpZCI6ImNoYXJ0cmV1c2UifQ..zD66ZJ_8iSNnNuHxRi9xlF0vDWLtNjH33KAR-kidsuY",
+			expectedDeterministicSignature: "eyJhbGciOiJIUzI1NiIsImtpZCI6ImNoYXJ0cmV1c2UifQ..4pYZTwSwJw469ScTf7DzykmO51l-MMFWumA-NpVEZTE",
 		},
 		{
 			name: "HMAC-SHA384",
@@ -76,7 +72,7 @@ func TestSignVerify(t *testing.T) {
 				return jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", alg)
 			},
 			alg:                            jwa.HS384,
-			expectedDeterministicSignature: "eyJhbGciOiJIUzM4NCIsImtpZCI6ImNoYXJ0cmV1c2UifQ..fPdqyD_9Zh853ZO-tz-zo1kPjEMJBS3kTaMbcL5zYmhgjvv-u2Wf_hY8h2JF9QGo",
+			expectedDeterministicSignature: "eyJhbGciOiJIUzM4NCIsImtpZCI6ImNoYXJ0cmV1c2UifQ..668PsYGv72l8HRY05wp9UBOYqXa1jCsf3OM-XlvwdskL6VsPI_gPnj-M9SyFhLso",
 		},
 		{
 			name: "HMAC-SHA512",
@@ -84,7 +80,7 @@ func TestSignVerify(t *testing.T) {
 				return jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", alg)
 			},
 			alg:                            jwa.HS512,
-			expectedDeterministicSignature: "eyJhbGciOiJIUzUxMiIsImtpZCI6ImNoYXJ0cmV1c2UifQ..dBvlfDXXIeCmdAXn4z6p0GJKzUHUrZsbkimgDhFKoX9iVhe4gfkEx7FZR5DAVszsNQV_46-pZ6Xk9WlxchIVig",
+			expectedDeterministicSignature: "eyJhbGciOiJIUzUxMiIsImtpZCI6ImNoYXJ0cmV1c2UifQ..9KgnpPXJUT1C5m5HKsNGP6YeWksxAjeaa3sygWCPho8bsHwSVus8N2gUR_4Ty7Dv9n-r65KMocPMtw3y5coe3Q",
 		},
 		{
 			name:           "RSA-PSS 256",
@@ -156,7 +152,7 @@ func TestSignVerify(t *testing.T) {
 			}
 
 			if err := Verify(sig, verifier, verifyEnv, stepWithInvariants); err != nil {
-				t.Errorf("sig.Verify(CommandStep, verifier) = %v", err)
+				t.Errorf("Verify(sig,CommandStep, verifier) = %v", err)
 			}
 		})
 	}
@@ -253,7 +249,7 @@ func TestUnknownAlgorithm(t *testing.T) {
 	if _, err := Sign(
 		key,
 		nil,
-		&CommandStepWithPipelineInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}},
+		&CommandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}},
 	); err == nil {
 		t.Errorf("Sign(nil, CommandStep, signer) = %v, want non-nil error", err)
 	}
@@ -262,7 +258,7 @@ func TestUnknownAlgorithm(t *testing.T) {
 func TestVerifyBadSignature(t *testing.T) {
 	t.Parallel()
 
-	cs := &CommandStepWithPipelineInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}}
+	cs := &CommandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}}
 
 	sig := &pipeline.Signature{
 		Algorithm:    "HS256",
@@ -276,7 +272,7 @@ func TestVerifyBadSignature(t *testing.T) {
 	}
 
 	if err := Verify(sig, verifier, nil, cs); err == nil {
-		t.Errorf("sig.Verify(CommandStep, alpacas) = %v, want non-nil error", err)
+		t.Errorf("Verify(sig,CommandStep, alpacas) = %v, want non-nil error", err)
 	}
 }
 
@@ -299,7 +295,7 @@ func TestSignUnknownStep(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	if err := SignSteps(steps, key, nil, nil); !errors.Is(err, errSigningRefusedUnknownStepType) {
+	if err := SignSteps(steps, key, nil, ""); !errors.Is(err, errSigningRefusedUnknownStepType) {
 		t.Errorf("steps.sign(signer) = %v, want %v", err, errSigningRefusedUnknownStepType)
 	}
 }
@@ -308,11 +304,11 @@ func TestSignVerifyEnv(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name               string
-		step               *pipeline.CommandStep
-		pipelineInvariants *PipelineInvariants
-		pipelineEnv        map[string]string
-		verifyEnv          map[string]string
+		name          string
+		step          *pipeline.CommandStep
+		repositoryURL string
+		pipelineEnv   map[string]string
+		verifyEnv     map[string]string
 	}{
 		{
 			name: "step env only",
@@ -323,7 +319,7 @@ func TestSignVerifyEnv(t *testing.T) {
 					"DEPLOY":  "0",
 				},
 			},
-			pipelineInvariants: &PipelineInvariants{},
+			repositoryURL: fakeRepositoryURL,
 			verifyEnv: map[string]string{
 				"CONTEXT": "cats",
 				"DEPLOY":  "0",
@@ -339,7 +335,7 @@ func TestSignVerifyEnv(t *testing.T) {
 				"CONTEXT": "cats",
 				"DEPLOY":  "0",
 			},
-			pipelineInvariants: &PipelineInvariants{},
+			repositoryURL: fakeRepositoryURL,
 			verifyEnv: map[string]string{
 				"CONTEXT": "cats",
 				"DEPLOY":  "0",
@@ -355,7 +351,7 @@ func TestSignVerifyEnv(t *testing.T) {
 					"DEPLOY":  "0",
 				},
 			},
-			pipelineInvariants: &PipelineInvariants{},
+			repositoryURL: fakeRepositoryURL,
 			pipelineEnv: map[string]string{
 				"CONTEXT": "dogs",
 				"DEPLOY":  "1",
@@ -383,9 +379,9 @@ func TestSignVerifyEnv(t *testing.T) {
 				t.Fatalf("signer.Key(0) = _, false, want true")
 			}
 
-			stepWithInvariants := &CommandStepWithPipelineInvariants{
-				CommandStep:        *tc.step,
-				PipelineInvariants: *tc.pipelineInvariants,
+			stepWithInvariants := &CommandStepWithInvariants{
+				CommandStep:   *tc.step,
+				RepositoryURL: tc.repositoryURL,
 			}
 
 			sig, err := Sign(key, tc.pipelineEnv, stepWithInvariants)
@@ -394,7 +390,7 @@ func TestSignVerifyEnv(t *testing.T) {
 			}
 
 			if err := Verify(sig, verifier, tc.verifyEnv, stepWithInvariants); err != nil {
-				t.Errorf("sig.Verify(CommandStep, verifier) = %v", err)
+				t.Errorf("Verify(sig,CommandStep, verifier) = %v", err)
 			}
 		})
 	}
@@ -418,10 +414,9 @@ func TestSignatureStability(t *testing.T) {
 			Config: pluginCfg,
 		}},
 	}
-	pInv := &PipelineInvariants{}
-	stepWithInvariants := &CommandStepWithPipelineInvariants{
-		CommandStep:        *step,
-		PipelineInvariants: *pInv,
+	stepWithInvariants := &CommandStepWithInvariants{
+		CommandStep:   *step,
+		RepositoryURL: fakeRepositoryURL,
 	}
 	env := make(map[string]string)
 
@@ -450,6 +445,6 @@ func TestSignatureStability(t *testing.T) {
 	}
 
 	if err := Verify(sig, verifier, env, stepWithInvariants); err != nil {
-		t.Errorf("sig.Verify(env, CommandStep, verifier) = %v", err)
+		t.Errorf("Verify(sig,env, CommandStep, verifier) = %v", err)
 	}
 }

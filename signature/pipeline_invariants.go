@@ -7,40 +7,35 @@ import (
 	"github.com/buildkite/go-pipeline"
 )
 
-type PipelineInvariants struct {
-	OrganizationSlug string
-	PipelineSlug     string
-	Repository       string
-}
+var _ SignedFielder = (*CommandStepWithInvariants)(nil)
 
-var _ SignedFielder = (*CommandStepWithPipelineInvariants)(nil)
-
-type CommandStepWithPipelineInvariants struct {
+// CommandStepWithInvariants is a CommandStep with PipelineInvariants.
+type CommandStepWithInvariants struct {
 	pipeline.CommandStep
-	PipelineInvariants
+	RepositoryURL string
 }
 
 // SignedFields returns the default fields for signing.
-func (c *CommandStepWithPipelineInvariants) SignedFields() (map[string]any, error) {
+func (c *CommandStepWithInvariants) SignedFields() (map[string]any, error) {
 	return map[string]any{
-		"command":             c.Command,
-		"env":                 c.Env,
-		"plugins":             c.Plugins,
-		"matrix":              c.Matrix,
-		"pipeline_invariants": c.PipelineInvariants,
+		"command":        c.Command,
+		"env":            c.Env,
+		"plugins":        c.Plugins,
+		"matrix":         c.Matrix,
+		"repository_url": c.RepositoryURL,
 	}, nil
 }
 
 // ValuesForFields returns the contents of fields to sign.
-func (c *CommandStepWithPipelineInvariants) ValuesForFields(fields []string) (map[string]any, error) {
+func (c *CommandStepWithInvariants) ValuesForFields(fields []string) (map[string]any, error) {
 	// Make a set of required fields. As fields is processed, mark them off by
 	// deleting them.
 	required := map[string]struct{}{
-		"command":             {},
-		"env":                 {},
-		"plugins":             {},
-		"matrix":              {},
-		"pipeline_invariants": {},
+		"command":        {},
+		"env":            {},
+		"plugins":        {},
+		"matrix":         {},
+		"repository_url": {},
 	}
 
 	out := make(map[string]any, len(fields))
@@ -60,8 +55,8 @@ func (c *CommandStepWithPipelineInvariants) ValuesForFields(fields []string) (ma
 		case "matrix":
 			out["matrix"] = c.Matrix
 
-		case "pipeline_invariants":
-			out["pipeline_invariants"] = c.PipelineInvariants
+		case "repository_url":
+			out["repository_url"] = c.RepositoryURL
 
 		default:
 			// All env:: values come from outside the step.
