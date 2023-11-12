@@ -38,10 +38,6 @@ func (p *Plugin) MarshalJSON() ([]byte, error) {
 // form (no config, only plugin source). Plugin sources are marshalled into "full"
 // form.
 func (p *Plugin) MarshalYAML() (any, error) {
-	if p.Config == nil {
-		return p.FullSource(), nil
-	}
-
 	return map[string]any{
 		p.FullSource(): p.Config,
 	}, nil

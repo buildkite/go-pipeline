@@ -1153,8 +1153,12 @@ func TestParserParsesScalarPlugins(t *testing.T) {
       "command": "script/buildkite/xxx.sh",
       "name": ":s3: xxx",
       "plugins": [
-        "github.com/buildkite-plugins/example-plugin-buildkite-plugin#v1.0.0",
-        "github.com/buildkite-plugins/another-plugin-buildkite-plugin#v0.0.1-beta43",
+        {
+          "github.com/buildkite-plugins/example-plugin-buildkite-plugin#v1.0.0": null
+        },
+        {
+          "github.com/buildkite-plugins/another-plugin-buildkite-plugin#v0.0.1-beta43": null
+        },
         {
           "github.com/buildkite-plugins/docker-compose-buildkite-plugin#v2.5.1": {
             "config": ".buildkite/docker/docker-compose.yml"
