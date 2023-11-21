@@ -59,8 +59,7 @@ func (c *CommandStep) UnmarshalOrdered(src any) error {
 	type wrappedCommand CommandStep
 	// Unmarshal into this secret type, then process special fields specially.
 	fullCommand := new(struct {
-		Command  []string `yaml:"command"`
-		Commands []string `yaml:"commands"`
+		Commands []string `yaml:"commands" aliases:"command"`
 
 		// Use inline trickery to capture the rest of the struct.
 		Rem *wrappedCommand `yaml:",inline"`
@@ -75,8 +74,7 @@ func (c *CommandStep) UnmarshalOrdered(src any) error {
 	// string consistently than it is to pick apart multiple strings
 	// in a consistent way in order to hash all of them
 	// consistently.
-	cmds := append(fullCommand.Command, fullCommand.Commands...)
-	c.Command = strings.Join(cmds, "\n")
+	c.Command = strings.Join(fullCommand.Commands, "\n")
 	return nil
 }
 
@@ -109,7 +107,7 @@ func (c *CommandStep) interpolate(tf stringTransformer) error {
 		if err := interpolateMap(tf, c.Env); err != nil {
 			return err
 		}
-		if c.Matrix, err = interpolateAny(tf, c.Matrix); err != nil {
+		if err := c.Matrix.interpolate(tf); err != nil {
 			return err
 		}
 
