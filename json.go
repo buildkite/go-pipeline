@@ -9,9 +9,21 @@ import (
 	"github.com/oleiade/reflections"
 )
 
-// inlineFriendlyMarshalJSON marshals the given object to JSON, but with special handling given to fields tagged with ",inline".
-// This is needed because yaml.v3 has "inline" but encoding/json has no concept of it.
+// inlineFriendlyMarshalJSON marshals the given object to JSON, but with special
+// handling given to fields tagged with `yaml:",inline"`.
+// This is needed because yaml.v3 has "inline" but encoding/json has no concept
+// of it.
 func inlineFriendlyMarshalJSON(q any) ([]byte, error) {
+	allFields, err := fieldsToMap(q)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(allFields)
+}
+
+// fieldsToMap extracts all fields values into a map, respecting "inline"-tagged
+// fields.
+func fieldsToMap(q any) (map[string]any, error) {
 	fieldNames, err := reflections.Fields(q)
 	if err != nil {
 		return nil, fmt.Errorf("could not get fields of %T: %w", q, err)
@@ -35,11 +47,17 @@ func inlineFriendlyMarshalJSON(q any) ([]byte, error) {
 			if err != nil {
 				return nil, fmt.Errorf("could not get inline fields value of %T.%s: %w", q, fieldName, err)
 			}
-
-			if inf, ok := inlineFieldsValue.(map[string]any); ok {
+			switch inf := inlineFieldsValue.(type) {
+			case map[string]any:
 				inlineFields = inf
-			} else {
-				return nil, fmt.Errorf("inline fields value of %T.%s must be a map[string]any, was %T instead", q, fieldName, inlineFieldsValue)
+
+			default:
+				// maybe we can recurse on the field (maybe it's a struct?)
+				infMap, err := fieldsToMap(inf)
+				if err != nil {
+					return nil, fmt.Errorf("could not convert value of field %T.%s to map[string]any: %w", q, fieldName, err)
+				}
+				inlineFields = infMap
 			}
 
 		default:
@@ -69,7 +87,7 @@ func inlineFriendlyMarshalJSON(q any) ([]byte, error) {
 		allFields[k] = v
 	}
 
-	return json.Marshal(allFields)
+	return allFields, nil
 }
 
 // stolen from encoding/json

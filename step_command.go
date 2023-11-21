@@ -32,9 +32,7 @@ type CommandStep struct {
 	Signature *Signature        `yaml:"signature,omitempty"`
 	Matrix    *Matrix           `yaml:"matrix,omitempty"`
 
-	// RemainingFields stores any other top-level mapping items so they at least
-	// survive an unmarshal-marshal round-trip.
-	RemainingFields map[string]any `yaml:",inline"`
+	BaseStep BaseStep `yaml:",inline"`
 }
 
 // MarshalJSON marshals the step to JSON. Special handling is needed because
@@ -122,11 +120,7 @@ func (c *CommandStep) interpolate(tf stringTransformer) error {
 
 	// NB: Do not interpolate Signature.
 
-	if err := interpolateMap(tf, c.RemainingFields); err != nil {
-		return err
-	}
-
-	return nil
+	return c.BaseStep.interpolate(tf)
 }
 
 func (CommandStep) stepTag() {}

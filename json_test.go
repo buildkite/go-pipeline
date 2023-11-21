@@ -73,7 +73,8 @@ func TestInlineFriendlyMarshalJSON_FailsWhenInlineFieldsIsntAMap(t *testing.T) {
 		t.Fatalf("inlineFriendlyMarshalJSON() == nil, want error")
 	}
 
-	wantError := "inline fields value of pipeline.test.Qux must be a map[string]any, was string instead"
+	// TODO: replace error string test with something more semantic
+	wantError := "could not convert value of field pipeline.test.Qux to map[string]any: could not get fields of string: Cannot use GetField on a non-struct interface"
 	if err.Error() != wantError {
 		t.Errorf("inlineFriendlyMarshalJSON() error = %v, want %v", err, wantError)
 	}

@@ -106,13 +106,15 @@ steps:
 		Steps: Steps{
 			&CommandStep{
 				Command: "docker build .",
-				RemainingFields: map[string]any{
-					"agents": ordered.MapFromItems(
-						ordered.TupleSA{Key: "queue", Value: "default"},
-					),
-					"name":              ":docker: building image",
-					"type":              "script",
-					"agent_query_rules": []any{"queue=default"},
+				BaseStep: BaseStep{
+					RemainingFields: map[string]any{
+						"agents": ordered.MapFromItems(
+							ordered.TupleSA{Key: "queue", Value: "default"},
+						),
+						"name":              ":docker: building image",
+						"type":              "script",
+						"agent_query_rules": []any{"queue=default"},
+					},
 				},
 			},
 		},
@@ -208,13 +210,15 @@ steps:
 		Steps: Steps{
 			&CommandStep{
 				Command: "docker build .",
-				RemainingFields: map[string]any{
-					"agents": ordered.MapFromItems(
-						ordered.TupleSA{Key: "queue", Value: "default"},
-					),
-					"name":              ":docker: building image",
-					"type":              "script",
-					"agent_query_rules": []any{"queue=default"},
+				BaseStep: BaseStep{
+					RemainingFields: map[string]any{
+						"agents": ordered.MapFromItems(
+							ordered.TupleSA{Key: "queue", Value: "default"},
+						),
+						"name":              ":docker: building image",
+						"type":              "script",
+						"agent_query_rules": []any{"queue=default"},
+					},
 				},
 			},
 		},
@@ -588,8 +592,10 @@ func TestParserParsesTopLevelSteps(t *testing.T) {
 		Steps: Steps{
 			&CommandStep{
 				Command: "echo hello world",
-				RemainingFields: map[string]any{
-					"name": "Build",
+				BaseStep: BaseStep{
+					RemainingFields: map[string]any{
+						"name": "Build",
+					},
 				},
 			},
 			&WaitStep{Scalar: "wait"},
@@ -725,8 +731,10 @@ func TestParserPreservesInts(t *testing.T) {
 		Steps: Steps{
 			&CommandStep{
 				Command: "hello",
-				RemainingFields: map[string]any{
-					"parallelism": 10,
+				BaseStep: BaseStep{
+					RemainingFields: map[string]any{
+						"parallelism": 10,
+					},
 				},
 			},
 		},
@@ -935,8 +943,10 @@ steps:
 						},
 					},
 				},
-				RemainingFields: map[string]any{
-					"label": string(":docker: Docker Build"),
+				BaseStep: BaseStep{
+					RemainingFields: map[string]any{
+						"label": string(":docker: Docker Build"),
+					},
 				},
 			},
 		},
@@ -1040,11 +1050,13 @@ steps:
 						},
 					},
 				},
-				RemainingFields: map[string]any{
-					"name": ":s3: xxx",
-					"agents": ordered.MapFromItems(
-						ordered.TupleSA{Key: "queue", Value: "xxx"},
-					),
+				BaseStep: BaseStep{
+					RemainingFields: map[string]any{
+						"name": ":s3: xxx",
+						"agents": ordered.MapFromItems(
+							ordered.TupleSA{Key: "queue", Value: "xxx"},
+						),
+					},
 				},
 			},
 		},
@@ -1133,8 +1145,10 @@ func TestParserParsesScalarPlugins(t *testing.T) {
 						},
 					},
 				},
-				RemainingFields: map[string]any{
-					"name": ":s3: xxx",
+				BaseStep: BaseStep{
+					RemainingFields: map[string]any{
+						"name": ":s3: xxx",
+					},
 				},
 			},
 		},

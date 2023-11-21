@@ -13,12 +13,9 @@ type GroupStep struct {
 	// Group is typically a key with no value. Since it must always exist in
 	// a group step, here it is.
 	Group *string `yaml:"group"`
+	Steps Steps   `yaml:"steps"`
 
-	Steps Steps `yaml:"steps"`
-
-	// RemainingFields stores any other top-level mapping items so they at least
-	// survive an unmarshal-marshal round-trip.
-	RemainingFields map[string]any `yaml:",inline"`
+	BaseStep BaseStep `yaml:",inline"`
 }
 
 // UnmarshalOrdered unmarshals a group step from an ordered map.
@@ -45,7 +42,8 @@ func (g *GroupStep) interpolate(tf stringTransformer) error {
 	if err := g.Steps.interpolate(tf); err != nil {
 		return err
 	}
-	return interpolateMap(tf, g.RemainingFields)
+
+	return g.BaseStep.interpolate(tf)
 }
 
 func (GroupStep) stepTag() {}
