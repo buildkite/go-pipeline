@@ -105,12 +105,12 @@ steps:
 	want := &Pipeline{
 		Steps: Steps{
 			&CommandStep{
+				Label:   ":docker: building image",
 				Command: "docker build .",
 				RemainingFields: map[string]any{
 					"agents": ordered.MapFromItems(
 						ordered.TupleSA{Key: "queue", Value: "default"},
 					),
-					"name":              ":docker: building image",
 					"type":              "script",
 					"agent_query_rules": []any{"queue=default"},
 				},
@@ -148,7 +148,7 @@ steps:
         "queue": "default"
       },
       "command": "docker build .",
-      "name": ":docker: building image",
+      "label": ":docker: building image",
       "type": "script"
     }
   ]
@@ -207,12 +207,12 @@ steps:
 	want := &Pipeline{
 		Steps: Steps{
 			&CommandStep{
+				Label:   ":docker: building image",
 				Command: "docker build .",
 				RemainingFields: map[string]any{
 					"agents": ordered.MapFromItems(
 						ordered.TupleSA{Key: "queue", Value: "default"},
 					),
-					"name":              ":docker: building image",
 					"type":              "script",
 					"agent_query_rules": []any{"queue=default"},
 				},
@@ -256,7 +256,7 @@ steps:
         "queue": "default"
       },
       "command": "docker build .",
-      "name": ":docker: building image",
+      "label": ":docker: building image",
       "type": "script"
     }
   ]
@@ -588,9 +588,7 @@ func TestParserParsesTopLevelSteps(t *testing.T) {
 		Steps: Steps{
 			&CommandStep{
 				Command: "echo hello world",
-				RemainingFields: map[string]any{
-					"name": "Build",
-				},
+				Label:   "Build",
 			},
 			&WaitStep{Scalar: "wait"},
 		},
@@ -607,7 +605,7 @@ func TestParserParsesTopLevelSteps(t *testing.T) {
   "steps": [
     {
       "command": "echo hello world",
-      "name": "Build"
+      "label": "Build"
     },
     "wait"
   ]
@@ -925,6 +923,7 @@ steps:
 		),
 		Steps: Steps{
 			&CommandStep{
+				Label:   ":docker: Docker Build",
 				Command: "echo foo",
 				Plugins: Plugins{
 					{
@@ -934,9 +933,6 @@ steps:
 							"account_ids": "0123456789",
 						},
 					},
-				},
-				RemainingFields: map[string]any{
-					"label": string(":docker: Docker Build"),
 				},
 			},
 		},
@@ -1013,6 +1009,7 @@ steps:
 	want := &Pipeline{
 		Steps: Steps{
 			&CommandStep{
+				Label:   ":s3: xxx",
 				Command: "script/buildkite/xxx.sh",
 				Plugins: Plugins{
 					{
@@ -1041,7 +1038,6 @@ steps:
 					},
 				},
 				RemainingFields: map[string]any{
-					"name": ":s3: xxx",
 					"agents": ordered.MapFromItems(
 						ordered.TupleSA{Key: "queue", Value: "xxx"},
 					),
@@ -1064,7 +1060,7 @@ steps:
         "queue": "xxx"
       },
       "command": "script/buildkite/xxx.sh",
-      "name": ":s3: xxx",
+      "label": ":s3: xxx",
       "plugins": [
         {
           "github.com/xxx/aws-assume-role-buildkite-plugin#v0.1.0": {
@@ -1118,6 +1114,7 @@ func TestParserParsesScalarPlugins(t *testing.T) {
 	want := &Pipeline{
 		Steps: Steps{
 			&CommandStep{
+				Label:   ":s3: xxx",
 				Command: "script/buildkite/xxx.sh",
 				Plugins: Plugins{
 					{
@@ -1132,9 +1129,6 @@ func TestParserParsesScalarPlugins(t *testing.T) {
 							"config": ".buildkite/docker/docker-compose.yml",
 						},
 					},
-				},
-				RemainingFields: map[string]any{
-					"name": ":s3: xxx",
 				},
 			},
 		},
@@ -1151,7 +1145,7 @@ func TestParserParsesScalarPlugins(t *testing.T) {
   "steps": [
     {
       "command": "script/buildkite/xxx.sh",
-      "name": ":s3: xxx",
+      "label": ":s3: xxx",
       "plugins": [
         {
           "github.com/buildkite-plugins/example-plugin-buildkite-plugin#v1.0.0": null
