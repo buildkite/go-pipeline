@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"strings"
+	"os"
+	"path"
 	"testing"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/buildkite/go-pipeline"
 	"github.com/buildkite/go-pipeline/jwkutil"
@@ -53,87 +56,54 @@ func TestSignVerify(t *testing.T) {
 	}
 
 	cases := []struct {
-		name                           string
-		generateSigner                 func(alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error)
-		alg                            jwa.SignatureAlgorithm
-		expectedDeterministicSignature string
+		name              string
+		alg               jwa.SignatureAlgorithm
+		expectedSignature string
 	}{
 		{
-			name: "HMAC-SHA256",
-			generateSigner: func(alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) {
-				return jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", alg)
-			},
-			alg:                            jwa.HS256,
-			expectedDeterministicSignature: "eyJhbGciOiJIUzI1NiIsImtpZCI6ImNoYXJ0cmV1c2UifQ..wv0pNxPt1hMF6nrMMkARaqsW4q1cQeDFL6IUFfIK8X8",
+			name:              "HMAC-SHA512",
+			alg:               jwa.HS512,
+			expectedSignature: "eyJhbGciOiJIUzUxMiIsImtpZCI6IlRFU1RfRE9fTk9UX1VTRSJ9..pRKaRnSABJHwrNHfWPOTRbAUL1GjO4VPvtEJZJMNxG9CKc444G1XnwOxJRZEkTBDKTJagByMl9GT5ijzI7VT-g",
 		},
 		{
-			name: "HMAC-SHA384",
-			generateSigner: func(alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) {
-				return jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", alg)
-			},
-			alg:                            jwa.HS384,
-			expectedDeterministicSignature: "eyJhbGciOiJIUzM4NCIsImtpZCI6ImNoYXJ0cmV1c2UifQ..LJPQY1XPgIUv2d0i3X6EDAuPIOxNH2TGfbIPnyik-uE53okLNP1lD8vMVwOaV6kA",
+			name:              "EdDSA Ed25519",
+			alg:               jwa.EdDSA,
+			expectedSignature: "eyJhbGciOiJFZERTQSIsImtpZCI6IlRFU1RfRE9fTk9UX1VTRSJ9..VvC3kr18HKN8me3NvSJcG6m-Kco54n-088kq8bqF5eNIZVqbtuMhIzw_pp8UltASUvUcEypPnZJ3eYjzOeIVDQ",
 		},
 		{
-			name: "HMAC-SHA512",
-			generateSigner: func(alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) {
-				return jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", alg)
-			},
-			alg:                            jwa.HS512,
-			expectedDeterministicSignature: "eyJhbGciOiJIUzUxMiIsImtpZCI6ImNoYXJ0cmV1c2UifQ..2diyL2yxtoQuReUiSCunAFL6hpmPYeBv91B96huGqPZ4gqfDDMEO1iL2tk57x3BFXqPgoaSgDGsf19COYnwarA",
+			name: "RSA-PSS 512",
+			alg:  jwa.PS512,
 		},
 		{
-			name:           "RSA-PSS 256",
-			generateSigner: func(alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) { return jwkutil.NewKeyPair(keyID, alg) },
-			alg:            jwa.PS256,
-		},
-		{
-			name:           "RSA-PSS 384",
-			generateSigner: func(alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) { return jwkutil.NewKeyPair(keyID, alg) },
-			alg:            jwa.PS384,
-		},
-		{
-			name:           "RSA-PSS 512",
-			generateSigner: func(alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) { return jwkutil.NewKeyPair(keyID, alg) },
-			alg:            jwa.PS512,
-		},
-		{
-			name:           "ECDSA P-256",
-			generateSigner: func(alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) { return jwkutil.NewKeyPair(keyID, alg) },
-			alg:            jwa.ES256,
-		},
-		{
-			name:           "ECDSA P-384",
-			generateSigner: func(alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) { return jwkutil.NewKeyPair(keyID, alg) },
-			alg:            jwa.ES384,
-		},
-		{
-			name:           "ECDSA P-512",
-			generateSigner: func(alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) { return jwkutil.NewKeyPair(keyID, alg) },
-			alg:            jwa.ES512,
-		},
-		{
-			name:           "EdDSA Ed25519",
-			generateSigner: func(alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) { return jwkutil.NewKeyPair(keyID, alg) },
-			alg:            jwa.EdDSA,
+			name: "ECDSA P-512",
+			alg:  jwa.ES512,
 		},
 	}
 
+	keyName := "TEST_DO_NOT_USE"
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			signer, verifier, err := tc.generateSigner(tc.alg)
+
+			wd, err := os.Getwd()
 			if err != nil {
-				t.Fatalf("generateSigner(%v) error = %v", tc.alg, err)
+				t.Fatalf("os.Getwd() error = %v", err)
 			}
 
-			key, ok := signer.Key(0)
-			if !ok {
-				t.Fatalf("signer.Key(0) = _, false, want true")
+			// We load the key from disk so that we can have deterministic signatures - key generation is non-deterministic,
+			// but signature itself is deterministic across keys for HS512 and EdDSA.
+			keyPath := path.Join(wd, "fixtures", "keys", tc.alg.String())
+
+			pubPath := path.Join(keyPath, fmt.Sprintf("%s-public.json", keyName))
+			privPath := path.Join(keyPath, fmt.Sprintf("%s-private.json", keyName))
+
+			sKey, err := jwkutil.LoadKey(privPath, keyName)
+			if err != nil {
+				t.Fatalf("jwkutil.LoadKey(%v, %v) error = %v", privPath, keyName, err)
 			}
 
-			sig, err := Sign(key, signEnv, stepWithInvariants)
+			sig, err := Sign(sKey, signEnv, stepWithInvariants)
 			if err != nil {
 				t.Fatalf("Sign(CommandStep, signer) error = %v", err)
 			}
@@ -142,13 +112,21 @@ func TestSignVerify(t *testing.T) {
 				t.Errorf("Signature.Algorithm = %v, want %v", sig.Algorithm, tc.alg)
 			}
 
-			if strings.HasPrefix(tc.alg.String(), "HS") {
-				// Of all of the RFC7518 and RFC8037 JWA signing algorithms, only HMAC-SHA* (HS***) are deterministic
-				// This means for all other algorithms, the signature value will be different each time, so we can't test
-				// against it. We still verify that we can verify the signature, though.
-				if sig.Value != tc.expectedDeterministicSignature {
-					t.Errorf("Signature.Value = %v, want %v", sig.Value, tc.expectedDeterministicSignature)
+			if slices.Contains([]jwa.SignatureAlgorithm{jwa.EdDSA, jwa.HS512}, tc.alg) {
+				// These algorithms are deterministic across keys, so we can check the signature value
+				if sig.Value != tc.expectedSignature {
+					t.Errorf("Signature.Value = %v, want %v", sig.Value, tc.expectedSignature)
 				}
+			}
+
+			vKey, err := jwkutil.LoadKey(pubPath, keyName)
+			if err != nil {
+				t.Fatalf("jwkutil.LoadKey(%v, %v) error = %v", pubPath, keyName, err)
+			}
+
+			verifier := jwk.NewSet()
+			if err := verifier.AddKey(vKey); err != nil {
+				t.Fatalf("verifier.AddKey(%v) error = %v", vKey, err)
 			}
 
 			if err := Verify(sig, verifier, verifyEnv, stepWithInvariants); err != nil {
@@ -429,7 +407,7 @@ func TestSignatureStability(t *testing.T) {
 		pluginSubCfg[fmt.Sprintf("key%08x", rand.Uint32())] = fmt.Sprintf("value%08x", rand.Uint32())
 	}
 
-	signer, verifier, err := jwkutil.NewKeyPair(keyID, jwa.ES256)
+	signer, verifier, err := jwkutil.NewKeyPair(keyID, jwa.ES512)
 	if err != nil {
 		t.Fatalf("NewKeyPair error = %v", err)
 	}
