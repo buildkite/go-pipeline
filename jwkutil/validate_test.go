@@ -10,7 +10,7 @@ import (
 func TestValidateJWKDisallows(t *testing.T) {
 	t.Parallel()
 
-	globallyDisallowed := concat([]jwa.SignatureAlgorithm{"", "none", "foo", "bar", "baz"}, InvalidAlgorithms)
+	globallyDisallowed := concat([]jwa.SignatureAlgorithm{"", "none", "foo", "bar", "baz"}, UnsupportedAlgorithms)
 
 	cases := []struct {
 		name           string

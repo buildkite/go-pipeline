@@ -26,7 +26,7 @@ var (
 		jwa.OKP: {jwa.EdDSA},
 	}
 
-	InvalidAlgorithms = []jwa.SignatureAlgorithm{
+	UnsupportedAlgorithms = []jwa.SignatureAlgorithm{
 		jwa.HS256, jwa.HS384, jwa.HS512, // We don't support HMAC-SHA (HS*) because we don't like symmetric signature algorithms for the job signing use case
 		jwa.RS256, jwa.RS384, jwa.RS512, // We don't support RSA-PKCS1v1.5 (RS*) because it's arguably less secure than RSA-PSS
 	}
