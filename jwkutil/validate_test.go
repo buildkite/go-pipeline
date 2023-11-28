@@ -19,11 +19,12 @@ func TestValidateJWKDisallows(t *testing.T) {
 		disallowedAlgs []jwa.SignatureAlgorithm
 	}{
 		{
-			name:        "RSA only allows PS256, PS384, PS512",
+			name:        "RSA only allows PS512",
 			key:         newRSAJWK(t),
 			allowedAlgs: ValidRSAAlgorithms,
 			disallowedAlgs: concat(
 				[]jwa.SignatureAlgorithm{jwa.RS256, jwa.RS384, jwa.RS512}, // Specific to RSA, these are possible but we choose not to support them
+				[]jwa.SignatureAlgorithm{jwa.PS256, jwa.PS384},            // We only allow 512 bit keys
 				globallyDisallowed,
 				ValidECAlgorithms,
 				ValidOKPAlgorithms,
@@ -31,10 +32,11 @@ func TestValidateJWKDisallows(t *testing.T) {
 			),
 		},
 		{
-			name:        "EC only allows ES256, ES384, ES512",
+			name:        "EC only allows ES512",
 			key:         newECJWK(t),
 			allowedAlgs: ValidECAlgorithms,
 			disallowedAlgs: concat(
+				[]jwa.SignatureAlgorithm{jwa.ES256, jwa.ES384}, // We only allow 512 bit keys
 				globallyDisallowed,
 				ValidRSAAlgorithms,
 				ValidOKPAlgorithms,
@@ -57,6 +59,7 @@ func TestValidateJWKDisallows(t *testing.T) {
 			key:         newOctetSeqJWK(t),
 			allowedAlgs: ValidOctetAlgorithms,
 			disallowedAlgs: concat(
+				[]jwa.SignatureAlgorithm{jwa.HS256, jwa.HS384}, // We only allow 512 bit keys
 				globallyDisallowed,
 				ValidRSAAlgorithms,
 				ValidECAlgorithms,
