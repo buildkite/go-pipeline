@@ -6,9 +6,8 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"slices"
 	"testing"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/buildkite/go-pipeline"
 	"github.com/buildkite/go-pipeline/jwkutil"
