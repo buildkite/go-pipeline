@@ -18,7 +18,7 @@ const symmetricKeyLength = 2048
 // `keyID`. The returned key sets contain the public and private keys and an error in that order.
 func NewKeyPair(keyID string, alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) {
 	switch alg {
-	case jwa.HS256, jwa.HS384, jwa.HS512:
+	case jwa.HS512:
 		key := make([]byte, symmetricKeyLength)
 		_, err := rand.Read(key)
 		if err != nil {
@@ -27,24 +27,10 @@ func NewKeyPair(keyID string, alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, err
 
 		return newSymmetricKeyPair(keyID, key, alg)
 
-	case jwa.ES256, jwa.ES384, jwa.ES512:
-		// There's a helper function for this in jwx, jws.CurveForAlgorithm, but it requires a bunch of type asserting back and forth
-		// Not really worth the trouble for a single switch statement
-		var crv elliptic.Curve
-		switch alg {
-		case jwa.ES256:
-			crv = elliptic.P256()
-		case jwa.ES384:
-			crv = elliptic.P384()
-		case jwa.ES512:
-			crv = elliptic.P521()
-		default:
-			panic("unreachable")
-		}
+	case jwa.ES512:
+		return newECKeyPair(keyID, alg, elliptic.P521())
 
-		return newECKeyPair(keyID, alg, crv)
-
-	case jwa.PS256, jwa.PS384, jwa.PS512:
+	case jwa.PS512:
 		return newRSAKeyPair(keyID, alg)
 
 	case jwa.EdDSA:

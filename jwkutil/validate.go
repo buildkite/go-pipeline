@@ -11,9 +11,9 @@ import (
 )
 
 var (
-	ValidRSAAlgorithms   = []jwa.SignatureAlgorithm{jwa.PS256, jwa.PS384, jwa.PS512}
-	ValidECAlgorithms    = []jwa.SignatureAlgorithm{jwa.ES256, jwa.ES384, jwa.ES512}
-	ValidOctetAlgorithms = []jwa.SignatureAlgorithm{jwa.HS256, jwa.HS384, jwa.HS512}
+	ValidRSAAlgorithms   = []jwa.SignatureAlgorithm{jwa.PS512}
+	ValidECAlgorithms    = []jwa.SignatureAlgorithm{jwa.ES512}
+	ValidOctetAlgorithms = []jwa.SignatureAlgorithm{jwa.HS512}
 	ValidOKPAlgorithms   = []jwa.SignatureAlgorithm{jwa.EdDSA}
 
 	ValidSigningAlgorithms = concat(
@@ -22,6 +22,14 @@ var (
 		ValidECAlgorithms,
 		ValidOKPAlgorithms,
 	)
+
+	ValidAlgsForKeyType = map[jwa.KeyType][]jwa.SignatureAlgorithm{
+		// We don't suppport RSA-PKCS1v1.5 because it's arguably less secure than RSA-PSS
+		jwa.RSA:      {jwa.PS512},
+		jwa.EC:       {jwa.ES512},
+		jwa.OctetSeq: {jwa.HS512},
+		jwa.OKP:      {jwa.EdDSA},
+	}
 )
 
 var (
@@ -59,21 +67,13 @@ func Validate(key jwk.Key) error {
 		return fmt.Errorf("%w: %q", ErrInvalidSigningAlgorithm, key.Algorithm())
 	}
 
-	validAlgsForType := map[jwa.KeyType][]jwa.SignatureAlgorithm{
-		// We don't suppport RSA-PKCS1v1.5 because it's arguably less secure than RSA-PSS
-		jwa.RSA:      {jwa.PS256, jwa.PS384, jwa.PS512},
-		jwa.EC:       {jwa.ES256, jwa.ES384, jwa.ES512},
-		jwa.OctetSeq: {jwa.HS256, jwa.HS384, jwa.HS512},
-		jwa.OKP:      {jwa.EdDSA},
-	}
-
-	if !slices.Contains(validAlgsForType[key.KeyType()], signingAlg) {
+	if !slices.Contains(ValidAlgsForKeyType[key.KeyType()], signingAlg) {
 		return fmt.Errorf(
 			"%w: alg: %q, key type: %q. Expected alg to be one of %q",
 			ErrUnsupportedAlgForKeyType,
 			signingAlg,
 			key.KeyType(),
-			validAlgsForType[key.KeyType()],
+			ValidAlgsForKeyType[key.KeyType()],
 		)
 	}
 
