@@ -60,11 +60,6 @@ func TestSignVerify(t *testing.T) {
 		expectedSignature string
 	}{
 		{
-			name:              "HMAC-SHA512",
-			alg:               jwa.HS512,
-			expectedSignature: "eyJhbGciOiJIUzUxMiIsImtpZCI6IlRFU1RfRE9fTk9UX1VTRSJ9..pRKaRnSABJHwrNHfWPOTRbAUL1GjO4VPvtEJZJMNxG9CKc444G1XnwOxJRZEkTBDKTJagByMl9GT5ijzI7VT-g",
-		},
-		{
 			name:              "EdDSA Ed25519",
 			alg:               jwa.EdDSA,
 			expectedSignature: "eyJhbGciOiJFZERTQSIsImtpZCI6IlRFU1RfRE9fTk9UX1VTRSJ9..VvC3kr18HKN8me3NvSJcG6m-Kco54n-088kq8bqF5eNIZVqbtuMhIzw_pp8UltASUvUcEypPnZJ3eYjzOeIVDQ",

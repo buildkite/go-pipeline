@@ -10,7 +10,7 @@ import (
 func TestValidateJWKDisallows(t *testing.T) {
 	t.Parallel()
 
-	globallyDisallowed := []jwa.SignatureAlgorithm{"", "none", "foo", "bar", "baz"}
+	globallyDisallowed := concat([]jwa.SignatureAlgorithm{"", "none", "foo", "bar", "baz"}, UnsupportedAlgorithms)
 
 	cases := []struct {
 		name           string
@@ -28,7 +28,6 @@ func TestValidateJWKDisallows(t *testing.T) {
 				globallyDisallowed,
 				ValidECAlgorithms,
 				ValidOKPAlgorithms,
-				ValidOctetAlgorithms,
 			),
 		},
 		{
@@ -40,7 +39,6 @@ func TestValidateJWKDisallows(t *testing.T) {
 				globallyDisallowed,
 				ValidRSAAlgorithms,
 				ValidOKPAlgorithms,
-				ValidOctetAlgorithms,
 			),
 		},
 		{
@@ -51,19 +49,6 @@ func TestValidateJWKDisallows(t *testing.T) {
 				globallyDisallowed,
 				ValidRSAAlgorithms,
 				ValidECAlgorithms,
-				ValidOctetAlgorithms,
-			),
-		},
-		{
-			name:        "Octet only allows HS256, HS384, HS512",
-			key:         newOctetSeqJWK(t),
-			allowedAlgs: ValidOctetAlgorithms,
-			disallowedAlgs: concat(
-				[]jwa.SignatureAlgorithm{jwa.HS256, jwa.HS384}, // We only allow 512 bit keys
-				globallyDisallowed,
-				ValidRSAAlgorithms,
-				ValidECAlgorithms,
-				ValidOKPAlgorithms,
 			),
 		},
 	}
