@@ -81,6 +81,7 @@ type ordinaryStruct struct {
 	Count    int
 	Fader    float64
 	Slicey   []int
+	Alias    string `aliases:"synonym,alternate"`
 	hidden   string
 
 	Next  *ordinaryStruct
@@ -426,6 +427,7 @@ func TestUnmarshal(t *testing.T) {
 				TupleSA{Key: "count", Value: 42},
 				TupleSA{Key: "fader", Value: 2.71828},
 				TupleSA{Key: "slicey", Value: []any{5, 6, 7, 8}},
+				TupleSA{Key: "synonym", Value: "alias"},
 			),
 			dst: &ordinaryStruct{},
 			want: &ordinaryStruct{
@@ -435,6 +437,7 @@ func TestUnmarshal(t *testing.T) {
 				Count:    42,
 				Fader:    2.71828,
 				Slicey:   []int{5, 6, 7, 8},
+				Alias:    "alias",
 			},
 		},
 		{
@@ -448,6 +451,7 @@ func TestUnmarshal(t *testing.T) {
 				TupleSA{Key: "count", Value: 42},
 				TupleSA{Key: "fader", Value: 2.71828},
 				TupleSA{Key: "slicey", Value: []any{5, 6, 7, 8}},
+				TupleSA{Key: "alias", Value: "alias"},
 				TupleSA{Key: "notAField", Value: "super important"},
 			),
 			dst: &ordinaryStruct{},
@@ -458,6 +462,7 @@ func TestUnmarshal(t *testing.T) {
 				Count:    42,
 				Fader:    2.71828,
 				Slicey:   []int{5, 6, 7, 8},
+				Alias:    "alias",
 				Remaining: map[string]any{
 					"ignore":    "YOU CANNOT DO THIS!!!",
 					"mountain":  "actually we call them molehills here",
@@ -475,6 +480,7 @@ func TestUnmarshal(t *testing.T) {
 				TupleSA{Key: "count", Value: nil},
 				TupleSA{Key: "fader", Value: 2.71828},
 				TupleSA{Key: "slicey", Value: []any{5, 6, 7, 8}},
+				TupleSA{Key: "alternate", Value: "Agent Vaughn"},
 				TupleSA{Key: "hidden", Value: "no"},
 				TupleSA{Key: "notAField", Value: "super important"},
 			),
@@ -486,6 +492,7 @@ func TestUnmarshal(t *testing.T) {
 				Count:    69,
 				Fader:    3.14159,
 				Slicey:   []int{1, 2, 3, 4},
+				Alias:    "Sydney Bristow",
 				hidden:   "yes",
 				Remaining: map[string]any{
 					"existing": "wombat",
@@ -499,6 +506,7 @@ func TestUnmarshal(t *testing.T) {
 				Count:    0, // nil becomes a SetZero call
 				Fader:    2.71828,
 				Slicey:   []int{1, 2, 3, 4, 5, 6, 7, 8},
+				Alias:    "Agent Vaughn",
 				hidden:   "yes",
 				Remaining: map[string]any{
 					"existing":  "wombat",
@@ -518,6 +526,7 @@ func TestUnmarshal(t *testing.T) {
 				TupleSA{Key: "fader", Value: 2.71828},
 				TupleSA{Key: "notAField", Value: "super important"},
 				TupleSA{Key: "slicey", Value: []any{5, 6, 7, 8}},
+				TupleSA{Key: "alias", Value: "JJ Abrams"},
 				TupleSA{Key: "inner", Value: MapFromItems(
 					TupleSA{Key: "llama", Value: "Kuzco"},
 				)},
@@ -537,6 +546,7 @@ func TestUnmarshal(t *testing.T) {
 				Count:    42,
 				Fader:    2.71828,
 				Slicey:   []int{5, 6, 7, 8},
+				Alias:    "JJ Abrams",
 				Inner:    struct{ Llama string }{"Kuzco"},
 				Next: &ordinaryStruct{
 					Key:      "another value",
