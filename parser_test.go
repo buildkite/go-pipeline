@@ -49,6 +49,96 @@ func TestParserParsesYAML(t *testing.T) {
 	}
 }
 
+func TestParserParsesYAMLWithInterpolationInName(t *testing.T) {
+	env := map[string]string{"ENV_VAR_FRIEND": "friend"}
+	input := strings.NewReader(`
+steps:
+- name: hello-${ENV_VAR_FRIEND}
+  command: echo hello world
+`)
+	got, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse(input) error = %v", err)
+	}
+	if err := got.Interpolate(env); err != nil {
+		t.Fatalf("p.Interpolate(%v) error = %v", env, err)
+	}
+
+	want := &Pipeline{
+		Steps: Steps{
+			&CommandStep{
+				Label:   "hello-friend",
+				Command: "echo hello world",
+			},
+		},
+	}
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Errorf("parsed pipeline diff (-got, +want):\n%s", diff)
+	}
+
+	gotJSON, err := json.MarshalIndent(got, "", "  ")
+	if err != nil {
+		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+	}
+
+	const wantJSON = `{
+  "steps": [
+    {
+      "command": "echo hello world",
+      "label": "hello-friend"
+    }
+  ]
+}`
+	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
+		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestParserParsesYAMLWithInterpolationInKey(t *testing.T) {
+	env := map[string]string{"ENV_VAR_FRIEND": "friend"}
+	input := strings.NewReader(`
+steps:
+- key: hello-${ENV_VAR_FRIEND}
+  command: echo hello world
+`)
+	got, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse(input) error = %v", err)
+	}
+	if err := got.Interpolate(env); err != nil {
+		t.Fatalf("p.Interpolate(%v) error = %v", env, err)
+	}
+
+	want := &Pipeline{
+		Steps: Steps{
+			&CommandStep{
+				Key:     "hello-friend",
+				Command: "echo hello world",
+			},
+		},
+	}
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Errorf("parsed pipeline diff (-got, +want):\n%s", diff)
+	}
+
+	gotJSON, err := json.MarshalIndent(got, "", "  ")
+	if err != nil {
+		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+	}
+
+	const wantJSON = `{
+  "steps": [
+    {
+      "command": "echo hello world",
+      "key": "hello-friend"
+    }
+  ]
+}`
+	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
+		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+}
+
 func TestParserParsesYAMLWithNoInterpolation(t *testing.T) {
 	input := strings.NewReader("steps:\n  - command: \"hello ${ENV_VAR_FRIEND}\"")
 	got, err := Parse(input)
@@ -375,6 +465,9 @@ steps:
       - block: goodbye
   - group:
     steps: null
+  - group: Group ${ENV_VAR_FRIEND}
+    id: group-${ENV_VAR_FRIEND}
+    steps: []
 `)
 	got, err := Parse(input)
 	if err != nil {
@@ -395,6 +488,11 @@ steps:
 				},
 			},
 			&GroupStep{
+				Steps: Steps{},
+			},
+			&GroupStep{
+				Key:   "group-friend",
+				Group: ptr("Group friend"),
 				Steps: Steps{},
 			},
 		},
@@ -424,6 +522,11 @@ steps:
     },
     {
       "group": null,
+      "steps": []
+    },
+    {
+      "group": "Group friend",
+      "key": "group-friend",
       "steps": []
     }
   ]
@@ -831,7 +934,7 @@ func TestParserHandlesDates(t *testing.T) {
 
 	llamatime, err := time.Parse(time.RFC3339, timestamp)
 	if err != nil {
-		t.Fatalf("time.Parse(time.RFC3339, %q) errorr = %v", timestamp, err)
+		t.Fatalf("time.Parse(time.RFC3339, %q) error = %v", timestamp, err)
 	}
 	want := &Pipeline{
 		Steps: Steps{
