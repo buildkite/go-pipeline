@@ -465,6 +465,9 @@ steps:
       - block: goodbye
   - group:
     steps: null
+  - group: Group ${ENV_VAR_FRIEND}
+    id: group-${ENV_VAR_FRIEND}
+    steps: []
 `)
 	got, err := Parse(input)
 	if err != nil {
@@ -485,6 +488,11 @@ steps:
 				},
 			},
 			&GroupStep{
+				Steps: Steps{},
+			},
+			&GroupStep{
+				Key:   "group-friend",
+				Group: ptr("Group friend"),
 				Steps: Steps{},
 			},
 		},
@@ -514,6 +522,11 @@ steps:
     },
     {
       "group": null,
+      "steps": []
+    },
+    {
+      "group": "Group friend",
+      "key": "group-friend",
       "steps": []
     }
   ]
