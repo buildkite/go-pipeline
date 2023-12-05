@@ -113,7 +113,7 @@ func TestStepCommandMatrixInterpolate(t *testing.T) {
 			},
 		},
 		{
-			name: "it interplates environment variable values",
+			name: "it interpolates environment variable values",
 			ms: MatrixPermutation{
 				"name":  "Taylor Launtner",
 				"value": "true",

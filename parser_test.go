@@ -831,7 +831,7 @@ func TestParserHandlesDates(t *testing.T) {
 
 	llamatime, err := time.Parse(time.RFC3339, timestamp)
 	if err != nil {
-		t.Fatalf("time.Parse(time.RFC3339, %q) errorr = %v", timestamp, err)
+		t.Fatalf("time.Parse(time.RFC3339, %q) error = %v", timestamp, err)
 	}
 	want := &Pipeline{
 		Steps: Steps{
