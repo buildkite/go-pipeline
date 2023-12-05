@@ -102,6 +102,9 @@ func (c *CommandStep) interpolate(tf stringTransformer) error {
 	if err := interpolateString(tf, &c.Command); err != nil {
 		return fmt.Errorf("interpolating command: %w", err)
 	}
+	if err := interpolateString(tf, &c.Label); err != nil {
+		return fmt.Errorf("interpolating label: %w", err)
+	}
 	if err := interpolateSlice(tf, c.Plugins); err != nil {
 		return fmt.Errorf("interpolating plugins: %w", err)
 	}
