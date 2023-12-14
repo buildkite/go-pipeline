@@ -248,6 +248,81 @@ steps:
 	}
 }
 
+func TestParserSupportsYAMLAliasesAsKeys(t *testing.T) {
+	const complexYAML = `---
+common_params:
+  # Common versioned attributes
+  - &docker_version "docker#v5.8.0"
+  - &ruby_image "public.ecr.aws/docker/library/ruby:3.2.2"
+
+steps:
+  - label: "Do the thing"
+    command: "whoami"
+    plugins:
+      - *docker_version :
+          image: *ruby_image`
+
+	input := strings.NewReader(complexYAML)
+	got, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse(input) error = %v", err)
+	}
+
+	want := &Pipeline{
+		Steps: Steps{
+			&CommandStep{
+				Label:   "Do the thing",
+				Command: "whoami",
+				Plugins: Plugins{
+					{
+						Source: "docker#v5.8.0",
+						Config: map[string]any{
+							"image": "public.ecr.aws/docker/library/ruby:3.2.2",
+						},
+					},
+				},
+			},
+		},
+		RemainingFields: map[string]any{
+			"common_params": []any{
+				"docker#v5.8.0",
+				"public.ecr.aws/docker/library/ruby:3.2.2",
+			},
+		},
+	}
+	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
+	}
+
+	gotJSON, err := json.MarshalIndent(got, "", "  ")
+	if err != nil {
+		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+	}
+
+	const wantJSON = `{
+  "common_params": [
+    "docker#v5.8.0",
+    "public.ecr.aws/docker/library/ruby:3.2.2"
+  ],
+  "steps": [
+    {
+      "command": "whoami",
+      "label": "Do the thing",
+      "plugins": [
+        {
+          "github.com/buildkite-plugins/docker-buildkite-plugin#v5.8.0": {
+            "image": "public.ecr.aws/docker/library/ruby:3.2.2"
+          }
+        }
+      ]
+    }
+  ]
+}`
+	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
+		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+}
+
 func TestParserSupportsDoubleMerge(t *testing.T) {
 	t.Parallel()
 
