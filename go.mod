@@ -16,6 +16,7 @@ require (
 	github.com/lestrrat-go/jwx/v2 v2.0.19
 	github.com/oleiade/reflections v1.0.1
 	gopkg.in/yaml.v3 v3.0.1
+	gotest.tools/v3 v3.5.1
 )
 
 require (
