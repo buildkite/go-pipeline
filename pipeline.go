@@ -84,10 +84,13 @@ func (p *Pipeline) Interpolate(runtimeEnv *env.Env) error {
 }
 
 // interpolateEnvBlock runs interpolate.Interpolate on each pair in p.Env,
-// interpolating with the variables defined in env, and then adding the
-// results back into both p.Env and env. Each environment variable can
-// be interpolated into later environment variables, making the input ordering
-// of p.Env potentially important.
+// interpolating with the variables defined in runtimeEnv, and then adding the
+// results back into p.Env. Since each environment variable in p.Env can
+// be interpolated into later environment variables, we also add the results
+// to runtimeEnv, but only if runtimeEnv does not already contain that variable
+// as runtimeEnv has precedence over p.Env. For clarification, this means that
+// if a variable name is interpolated to collide with a variable in the
+// runtimeEnv, the runtimeEnv will take precedence.
 func (p *Pipeline) interpolateEnvBlock(runtimeEnv *env.Env) error {
 	return p.Env.Range(func(k, v string) error {
 		// We interpolate both keys and values.
@@ -104,9 +107,12 @@ func (p *Pipeline) interpolateEnvBlock(runtimeEnv *env.Env) error {
 
 		p.Env.Replace(k, intk, intv)
 
-		// Bonus part for the env block!
-		// Add the results back into env.
-		runtimeEnv.Set(intk, intv)
+		// put it into the runtimeEnv for interpolation on a later iteration, but only if it is not
+		// already there already, as runtimeEnv has precedence over p.Env
+		if _, exists := runtimeEnv.Get(intk); !exists {
+			runtimeEnv.Set(intk, intv)
+		}
+
 		return nil
 	})
 }
