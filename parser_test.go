@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buildkite/go-pipeline/env"
+	"github.com/buildkite/go-pipeline/internal/env"
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/google/go-cmp/cmp"
 )

@@ -3,7 +3,7 @@ package env_test
 import (
 	"testing"
 
-	"github.com/buildkite/go-pipeline/env"
+	"github.com/buildkite/go-pipeline/internal/env"
 )
 
 func TestEnvCaseSensitive(t *testing.T) {

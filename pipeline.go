@@ -3,7 +3,7 @@ package pipeline
 import (
 	"fmt"
 
-	"github.com/buildkite/go-pipeline/env"
+	"github.com/buildkite/go-pipeline/internal/env"
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/buildkite/interpolate"
 )
