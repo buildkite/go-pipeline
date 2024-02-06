@@ -3,6 +3,7 @@ package pipeline
 import (
 	"testing"
 
+	"github.com/buildkite/go-pipeline/env"
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/google/go-cmp/cmp"
 	"gotest.tools/v3/assert"
@@ -161,7 +162,7 @@ func TestInterpolator(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tc.input.Interpolate(tc.runtimeEnv)
+			err := tc.input.Interpolate(env.FromMap(tc.runtimeEnv, tc.caseSensitive))
 			assert.NilError(t, err)
 			assert.DeepEqual(
 				t,

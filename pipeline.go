@@ -3,6 +3,7 @@ package pipeline
 import (
 	"fmt"
 
+	"github.com/buildkite/go-pipeline/env"
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/buildkite/interpolate"
 )
@@ -55,37 +56,30 @@ func (p *Pipeline) UnmarshalOrdered(o any) error {
 	return nil
 }
 
-// needed to plug a reggo map into a interpolate.Env
-type mapGetter map[string]string
-
-func (m mapGetter) Get(key string) (string, bool) {
-	v, ok := m[key]
-	return v, ok
-}
-
 // Interpolate interpolates variables defined in both env and p.Env into the
 // pipeline.
 // More specifically, it does these things:
 //   - Interpolate pipeline.Env and copy the results into env to apply later.
 //   - Interpolate any string value in the rest of the pipeline.
-func (p *Pipeline) Interpolate(env map[string]string) error {
-	if env == nil {
-		env = map[string]string{}
+func (p *Pipeline) Interpolate(runtimeEnv *env.Env) error {
+	if runtimeEnv == nil {
+		runtimeEnv = env.NewForOS()
 	}
 
 	// Preprocess any env that are defined in the top level block and place them
 	// into env for later interpolation into the rest of the pipeline.
-	if err := p.interpolateEnvBlock(env); err != nil {
+	if err := p.interpolateEnvBlock(runtimeEnv); err != nil {
 		return err
 	}
 
-	tf := envInterpolator{env: mapGetter(env)}
+	tf := envInterpolator{env: runtimeEnv}
 
 	// Recursively go through the rest of the pipeline and perform environment
 	// variable interpolation on strings. Interpolation is performed in-place.
 	if err := interpolateSlice(tf, p.Steps); err != nil {
 		return err
 	}
+
 	return interpolateMap(tf, p.RemainingFields)
 }
 
@@ -94,16 +88,16 @@ func (p *Pipeline) Interpolate(env map[string]string) error {
 // results back into both p.Env and env. Each environment variable can
 // be interpolated into later environment variables, making the input ordering
 // of p.Env potentially important.
-func (p *Pipeline) interpolateEnvBlock(env map[string]string) error {
+func (p *Pipeline) interpolateEnvBlock(runtimeEnv *env.Env) error {
 	return p.Env.Range(func(k, v string) error {
 		// We interpolate both keys and values.
-		intk, err := interpolate.Interpolate(mapGetter(env), k)
+		intk, err := interpolate.Interpolate(runtimeEnv, k)
 		if err != nil {
 			return err
 		}
 
 		// v is always a string in this case.
-		intv, err := interpolate.Interpolate(mapGetter(env), v)
+		intv, err := interpolate.Interpolate(runtimeEnv, v)
 		if err != nil {
 			return err
 		}
@@ -112,7 +106,7 @@ func (p *Pipeline) interpolateEnvBlock(env map[string]string) error {
 
 		// Bonus part for the env block!
 		// Add the results back into env.
-		env[intk] = intv
+		runtimeEnv.Set(intk, intv)
 		return nil
 	})
 }
