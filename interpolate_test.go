@@ -157,6 +157,56 @@ func TestInterpolator(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:          "pre_interpolation_collision",
+			caseSensitive: true,
+			runtimeEnv:    map[string]string{"FOO_BAR": "runtime_baz"},
+			input: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "FOO_BAR", Value: "pipeline_baz"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Command: "echo ${FOO_BAR}",
+					},
+				},
+			},
+			expected: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "FOO_BAR", Value: "pipeline_baz"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Command: "echo runtime_baz",
+					},
+				},
+			},
+		},
+		{
+			name:          "post_interpolation_collision",
+			caseSensitive: true,
+			runtimeEnv:    map[string]string{"FOO_BAR": "runtime_baz", "SECOND": "BAR"},
+			input: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "FOO_${SECOND}", Value: "pipeline_baz"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Command: "echo ${FOO_BAR}",
+					},
+				},
+			},
+			expected: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "FOO_BAR", Value: "pipeline_baz"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Command: "echo runtime_baz",
+					},
+				},
+			},
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
