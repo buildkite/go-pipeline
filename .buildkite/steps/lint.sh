@@ -2,7 +2,7 @@
 
 set -Eeufo pipefail
 
-echo --- :go: Checking go mod tidyness
+echo --- :go: Checking go mod tidiness
 go mod tidy
 if ! git diff --no-ext-diff --exit-code; then
   echo ^^^ +++
