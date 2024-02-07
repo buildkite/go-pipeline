@@ -1,4 +1,4 @@
-// package env contains data structures and methods to assist with manageing environment variables.
+// Package env contains data structures and methods to assist with managing environment variables.
 package env
 
 import (
