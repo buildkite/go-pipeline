@@ -63,7 +63,7 @@ func (p *Pipeline) UnmarshalOrdered(o any) error {
 //   - Interpolate any string value in the rest of the pipeline.
 func (p *Pipeline) Interpolate(runtimeEnv *env.Env) error {
 	if runtimeEnv == nil {
-		runtimeEnv = env.NewForOS()
+		runtimeEnv = env.New(env.CaseSensitivityFromOS())
 	}
 
 	// Preprocess any env that are defined in the top level block and place them

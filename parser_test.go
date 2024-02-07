@@ -14,7 +14,10 @@ import (
 func ptr[T any](x T) *T { return &x }
 
 func TestParserParsesYAML(t *testing.T) {
-	runtimeEnv := env.FromMapForOS(map[string]string{"ENV_VAR_FRIEND": "friend"})
+	runtimeEnv := env.New(
+		env.CaseSensitivityFromOS(),
+		env.FromMap(map[string]string{"ENV_VAR_FRIEND": "friend"}),
+	)
 	input := strings.NewReader("steps:\n  - command: \"hello ${ENV_VAR_FRIEND}\"")
 	got, err := Parse(input)
 	if err != nil {
@@ -51,7 +54,10 @@ func TestParserParsesYAML(t *testing.T) {
 }
 
 func TestParserParsesYAMLWithInterpolationInName(t *testing.T) {
-	runtimeEnv := env.FromMapForOS(map[string]string{"ENV_VAR_FRIEND": "friend"})
+	runtimeEnv := env.New(
+		env.CaseSensitivityFromOS(),
+		env.FromMap(map[string]string{"ENV_VAR_FRIEND": "friend"}),
+	)
 	input := strings.NewReader(`
 steps:
 - name: hello-${ENV_VAR_FRIEND}
@@ -96,7 +102,10 @@ steps:
 }
 
 func TestParserParsesYAMLWithInterpolationInKey(t *testing.T) {
-	runtimeEnv := env.FromMapForOS(map[string]string{"ENV_VAR_FRIEND": "friend"})
+	runtimeEnv := env.New(
+		env.CaseSensitivityFromOS(),
+		env.FromMap(map[string]string{"ENV_VAR_FRIEND": "friend"}),
+	)
 	input := strings.NewReader(`
 steps:
 - key: hello-${ENV_VAR_FRIEND}
@@ -530,7 +539,10 @@ func TestParserParsesNoSteps(t *testing.T) {
 }
 
 func TestParserParsesGroups(t *testing.T) {
-	runtimeEnv := env.FromMapForOS(map[string]string{"ENV_VAR_FRIEND": "friend"})
+	runtimeEnv := env.New(
+		env.CaseSensitivityFromOS(),
+		env.FromMap(map[string]string{"ENV_VAR_FRIEND": "friend"}),
+	)
 
 	input := strings.NewReader(`---
 steps:
@@ -684,7 +696,10 @@ func TestParserReturnsJSONParsingErrors(t *testing.T) {
 }
 
 func TestParserParsesJSON(t *testing.T) {
-	runtimeEnv := env.FromMapForOS(map[string]string{"ENV_VAR_FRIEND": "friend"})
+	runtimeEnv := env.New(
+		env.CaseSensitivityFromOS(),
+		env.FromMap(map[string]string{"ENV_VAR_FRIEND": "friend"}),
+	)
 	input := strings.NewReader("\n\n     \n  { \"steps\": [{\"command\" : \"bye ${ENV_VAR_FRIEND}\"  } ] }\n")
 	got, err := Parse(input)
 	if err != nil {
@@ -721,7 +736,10 @@ func TestParserParsesJSON(t *testing.T) {
 }
 
 func TestParserParsesJSONArrays(t *testing.T) {
-	runtimeEnv := env.FromMapForOS(map[string]string{"ENV_VAR_FRIEND": "friend"})
+	runtimeEnv := env.New(
+		env.CaseSensitivityFromOS(),
+		env.FromMap(map[string]string{"ENV_VAR_FRIEND": "friend"}),
+	)
 	input := strings.NewReader("\n\n     \n  [ { \"command\": \"bye ${ENV_VAR_FRIEND}\" } ]\n")
 	got, err := Parse(input)
 	if err != nil {
@@ -1044,7 +1062,10 @@ func TestParserHandlesDates(t *testing.T) {
 }
 
 func TestParserInterpolatesKeysAsWellAsValues(t *testing.T) {
-	runtimeEnv := env.FromMapForOS(map[string]string{"FROM_ENV": "llamas"})
+	runtimeEnv := env.New(
+		env.CaseSensitivityFromOS(),
+		env.FromMap(map[string]string{"FROM_ENV": "llamas"}),
+	)
 	input := strings.NewReader(`{
 	"env": {
 		"${FROM_ENV}TEST1": "MyTest",
@@ -1075,7 +1096,7 @@ func TestParserInterpolatesKeysAsWellAsValues(t *testing.T) {
 }
 
 func TestParserInterpolatesPluginConfigs(t *testing.T) {
-	runtimeEnv := env.NewForOS()
+	runtimeEnv := env.New(env.CaseSensitivityFromOS())
 	input := strings.NewReader(`
 env:
   ECR_PLUGIN_VER: "v2.7.0"
@@ -1123,7 +1144,10 @@ steps:
 }
 
 func TestParserLoadsGlobalEnvBlockFirst(t *testing.T) {
-	runtimeEnv := env.FromMapForOS(map[string]string{"YEAR_FROM_SHELL": "1912"})
+	runtimeEnv := env.New(
+		env.CaseSensitivityFromOS(),
+		env.FromMap(map[string]string{"YEAR_FROM_SHELL": "1912"}),
+	)
 	input := strings.NewReader(`
 {
 	"env": {

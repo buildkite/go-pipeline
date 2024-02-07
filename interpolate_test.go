@@ -212,7 +212,14 @@ func TestInterpolator(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tc.input.Interpolate(env.FromMap(tc.runtimeEnv, tc.caseSensitive))
+			var runtimeEnv *env.Env
+			if tc.caseSensitive {
+				runtimeEnv = env.New(env.FromMap(tc.runtimeEnv))
+			} else {
+				runtimeEnv = env.New(env.CaseInsensitive(), env.FromMap(tc.runtimeEnv))
+			}
+
+			err := tc.input.Interpolate(runtimeEnv)
 			assert.NilError(t, err)
 			assert.DeepEqual(
 				t,
