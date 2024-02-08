@@ -56,23 +56,32 @@ func (p *Pipeline) UnmarshalOrdered(o any) error {
 	return nil
 }
 
+// InterpolationEnv contains environment variables that may be interpolated into
+// a pipeline. The environment variable names may have platform dependant case
+// sensitivity, which is the main reason to implement this interface for a type
+// other than map[string]string.
+type InterpolationEnv interface {
+	Get(name string) (string, bool)
+	Set(name string, value string)
+}
+
 // Interpolate interpolates variables defined in both env and p.Env into the
 // pipeline.
 // More specifically, it does these things:
 //   - Interpolate pipeline.Env and copy the results into env to apply later.
 //   - Interpolate any string value in the rest of the pipeline.
-func (p *Pipeline) Interpolate(runtimeEnv *env.Env) error {
-	if runtimeEnv == nil {
-		runtimeEnv = env.New()
+func (p *Pipeline) Interpolate(interpolationEnv InterpolationEnv) error {
+	if interpolationEnv == nil {
+		interpolationEnv = env.New()
 	}
 
 	// Preprocess any env that are defined in the top level block and place them
 	// into env for later interpolation into the rest of the pipeline.
-	if err := p.interpolateEnvBlock(runtimeEnv); err != nil {
+	if err := p.interpolateEnvBlock(interpolationEnv); err != nil {
 		return err
 	}
 
-	tf := envInterpolator{env: runtimeEnv}
+	tf := envInterpolator{env: interpolationEnv}
 
 	// Recursively go through the rest of the pipeline and perform environment
 	// variable interpolation on strings. Interpolation is performed in-place.
@@ -91,16 +100,16 @@ func (p *Pipeline) Interpolate(runtimeEnv *env.Env) error {
 // as runtimeEnv has precedence over p.Env. For clarification, this means that
 // if a variable name is interpolated to collide with a variable in the
 // runtimeEnv, the runtimeEnv will take precedence.
-func (p *Pipeline) interpolateEnvBlock(runtimeEnv *env.Env) error {
+func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv) error {
 	return p.Env.Range(func(k, v string) error {
 		// We interpolate both keys and values.
-		intk, err := interpolate.Interpolate(runtimeEnv, k)
+		intk, err := interpolate.Interpolate(interpolationEnv, k)
 		if err != nil {
 			return err
 		}
 
 		// v is always a string in this case.
-		intv, err := interpolate.Interpolate(runtimeEnv, v)
+		intv, err := interpolate.Interpolate(interpolationEnv, v)
 		if err != nil {
 			return err
 		}
@@ -109,8 +118,8 @@ func (p *Pipeline) interpolateEnvBlock(runtimeEnv *env.Env) error {
 
 		// put it into the runtimeEnv for interpolation on a later iteration, but only if it is not
 		// already there already, as runtimeEnv has precedence over p.Env
-		if _, exists := runtimeEnv.Get(intk); !exists {
-			runtimeEnv.Set(intk, intv)
+		if _, exists := interpolationEnv.Get(intk); !exists {
+			interpolationEnv.Set(intk, intv)
 		}
 
 		return nil
