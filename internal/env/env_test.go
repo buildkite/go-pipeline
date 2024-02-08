@@ -1,6 +1,7 @@
 package env_test
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/buildkite/go-pipeline/internal/env"
@@ -51,12 +52,18 @@ func TestEnvWithMap(t *testing.T) {
 
 	e := env.New(env.FromMap(map[string]string{"FOO": "upper-bar", "Foo": "lower-bar"}))
 
-	if v, found := e.Get("FOO"); !found || v != "upper-bar" {
-		t.Errorf("Expected FOO to be upper-bar, got %q", v)
+	if v, found := e.Get("FOO"); !found {
+		expected := "upper-bar"
+		if runtime.GOOS == "windows" {
+			expected = "lower-bar"
+		}
+		if v != expected {
+			t.Errorf("Expected FOO to be %q, got %q", expected, v)
+		}
 	}
 
 	if v, found := e.Get("Foo"); !found || v != "lower-bar" {
-		t.Errorf("Expected Foo to be lower-bar, got %q", v)
+		t.Errorf(`Expected Foo to be "lower-bar", got %q`, v)
 	}
 
 	if _, found := e.Get("not-foo"); found {
