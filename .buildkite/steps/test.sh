@@ -1,5 +1,6 @@
-#!/bin/bash
-set -euo pipefail
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
 
 go install gotest.tools/gotestsum@v1.8.0
 
