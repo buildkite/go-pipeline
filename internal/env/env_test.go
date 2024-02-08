@@ -7,7 +7,9 @@ import (
 )
 
 func TestEnvCaseSensitive(t *testing.T) {
-	e := env.New()
+	t.Parallel()
+
+	e := env.New(env.CaseSensitive(true))
 	e.Set("FOO", "upper-bar")
 	e.Set("Foo", "lower-bar")
 
@@ -25,7 +27,9 @@ func TestEnvCaseSensitive(t *testing.T) {
 }
 
 func TestEnvCaseInsensitive(t *testing.T) {
-	e := env.New(env.CaseInsensitive())
+	t.Parallel()
+
+	e := env.New(env.CaseSensitive(false))
 	e.Set("FOO", "upper-bar")
 	e.Set("Foo", "lower-bar")
 
@@ -43,6 +47,8 @@ func TestEnvCaseInsensitive(t *testing.T) {
 }
 
 func TestEnvWithMap(t *testing.T) {
+	t.Parallel()
+
 	e := env.New(env.FromMap(map[string]string{"FOO": "upper-bar", "Foo": "lower-bar"}))
 
 	if v, found := e.Get("FOO"); !found || v != "upper-bar" {

@@ -6,26 +6,20 @@ import (
 	"strings"
 )
 
+// Options are functional options for creating a new Env.
 type Options func(*Env)
 
-// CaseInsensitive is an option that sets the Env to be case-insensitive. It will override any
-// previous case-sensitivity option.
-func CaseInsensitive() Options {
+// CaseSensitive is an option that overrides previous case-sensitivity whether
+// set by default or as an `Option`.
+func CaseSensitive(actuallyCaseSensitive bool) Options {
 	return func(e *Env) {
-		e.caseInsensitive = true
-	}
-}
-
-// CaseSensitivityFromOS is an option that sets the Env to be case-insensitive if the OS is Windows.
-// It will override any previous case-sensitivity option.
-func CaseSensitivityFromOS() Options {
-	return func(e *Env) {
-		e.caseInsensitive = runtime.GOOS == "windows"
+		e.caseInsensitive = !actuallyCaseSensitive
 	}
 }
 
 // FromMap is an option that sets the Env to have the key-values pairs from the `source` map.
-// It will be case-sensitive unless the previous options set it to be case-insensitive.
+// The key-value pair will be inserted with the case sensitivity of the Env, which by default is
+// case-insensitive on Windows and case-sensitive on other platforms.
 func FromMap(source map[string]string) Options {
 	return func(e *Env) {
 		if e.env == nil {
@@ -37,16 +31,20 @@ func FromMap(source map[string]string) Options {
 	}
 }
 
-// Env represents a map of environment variables. The keys may be case-sensitive.
-// If they are, the original casing is lost.
+// Env represents a map of environment variables. By default, the keys are case-insensitive on
+// Windows and case-sensitive on other platforms. If they are case-insensitive, the original casing
+// is lost.
 type Env struct {
 	env             map[string]string
 	caseInsensitive bool
 }
 
-// New return a new Env. See `Options` for available options.
+// New return a new `Env`. By default, it is case-insensitive on Windows and case-sensitive on
+// other platforms. See `Options` for available options.
 func New(opts ...Options) *Env {
-	e := &Env{}
+	e := &Env{
+		caseInsensitive: runtime.GOOS == "windows",
+	}
 	for _, o := range opts {
 		o(e)
 	}
@@ -68,7 +66,6 @@ func (e *Env) Get(key string) (string, bool) {
 	if e == nil {
 		return "", false
 	}
-
 	v, found := e.env[e.normaliseCase(key)]
 	return v, found
 }
@@ -76,7 +73,6 @@ func (e *Env) Get(key string) (string, bool) {
 func (e *Env) normaliseCase(key string) string {
 	if e.caseInsensitive {
 		return strings.ToUpper(key)
-	} else {
-		return key
 	}
+	return key
 }
