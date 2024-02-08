@@ -207,6 +207,58 @@ func TestInterpolator(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:       "runtime_env_precedence_order",
+			runtimeEnv: map[string]string{"FOO": "runtime_foo"},
+			input: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "BAR", Value: "$FOO"},
+					ordered.TupleSS{Key: "FOO", Value: "pipeline_foo"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Command: "echo ${BAR}",
+					},
+				},
+			},
+			expected: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "BAR", Value: "runtime_foo"},
+					ordered.TupleSS{Key: "FOO", Value: "pipeline_foo"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Command: "echo runtime_foo",
+					},
+				},
+			},
+		},
+		{
+			name:       "runtime_env_precedence_order_2",
+			runtimeEnv: map[string]string{"FOO": "runtime_foo"},
+			input: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "FOO", Value: "pipeline_foo"},
+					ordered.TupleSS{Key: "BAR", Value: "$FOO"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Command: "echo ${BAR}",
+					},
+				},
+			},
+			expected: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "FOO", Value: "pipeline_foo"},
+					ordered.TupleSS{Key: "BAR", Value: "runtime_foo"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Command: "echo runtime_foo",
+					},
+				},
+			},
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
