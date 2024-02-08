@@ -57,18 +57,17 @@ func (p *Pipeline) UnmarshalOrdered(o any) error {
 }
 
 // InterpolationEnv contains environment variables that may be interpolated into
-// a pipeline. The environment variable names may have platform dependant case
-// sensitivity, which is the main reason to implement this interface for a type
-// other than map[string]string.
+// a pipeline. Users may define an equivalence between environment variable name, for example
+// the environment variable names may case-insensitive.
 type InterpolationEnv interface {
 	Get(name string) (string, bool)
 	Set(name string, value string)
 }
 
-// Interpolate interpolates variables defined in both env and p.Env into the
-// pipeline.
+// Interpolate interpolates variables defined in both interpolationEnv and p.Env into the pipeline.
 // More specifically, it does these things:
-//   - Interpolate pipeline.Env and copy the results into env to apply later.
+//   - Interpolate pipeline.Env and copy the results into interpolationEnv, provided they don't
+//     conflict, to apply later.
 //   - Interpolate any string value in the rest of the pipeline.
 func (p *Pipeline) Interpolate(interpolationEnv InterpolationEnv) error {
 	if interpolationEnv == nil {
@@ -93,13 +92,13 @@ func (p *Pipeline) Interpolate(interpolationEnv InterpolationEnv) error {
 }
 
 // interpolateEnvBlock runs interpolate.Interpolate on each pair in p.Env,
-// interpolating with the variables defined in runtimeEnv, and then adding the
+// interpolating with the variables defined in interpolationEnv, and then adding the
 // results back into p.Env. Since each environment variable in p.Env can
 // be interpolated into later environment variables, we also add the results
-// to runtimeEnv, but only if runtimeEnv does not already contain that variable
-// as runtimeEnv has precedence over p.Env. For clarification, this means that
+// to interpolationEnv, but only if interpolationEnv does not already contain that variable
+// as interpolationEnv has precedence over p.Env. For clarification, this means that
 // if a variable name is interpolated to collide with a variable in the
-// runtimeEnv, the runtimeEnv will take precedence.
+// interpolationEnv, the interpolationEnv will take precedence.
 func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv) error {
 	return p.Env.Range(func(k, v string) error {
 		// We interpolate both keys and values.
@@ -116,8 +115,8 @@ func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv) error 
 
 		p.Env.Replace(k, intk, intv)
 
-		// put it into the runtimeEnv for interpolation on a later iteration, but only if it is not
-		// already there already, as runtimeEnv has precedence over p.Env
+		// put it into the interpolationEnv for interpolation on a later iteration, but only if it is not
+		// already there, as interpolationEnv has precedence over p.Env
 		if _, exists := interpolationEnv.Get(intk); !exists {
 			interpolationEnv.Set(intk, intv)
 		}
