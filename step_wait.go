@@ -1,8 +1,6 @@
 package pipeline
 
-import (
-	"encoding/json"
-)
+import "encoding/json"
 
 // See the comment in step_scalar.go.
 
@@ -17,15 +15,11 @@ type WaitStep struct {
 // MarshalJSON marshals a wait step as "wait" if the step is empty, or as the
 // s.Scalar if it is not empty, or as s.Contents.
 func (s *WaitStep) MarshalJSON() ([]byte, error) {
-	if s.Scalar != "" {
-		return json.Marshal(s.Scalar)
+	o, err := s.MarshalYAML()
+	if err != nil {
+		return nil, err
 	}
-
-	if len(s.Contents) == 0 {
-		return json.Marshal("wait")
-	}
-
-	return json.Marshal(s.Contents)
+	return json.Marshal(o)
 }
 
 // MarshalYAML returns a wait step as "wait" if the step is empty, or as the
