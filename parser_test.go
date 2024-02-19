@@ -8,6 +8,7 @@ import (
 
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/google/go-cmp/cmp"
+	"gopkg.in/yaml.v3"
 )
 
 func ptr[T any](x T) *T { return &x }
@@ -642,7 +643,7 @@ steps:
 
 	gotJSON, err := json.MarshalIndent(pipeline, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(pipeline, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(pipeline, "", "  ") error = %v`, err)
 	}
 
 	const wantJSON = `{
@@ -656,7 +657,24 @@ steps:
 }`
 
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
-		t.Fatalf("marshalled JSON diff (-got +want):\n%s", diff)
+		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(pipeline)
+	if err != nil {
+		t.Errorf("yaml.Marshal(pipeline) error = %v", err)
+	}
+
+	const wantYAML = `steps:
+    - wait
+    - block
+    - waiter
+    - block
+    - input
+`
+
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
