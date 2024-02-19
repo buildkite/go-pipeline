@@ -18,15 +18,11 @@ type InputStep struct {
 // MarshalJSON marshals s.Scalar if it's not empty, otherwise s.Contents if that
 // is not empty. If both s.Scalar and s.Contents are empty, it reports an error.
 func (s *InputStep) MarshalJSON() ([]byte, error) {
-	if s.Scalar != "" {
-		return json.Marshal(s.Scalar)
+	o, err := s.MarshalYAML()
+	if err != nil {
+		return nil, err
 	}
-
-	if len(s.Contents) == 0 {
-		return []byte{}, errors.New("empty input step")
-	}
-
-	return json.Marshal(s.Contents)
+	return json.Marshal(o)
 }
 
 // MarshalYAML returns s.Scalar if it's not empty, otherwise s.Contents if that
