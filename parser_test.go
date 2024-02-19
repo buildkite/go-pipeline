@@ -36,7 +36,7 @@ func TestParserParsesYAML(t *testing.T) {
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 
 	const wantJSON = `{
@@ -48,6 +48,18 @@ func TestParserParsesYAML(t *testing.T) {
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - command: hello friend
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -80,7 +92,7 @@ steps:
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 
 	const wantJSON = `{
@@ -93,6 +105,19 @@ steps:
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - label: hello-friend
+      command: echo hello world
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -125,7 +150,7 @@ steps:
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 
 	const wantJSON = `{
@@ -138,6 +163,19 @@ steps:
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - key: hello-friend
+      command: echo hello world
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -171,6 +209,18 @@ func TestParserParsesYAMLWithNoInterpolation(t *testing.T) {
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - command: hello ${ENV_VAR_FRIEND}
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -221,7 +271,7 @@ steps:
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 
 	const wantJSON = `{
@@ -247,6 +297,28 @@ steps:
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - label: ':docker: building image'
+      command: docker build .
+      agent_query_rules:
+        - queue=default
+      agents:
+        queue: default
+      type: script
+base_step:
+    type: script
+    agent_query_rules:
+        - queue=default
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -298,7 +370,7 @@ steps:
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 
 	const wantJSON = `{
@@ -322,6 +394,25 @@ steps:
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - label: Do the thing
+      command: whoami
+      plugins:
+        - github.com/buildkite-plugins/docker-buildkite-plugin#v5.8.0:
+            image: public.ecr.aws/docker/library/ruby:3.2.2
+common_params:
+    - docker#v5.8.0
+    - public.ecr.aws/docker/library/ruby:3.2.2
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -457,16 +548,15 @@ steps:
 }
 
 func TestParserCanDetermineStepTypeFromTypeKey(t *testing.T) {
-	const yaml = `---
+	input := strings.NewReader(`---
 steps:
   - type: "block"
     key: "hello there"
     label: "🤖"
   - type: "wait"
     continue_on_failure: true
-`
+`)
 
-	input := strings.NewReader(yaml)
 	got, err := Parse(input)
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
@@ -491,7 +581,23 @@ steps:
 	}
 
 	if diff := cmp.Diff(got, want); diff != "" {
-		t.Fatalf("parsed pipeline diff (-got +want):\n%s", diff)
+		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - key: hello there
+      label: "\U0001F916"
+      type: block
+    - continue_on_failure: true
+      type: wait
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -518,7 +624,7 @@ func TestParserParsesNoSteps(t *testing.T) {
 
 		gotJSON, err := json.MarshalIndent(got, "", "  ")
 		if err != nil {
-			t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+			t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 		}
 
 		const wantJSON = `{
@@ -526,6 +632,16 @@ func TestParserParsesNoSteps(t *testing.T) {
 }`
 		if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 			t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+		}
+
+		gotYAML, err := yaml.Marshal(got)
+		if err != nil {
+			t.Errorf("yaml.Marshal(got) error = %v", err)
+		}
+
+		wantYAML := "steps: []\n"
+		if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+			t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 		}
 	}
 }
@@ -580,7 +696,7 @@ steps:
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 
 	const wantJSON = `{
@@ -610,6 +726,27 @@ steps:
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - group: friend
+      steps:
+        - command: hello friend
+        - wait
+        - block: goodbye
+    - group: null
+      steps: []
+    - key: group-friend
+      group: Group friend
+      steps: []
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -723,7 +860,7 @@ func TestParserParsesJSON(t *testing.T) {
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 
 	const wantJSON = `{
@@ -735,6 +872,18 @@ func TestParserParsesJSON(t *testing.T) {
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - command: bye friend
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -760,7 +909,7 @@ func TestParserParsesJSONArrays(t *testing.T) {
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 	const wantJSON = `{
   "steps": [
@@ -771,6 +920,18 @@ func TestParserParsesJSONArrays(t *testing.T) {
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - command: bye friend
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -796,7 +957,7 @@ func TestParserParsesTopLevelSteps(t *testing.T) {
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 	const wantJSON = `{
   "steps": [
@@ -809,6 +970,20 @@ func TestParserParsesTopLevelSteps(t *testing.T) {
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - label: Build
+      command: echo hello world
+    - wait
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -837,7 +1012,7 @@ steps:
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 	const wantJSON = `{
   "steps": [
@@ -849,6 +1024,19 @@ steps:
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - catawumpus
+    - llama: Kuzco
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -868,6 +1056,27 @@ steps: null
 	}
 	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
+	}
+
+	gotJSON, err := json.MarshalIndent(got, "", "  ")
+	if err != nil {
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+	}
+	const wantJSON = `{
+  "steps": []
+}`
+	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
+		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := "steps: []\n"
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -894,7 +1103,7 @@ func TestParserPreservesBools(t *testing.T) {
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 	const wantJSON = `{
   "steps": [
@@ -906,6 +1115,19 @@ func TestParserPreservesBools(t *testing.T) {
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - async: true
+      trigger: hello
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -932,7 +1154,7 @@ func TestParserPreservesInts(t *testing.T) {
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 	const wantJSON = `{
   "steps": [
@@ -944,6 +1166,19 @@ func TestParserPreservesInts(t *testing.T) {
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - command: hello
+      parallelism: 10
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -965,7 +1200,7 @@ func TestParserPreservesNull(t *testing.T) {
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 	const wantJSON = `{
   "steps": [
@@ -977,6 +1212,19 @@ func TestParserPreservesNull(t *testing.T) {
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - if: foo
+      wait: null
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -1003,7 +1251,7 @@ func TestParserPreservesFloats(t *testing.T) {
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 	const wantJSON = `{
   "steps": [
@@ -1015,6 +1263,19 @@ func TestParserPreservesFloats(t *testing.T) {
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - llamas: 3.142
+      trigger: hello
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -1058,6 +1319,19 @@ func TestParserHandlesDates(t *testing.T) {
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - llamas: 2002-08-15T17:18:23.18-06:00
+      trigger: hello
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -1249,7 +1523,7 @@ steps:
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 	const wantJSON = `{
   "steps": [
@@ -1289,6 +1563,35 @@ steps:
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - label: ':s3: xxx'
+      command: script/buildkite/xxx.sh
+      plugins:
+        - github.com/xxx/aws-assume-role-buildkite-plugin#v0.1.0:
+            role: arn:aws:iam::xxx:role/xxx
+        - github.com/buildkite-plugins/ecr-buildkite-plugin#v1.1.4:
+            account_ids: xxx
+            login: true
+            registry_region: us-east-1
+        - github.com/buildkite-plugins/docker-compose-buildkite-plugin#v2.5.1:
+            config: .buildkite/docker/docker-compose.yml
+            env:
+                - AWS_ACCESS_KEY_ID
+                - AWS_SECRET_ACCESS_KEY
+                - AWS_SESSION_TOKEN
+            run: xxx
+      agents:
+        queue: xxx
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -1337,7 +1640,7 @@ func TestParserParsesScalarPlugins(t *testing.T) {
 
 	gotJSON, err := json.MarshalIndent(got, "", "  ")
 	if err != nil {
-		t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 	}
 	const wantJSON = `{
   "steps": [
@@ -1362,6 +1665,24 @@ func TestParserParsesScalarPlugins(t *testing.T) {
 }`
 	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - label: ':s3: xxx'
+      command: script/buildkite/xxx.sh
+      plugins:
+        - github.com/buildkite-plugins/example-plugin-buildkite-plugin#v1.0.0: null
+        - github.com/buildkite-plugins/another-plugin-buildkite-plugin#v0.0.1-beta43: null
+        - github.com/buildkite-plugins/docker-compose-buildkite-plugin#v2.5.1:
+            config: .buildkite/docker/docker-compose.yml
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -1412,6 +1733,11 @@ steps:
   ]
 }`
 
+	const wantYAML = `steps:
+    - if: build.env("ACCOUNT") =~ /^(foo|bar)$/
+      wait: null
+`
+
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			input := strings.NewReader(test.pipeline)
@@ -1431,10 +1757,18 @@ steps:
 
 			gotJSON, err := json.MarshalIndent(got, "", "  ")
 			if err != nil {
-				t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+				t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 			}
 			if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
 				t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+			}
+
+			gotYAML, err := yaml.Marshal(got)
+			if err != nil {
+				t.Errorf("yaml.Marshal(got) error = %v", err)
+			}
+			if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+				t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 			}
 		})
 	}
@@ -1449,7 +1783,7 @@ func TestParserCommandVersusCommands(t *testing.T) {
 		},
 	}
 
-	want1CmdJSON := `{
+	const want1CmdJSON = `{
   "steps": [
     {
       "command": "echo foo"
@@ -1457,13 +1791,17 @@ func TestParserCommandVersusCommands(t *testing.T) {
   ]
 }`
 
+	const want1CmdYAML = `steps:
+    - command: echo foo
+`
+
 	want2Cmd := &Pipeline{
 		Steps: Steps{
 			&CommandStep{Command: "echo foo\necho bar"},
 		},
 	}
 
-	want2CmdJSON := `{
+	const want2CmdJSON = `{
   "steps": [
     {
       "command": "echo foo\necho bar"
@@ -1471,13 +1809,19 @@ func TestParserCommandVersusCommands(t *testing.T) {
   ]
 }`
 
+	const want2CmdPipeYAML = `steps:
+    - command: |
+        echo foo
+        echo bar
+`
+
 	want2CmdNewline := &Pipeline{
 		Steps: Steps{
 			&CommandStep{Command: "echo foo\necho bar\n"},
 		},
 	}
 
-	want2CmdNewlineJSON := `{
+	const want2CmdNewlineJSON = `{
   "steps": [
     {
       "command": "echo foo\necho bar\n"
@@ -1485,11 +1829,18 @@ func TestParserCommandVersusCommands(t *testing.T) {
   ]
 }`
 
+	const want2CmdPipeDashYAML = `steps:
+    - command: |-
+        echo foo
+        echo bar
+`
+
 	tests := []struct {
 		desc     string
 		input    string
 		want     *Pipeline
 		wantJSON string
+		wantYAML string
 	}{
 		{
 			desc: "Step with one command (scalar)",
@@ -1499,6 +1850,7 @@ steps:
 `,
 			want:     want1Cmd,
 			wantJSON: want1CmdJSON,
+			wantYAML: want1CmdYAML,
 		},
 		{
 			desc: "Step with one command (sequence)",
@@ -1509,6 +1861,7 @@ steps:
 `,
 			want:     want1Cmd,
 			wantJSON: want1CmdJSON,
+			wantYAML: want1CmdYAML,
 		},
 		{
 			desc: "Step with two command (scalar)",
@@ -1520,6 +1873,7 @@ steps:
 `,
 			want:     want2CmdNewline,
 			wantJSON: want2CmdNewlineJSON,
+			wantYAML: want2CmdPipeYAML,
 		},
 		{
 			desc: "Step with two command (sequence)",
@@ -1531,6 +1885,7 @@ steps:
 `,
 			want:     want2Cmd,
 			wantJSON: want2CmdJSON,
+			wantYAML: want2CmdPipeDashYAML,
 		},
 		{
 			desc: "Step with one commands (scalar)",
@@ -1540,6 +1895,7 @@ steps:
 `,
 			want:     want1Cmd,
 			wantJSON: want1CmdJSON,
+			wantYAML: want1CmdYAML,
 		},
 		{
 			desc: "Step with one commands (sequence)",
@@ -1550,6 +1906,7 @@ steps:
 `,
 			want:     want1Cmd,
 			wantJSON: want1CmdJSON,
+			wantYAML: want1CmdYAML,
 		},
 		{
 			desc: "Step with two commands (scalar)",
@@ -1561,6 +1918,7 @@ steps:
 `,
 			want:     want2CmdNewline,
 			wantJSON: want2CmdNewlineJSON,
+			wantYAML: want2CmdPipeYAML,
 		},
 		{
 			desc: "Step with two commands (sequence)",
@@ -1572,6 +1930,7 @@ steps:
 `,
 			want:     want2Cmd,
 			wantJSON: want2CmdJSON,
+			wantYAML: want2CmdPipeDashYAML,
 		},
 	}
 
@@ -1586,12 +1945,21 @@ steps:
 			if diff := cmp.Diff(got, test.want, cmp.Comparer(ordered.EqualSA)); diff != "" {
 				t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 			}
+
 			gotJSON, err := json.MarshalIndent(got, "", "  ")
 			if err != nil {
-				t.Fatalf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+				t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
 			}
 			if diff := cmp.Diff(string(gotJSON), test.wantJSON); diff != "" {
 				t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+			}
+
+			gotYAML, err := yaml.Marshal(got)
+			if err != nil {
+				t.Errorf("yaml.Marshal(got) error = %v", err)
+			}
+			if diff := cmp.Diff(string(gotYAML), test.wantYAML); diff != "" {
+				t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
 			}
 		})
 	}
