@@ -379,6 +379,19 @@ func TestUnmarshal(t *testing.T) {
 			},
 		},
 		{
+			desc: "*MapSA to *string",
+			src: MapFromItems(
+				TupleSA{Key: "key", Value: "value"},
+				TupleSA{Key: "molehill", Value: "large"},
+				TupleSA{Key: "switch", Value: true},
+				TupleSA{Key: "count", Value: 42},
+				TupleSA{Key: "fader", Value: 2.71828},
+				TupleSA{Key: "slicey", Value: []any{5, 6, 7, 8}},
+			),
+			dst:  new(string),
+			want: ptr(`{"key":"value","molehill":"large","switch":true,"count":42,"fader":2.71828,"slicey":[5,6,7,8]}`),
+		},
+		{
 			desc: "*MapSA to *any",
 			src: MapFromItems(
 				TupleSA{Key: "key", Value: "value"},

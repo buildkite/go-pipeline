@@ -216,6 +216,10 @@ func unmarshalScalar[S any](src S, dst any) error {
 //     elementwise, with values passed through Unmarshal.
 //   - If target is *struct{...}, it matches keys to exported fields either
 //     by looking at `yaml` tags, or using lowercased field names.
+//   - If target is *string, it re-marshals the contents into a JSON object
+//     and sets the string to that. The string value may be destined for a JSON
+//     parser, but if it was originally YAML, a standard YAML parser should
+//     still parse it correctly.
 //   - If a field has a yaml:",inline" tag, it copies any leftover values into
 //     that field, which must have type map[string]any or any. (Structs are not
 //     supported for inline.)
@@ -273,7 +277,19 @@ func (m *Map[K, V]) decodeInto(target any) error {
 		})
 
 	case reflect.Struct:
-		// The rest of the method is concerned with this.
+	// The rest of the method is concerned with this.
+
+	case reflect.String:
+		// Here's the idea:
+		// Re-marshal the map back into a string - but in JSON. That will be
+		// compatible with any JSON and YAML parsers.
+		out, err := m.MarshalJSON()
+		if err != nil {
+			return fmt.Errorf("while unmarshaling %T into %T could not re-marshal into JSON: %w", m, target, err)
+		}
+		innerValue.SetString(string(out))
+		return nil
+
 	default:
 		return fmt.Errorf("%w: cannot unmarshal %T into %T", ErrIncompatibleTypes, m, target)
 	}
