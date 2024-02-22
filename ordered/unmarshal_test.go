@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/buildkite/go-pipeline/warning"
 	"github.com/google/go-cmp/cmp"
 	"gopkg.in/yaml.v3"
 )
@@ -102,17 +103,23 @@ type inlineOrderedMapStruct struct {
 	Remaining *Map[string, any] `yaml:",inline"`
 }
 
+type namedMap map[string]string
+
+var _ Unmarshaler = (*customUnmarshalStruct)(nil)
+
 type customUnmarshalStruct struct {
 	Llama string
 }
 
-type namedMap map[string]string
-
 func (o *customUnmarshalStruct) UnmarshalOrdered(src any) error {
-	if src != "Kuzco" {
-		o.Llama = "Not Kuzco"
-	} else {
+	switch src {
+	case "Kuzco":
 		o.Llama = "Kuzco"
+	case "Not Kuzco":
+		o.Llama = "Not Kuzco"
+	default:
+		o.Llama = "Not Kuzco"
+		return warning.Newf("unknown src string %q, defaulting to Not Kuzco", src)
 	}
 	return nil
 }
@@ -610,7 +617,7 @@ func TestUnmarshal(t *testing.T) {
 			desc: "field is UnmarshalOrdered",
 			src: MapFromItems(
 				TupleSA{Key: "llama", Value: "Kuzco"},
-				TupleSA{Key: "another", Value: "Kronk"},
+				TupleSA{Key: "another", Value: "Not Kuzco"},
 			),
 			dst: &testNestedOverride{},
 			want: &testNestedOverride{
@@ -663,7 +670,7 @@ func TestUnmarshal(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 			if err := Unmarshal(test.src, test.dst); err != nil {
-				t.Fatalf("Unmarshal(%T, %T) = %v", test.src, test.dst, err)
+				t.Fatalf("Unmarshal(%T, %T) error = %v", test.src, test.dst, err)
 			}
 			if diff := cmp.Diff(test.dst, test.want, cmp.AllowUnexported(ordinaryStruct{}), cmp.Comparer(EqualSA)); diff != "" {
 				t.Errorf("Unmarshal(%T, %T) diff (-got, want):\n%s", test.src, test.dst, diff)
@@ -776,7 +783,7 @@ func TestUnmarshalIntoNilErrors(t *testing.T) {
 			t.Parallel()
 
 			if err := Unmarshal(test.src, test.dst); !errors.Is(err, ErrIntoNil) {
-				t.Errorf("Unmarshal(%T, %T) = %v, want %v", test.src, test.dst, err, ErrIntoNil)
+				t.Errorf("Unmarshal(%T, %T) error = %v, want %v", test.src, test.dst, err, ErrIntoNil)
 			}
 		})
 	}
@@ -856,7 +863,7 @@ func TestUnmarshalIncompatibleTypesErrors(t *testing.T) {
 			t.Parallel()
 
 			if err := Unmarshal(test.src, test.dst); !errors.Is(err, ErrIncompatibleTypes) {
-				t.Errorf("Unmarshal(%T, %T) = %v, want %v", test.src, test.dst, err, ErrIncompatibleTypes)
+				t.Errorf("Unmarshal(%T, %T) error = %v, want %v", test.src, test.dst, err, ErrIncompatibleTypes)
 			}
 		})
 	}
@@ -886,7 +893,7 @@ func TestUnmarshalNotAPointerErrors(t *testing.T) {
 			t.Parallel()
 
 			if err := Unmarshal(test.src, test.dst); !errors.Is(err, ErrIntoNonPointer) {
-				t.Errorf("Unmarshal(%T, %T) = %v, want %v", test.src, test.dst, err, ErrIntoNonPointer)
+				t.Errorf("Unmarshal(%T, %T) error = %v, want %v", test.src, test.dst, err, ErrIntoNonPointer)
 			}
 		})
 	}
@@ -894,8 +901,9 @@ func TestUnmarshalNotAPointerErrors(t *testing.T) {
 
 func TestUnmarshalUnsupportedSrcError(t *testing.T) {
 	t.Parallel()
-	if err := Unmarshal(make(chan struct{}), new(string)); !errors.Is(err, ErrUnsupportedSrc) {
-		t.Errorf("Unmarshal(chan struct{}, new(string)) = %v, want %v", err, ErrUnsupportedSrc)
+	src, dst := make(chan struct{}), new(string)
+	if err := Unmarshal(src, dst); !errors.Is(err, ErrUnsupportedSrc) {
+		t.Errorf("Unmarshal(%T, %T) error = %v, want %v", src, dst, err, ErrUnsupportedSrc)
 	}
 }
 
@@ -908,8 +916,10 @@ func TestUnmarshalIncompatibleFieldTypeError(t *testing.T) {
 	src := MapFromItems(
 		TupleSA{Key: "llama", Value: "drama"},
 	)
+	dst := &hasAFloat{}
+
 	if err := Unmarshal(src, &hasAFloat{}); !errors.Is(err, ErrIncompatibleTypes) {
-		t.Errorf("Unmarshal(*MapSA, &hasAFloat{}) = %v, want %v", err, ErrIncompatibleTypes)
+		t.Errorf("Unmarshal(%T, %T) error = %v, want %v", src, dst, err, ErrIncompatibleTypes)
 	}
 }
 
@@ -922,8 +932,9 @@ func TestUnmarshalInvalidInlineError(t *testing.T) {
 	type testInvalidInline struct {
 		Llama map[string]bool `yaml:",inline"`
 	}
-	if err := Unmarshal(src, &testInvalidInline{}); !errors.Is(err, ErrIncompatibleTypes) {
-		t.Errorf("Unmarshal(*MapSA, &testInvalidInline{}) = %v, want %v", err, ErrIncompatibleTypes)
+	dst := &testInvalidInline{}
+	if err := Unmarshal(src, dst); !errors.Is(err, ErrIncompatibleTypes) {
+		t.Errorf("Unmarshal(%T, %T) error = %v, want %v", src, dst, err, ErrIncompatibleTypes)
 	}
 }
 
@@ -934,8 +945,10 @@ func TestUnmarshalMultipleInlineError(t *testing.T) {
 		Llama  map[string]any `yaml:",inline"`
 		Alpaca map[string]any `yaml:",inline"`
 	}
-	if err := Unmarshal(MapFromItems(TupleSA{}), &testMultipleInline{}); !errors.Is(err, ErrMultipleInlineFields) {
-		t.Errorf("Unmarshal(*MapSA, &testMultipleInline{}) = %v, want %v", err, ErrMultipleInlineFields)
+	src := MapFromItems(TupleSA{})
+	dst := &testMultipleInline{}
+	if err := Unmarshal(src, dst); !errors.Is(err, ErrMultipleInlineFields) {
+		t.Errorf("Unmarshal(*%T, %T) error = %v, want %v", src, dst, err, ErrMultipleInlineFields)
 	}
 }
 
@@ -970,9 +983,39 @@ func TestMapUnmarshalOrderedErrors(t *testing.T) {
 			t.Parallel()
 
 			if err := test.dst.UnmarshalOrdered(test.src); !errors.Is(err, ErrIncompatibleTypes) {
-				t.Errorf("%T.UnmarshalOrdered(%T) = %v, want %v", test.dst, test.src, err, ErrIncompatibleTypes)
+				t.Errorf("%T.UnmarshalOrdered(%T) error = %v, want %v", test.dst, test.src, err, ErrIncompatibleTypes)
 			}
 		})
+	}
+}
+
+func TestUnmarshalWithWarnings(t *testing.T) {
+	t.Parallel()
+
+	src := MapFromItems(
+		TupleSA{Key: "llama", Value: "Kuzco"},
+		TupleSA{Key: "another", Value: "Kronk"},
+	)
+	dst := &testNestedOverride{}
+	want := &testNestedOverride{
+		Llama: "Kuzco",
+		Another: &customUnmarshalStruct{
+			Llama: "Not Kuzco",
+		},
+	}
+
+	// It produces a warning
+	err := Unmarshal(src, dst)
+	if !warning.Is(err) {
+		t.Errorf("Unmarshal(%T, %T) error = %v, want a warning", src, dst, err)
+	}
+
+	// Inspect the error string for niceness
+	// t.Log(err)
+
+	// But it otherwise unmarshalled correctly
+	if diff := cmp.Diff(dst, want); diff != "" {
+		t.Errorf("Unmarshal(%T, %T) diff (-got, want):\n%s", src, dst, diff)
 	}
 }
 

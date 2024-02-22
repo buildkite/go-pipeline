@@ -8,6 +8,7 @@ import (
 
 	"github.com/buildkite/go-pipeline/internal/env"
 	"github.com/buildkite/go-pipeline/ordered"
+	"github.com/buildkite/go-pipeline/warning"
 	"github.com/google/go-cmp/cmp"
 	"gopkg.in/yaml.v3"
 )
@@ -992,20 +993,34 @@ func TestParserPreservesUnknownStepTypes(t *testing.T) {
 steps:
   - catawumpus
   - llama: Kuzco
+  - type: mystery
 `)
 	got, err := Parse(input)
-	if err != nil {
-		t.Fatalf("Parse(input) error = %v", err)
+	if !warning.Is(err) {
+		t.Fatalf("Parse(input) error = %v, want a warning", err)
 	}
 
 	want := &Pipeline{
 		Steps: Steps{
-			&UnknownStep{Contents: "catawumpus"},
-			&UnknownStep{Contents: ordered.MapFromItems(
-				ordered.TupleSA{Key: "llama", Value: "Kuzco"},
-			)},
+			&UnknownStep{
+				Contents: "catawumpus",
+				// Err:      ErrUnknownStepType,
+			},
+			&UnknownStep{
+				Contents: ordered.MapFromItems(
+					ordered.TupleSA{Key: "llama", Value: "Kuzco"},
+				),
+				// Err: ErrStepTypeInference,
+			},
+			&UnknownStep{
+				Contents: ordered.MapFromItems(
+					ordered.TupleSA{Key: "type", Value: "mystery"},
+				),
+				// Err: ErrUnknownStepType,
+			},
 		},
 	}
+
 	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
@@ -1019,6 +1034,9 @@ steps:
     "catawumpus",
     {
       "llama": "Kuzco"
+    },
+    {
+      "type": "mystery"
     }
   ]
 }`
@@ -1034,6 +1052,7 @@ steps:
 	wantYAML := `steps:
     - catawumpus
     - llama: Kuzco
+    - type: mystery
 `
 	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
 		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
