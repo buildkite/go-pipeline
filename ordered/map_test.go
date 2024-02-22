@@ -822,3 +822,26 @@ func TestToMapRecursive(t *testing.T) {
 		t.Errorf("ToMapRecursive output diff (-got +want):\n%s", diff)
 	}
 }
+
+func TestMapMarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	src := MapFromItems(
+		TupleSA{Key: "key", Value: "value"},
+		TupleSA{Key: "molehill", Value: "large"},
+		TupleSA{Key: "switch", Value: true},
+		TupleSA{Key: "count", Value: 42},
+		TupleSA{Key: "fader", Value: 2.71828},
+		TupleSA{Key: "slicey", Value: []any{5, 6, 7, 8}},
+	)
+
+	got, err := src.MarshalJSON()
+	if err != nil {
+		t.Fatalf("src.MarshalJSON() error = %v", err)
+	}
+
+	want := `{"key":"value","molehill":"large","switch":true,"count":42,"fader":2.71828,"slicey":[5,6,7,8]}`
+	if diff := cmp.Diff(string(got), want); diff != "" {
+		t.Errorf("src.MarshalJSON() output diff (-got +want):\n%s", diff)
+	}
+}
