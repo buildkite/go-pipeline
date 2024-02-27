@@ -43,13 +43,17 @@ func New(msg string, errs ...error) *Warning { return &Warning{message: msg, err
 // (This enables the use of %w for wrapping other errors.)
 func Newf(f string, x ...any) *Warning { return &Warning{errs: []error{fmt.Errorf(f, x...)}} }
 
-// Wrap returns a new warning with no message that wrapps one or more errors.
+// Wrap returns a new warning with no message that wraps one or more errors.
 // If passed no errors, it returns nil.
+// If passed a single error that is a warning, it returns that warning.
 // This is a convenient way to downgrade an error to a warning, and also handle
 // cases where no warnings occurred.
 func Wrap(errs ...error) error {
 	if len(errs) == 0 {
 		return nil
+	}
+	if len(errs) == 1 && Is(errs[0]) {
+		return errs[0]
 	}
 	return &Warning{errs: errs}
 }

@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -994,29 +995,54 @@ steps:
   - catawumpus
   - llama: Kuzco
   - type: mystery
+  - command: echo hello
+    env:
+        GREETING: {"YOURE_A_WINNER":"BONUS_JSON"}
 `)
 	got, err := Parse(input)
 	if !warning.Is(err) {
 		t.Fatalf("Parse(input) error = %v, want a warning", err)
 	}
 
+	errs := warning.As(err).Unwrap()
+	wantErrs := []error{
+		ErrUnknownStepType,
+		ErrStepTypeInference,
+		ErrUnknownStepType,
+		ordered.ErrIncompatibleTypes,
+	}
+	errorComparer := cmp.Comparer(func(x, y error) bool {
+		return errors.Is(x, y) || errors.Is(y, x)
+	})
+	if diff := cmp.Diff(errs, wantErrs, errorComparer); diff != "" {
+		t.Errorf("underlying errors diff (-got +want):\n%s", diff)
+		t.Logf("Full parse warnings:\n%v", err)
+	}
+
 	want := &Pipeline{
 		Steps: Steps{
 			&UnknownStep{
 				Contents: "catawumpus",
-				// Err:      ErrUnknownStepType,
 			},
 			&UnknownStep{
 				Contents: ordered.MapFromItems(
 					ordered.TupleSA{Key: "llama", Value: "Kuzco"},
 				),
-				// Err: ErrStepTypeInference,
 			},
 			&UnknownStep{
 				Contents: ordered.MapFromItems(
 					ordered.TupleSA{Key: "type", Value: "mystery"},
 				),
-				// Err: ErrUnknownStepType,
+			},
+			&UnknownStep{
+				Contents: ordered.MapFromItems(
+					ordered.TupleSA{Key: "command", Value: "echo hello"},
+					ordered.TupleSA{Key: "env", Value: ordered.MapFromItems(
+						ordered.TupleSA{Key: "GREETING", Value: ordered.MapFromItems(
+							ordered.TupleSA{Key: "YOURE_A_WINNER", Value: "BONUS_JSON"},
+						)},
+					)},
+				),
 			},
 		},
 	}
@@ -1037,6 +1063,14 @@ steps:
     },
     {
       "type": "mystery"
+    },
+    {
+      "command": "echo hello",
+      "env": {
+        "GREETING": {
+          "YOURE_A_WINNER": "BONUS_JSON"
+        }
+      }
     }
   ]
 }`
@@ -1053,6 +1087,10 @@ steps:
     - catawumpus
     - llama: Kuzco
     - type: mystery
+    - command: echo hello
+      env:
+        GREETING:
+            YOURE_A_WINNER: BONUS_JSON
 `
 	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
 		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
