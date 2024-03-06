@@ -131,7 +131,8 @@ func stepByType(sType string) (Step, error) {
 	}
 }
 
-// stepByType returns a new empty step with a type based on some heuristic rules
+// stepByKeyInference returns a new empty step with a type based on some heuristic rules
+
 // (first rule wins):
 //
 // - command, commands, plugins -> CommandStep
