@@ -119,7 +119,7 @@ func (w *Warning) Error() string {
 			fmt.Fprintf(b, "%s\n", line)
 		}
 	}
-	return b.String()
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 // Unwrap returns all errors directly wrapped by this warning.
