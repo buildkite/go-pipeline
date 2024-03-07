@@ -20,6 +20,9 @@ func CaseSensitive(actuallyCaseSensitive bool) Options {
 // FromMap is an option that sets the Env to have the key-values pairs from the `source` map.
 // The key-value pair will be inserted with the case sensitivity of the Env, which by default is
 // case-insensitive on Windows and case-sensitive on other platforms.
+// Note that random map iteration will cause the result to be non-deterministic if there are
+// multiple keys in `source`, which are equivalent under case insensitivity, that have different
+// corresponding values.
 func FromMap(source map[string]string) Options {
 	return func(e *Env) {
 		if e.env == nil {
