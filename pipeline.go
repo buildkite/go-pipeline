@@ -5,6 +5,7 @@ import (
 
 	"github.com/buildkite/go-pipeline/internal/env"
 	"github.com/buildkite/go-pipeline/ordered"
+	"github.com/buildkite/go-pipeline/warning"
 	"github.com/buildkite/interpolate"
 )
 
@@ -29,19 +30,25 @@ func (p *Pipeline) MarshalJSON() ([]byte, error) {
 // UnmarshalOrdered unmarshals the pipeline from either []any (a legacy
 // sequence of steps) or *ordered.MapSA (a modern pipeline configuration).
 func (p *Pipeline) UnmarshalOrdered(o any) error {
+	var warns []error
+
 	switch o := o.(type) {
 	case *ordered.MapSA:
 		// A pipeline can be a mapping.
 		// Wrap in a secret type to avoid infinite recursion between this method
 		// and ordered.Unmarshal.
 		type wrappedPipeline Pipeline
-		if err := ordered.Unmarshal(o, (*wrappedPipeline)(p)); err != nil {
+		err := ordered.Unmarshal(o, (*wrappedPipeline)(p))
+		if w := warning.As(err); w != nil {
+			warns = append(warns, w)
+		} else if err != nil {
 			return fmt.Errorf("unmarshaling Pipeline: %w", err)
 		}
 
 	case []any:
 		// A pipeline can be a sequence of steps.
-		if err := ordered.Unmarshal(o, &p.Steps); err != nil {
+		err := ordered.Unmarshal(o, &p.Steps)
+		if err != nil {
 			return fmt.Errorf("unmarshaling steps: %w", err)
 		}
 
@@ -52,8 +59,9 @@ func (p *Pipeline) UnmarshalOrdered(o any) error {
 	// Ensure Steps is never nil. Server side expects a sequence.
 	if p.Steps == nil {
 		p.Steps = Steps{}
+		warns = append(warns, warning.New("pipeline contains no steps"))
 	}
-	return nil
+	return warning.Wrap(warns...)
 }
 
 // InterpolationEnv contains environment variables that may be interpolated into
