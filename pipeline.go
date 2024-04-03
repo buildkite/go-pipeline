@@ -48,7 +48,9 @@ func (p *Pipeline) UnmarshalOrdered(o any) error {
 	case []any:
 		// A pipeline can be a sequence of steps.
 		err := ordered.Unmarshal(o, &p.Steps)
-		if err != nil {
+		if w := warning.As(err); w != nil {
+			warns = append(warns, w)
+		} else if err != nil {
 			return fmt.Errorf("unmarshaling steps: %w", err)
 		}
 

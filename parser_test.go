@@ -1097,6 +1097,65 @@ steps:
 	}
 }
 
+func TestParserEmitsWarningWithTopLevelStepSequence(t *testing.T) {
+	input := strings.NewReader(`---
+  - catawumpus
+`)
+	got, err := Parse(input)
+	if !warning.Is(err) {
+		t.Fatalf("Parse(input) error = %v, want a warning", err)
+	}
+
+	errs := warning.As(err).Unwrap()
+	wantErrs := []error{
+		ErrUnknownStepType,
+	}
+	errorComparer := cmp.Comparer(func(x, y error) bool {
+		return errors.Is(x, y) || errors.Is(y, x)
+	})
+	if diff := cmp.Diff(errs, wantErrs, errorComparer); diff != "" {
+		t.Errorf("underlying errors diff (-got +want):\n%s", diff)
+		t.Logf("Full parse warnings:\n%v", err)
+	}
+
+	want := &Pipeline{
+		Steps: Steps{
+			&UnknownStep{
+				Contents: "catawumpus",
+			},
+		},
+	}
+
+	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
+	}
+
+	gotJSON, err := json.MarshalIndent(got, "", "  ")
+	if err != nil {
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+	}
+	const wantJSON = `{
+  "steps": [
+    "catawumpus"
+  ]
+}`
+	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
+		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - catawumpus
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
+	}
+}
+
 func TestParserParsesEnvAndStepsNull(t *testing.T) {
 	input := strings.NewReader(`---
 env: null
