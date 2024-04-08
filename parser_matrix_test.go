@@ -432,7 +432,6 @@ steps:
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 			got, err := Parse(strings.NewReader(test.input))

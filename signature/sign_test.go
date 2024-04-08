@@ -76,7 +76,6 @@ func TestSignVerify(t *testing.T) {
 
 	keyName := "TEST_DO_NOT_USE"
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -338,7 +337,6 @@ func TestSignVerifyEnv(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", jwa.HS256)
@@ -394,7 +392,7 @@ func TestSignatureStability(t *testing.T) {
 
 	// there are n! permutations of n items, but only one is correct
 	// 128! is absurdly large, and we fill four maps...
-	for i := 0; i < 128; i++ {
+	for range 128 {
 		env[fmt.Sprintf("VAR%08x", rand.Uint32())] = fmt.Sprintf("VAL%08x", rand.Uint32())
 		step.Env[fmt.Sprintf("VAR%08x", rand.Uint32())] = fmt.Sprintf("VAL%08x", rand.Uint32())
 		pluginCfg[fmt.Sprintf("key%08x", rand.Uint32())] = fmt.Sprintf("value%08x", rand.Uint32())

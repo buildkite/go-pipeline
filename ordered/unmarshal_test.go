@@ -666,7 +666,6 @@ func TestUnmarshal(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 			if err := Unmarshal(test.src, test.dst); err != nil {
@@ -778,7 +777,6 @@ func TestUnmarshalIntoNilErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -858,7 +856,6 @@ func TestUnmarshalIncompatibleTypesErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -888,7 +885,6 @@ func TestUnmarshalNotAPointerErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -978,7 +974,6 @@ func TestMapUnmarshalOrderedErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 

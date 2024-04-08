@@ -80,7 +80,6 @@ func TestMatrix_ValidatePermutation_Simple(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -183,7 +182,6 @@ func TestMatrix_ValidatePermutation_Multiple(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -220,7 +218,6 @@ func TestMatrix_ValidatePermutation_Nil(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -288,7 +285,6 @@ func TestMatrix_ValidatePermutation_InvalidAdjustment(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			err := test.matrix.validatePermutation(perm)
 			if !errors.Is(err, test.want) {
