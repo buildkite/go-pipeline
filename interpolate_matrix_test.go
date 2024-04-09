@@ -36,7 +36,6 @@ func TestMatrixInterpolater_Simple(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := transform.Transform(test.input)
@@ -84,7 +83,6 @@ func TestMatrixInterpolater_Multiple(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := transform.Transform(test.input)
@@ -123,7 +121,6 @@ func TestMatrixInterpolator_Errors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			if _, err := test.transform.Transform(test.input); err == nil {
@@ -237,7 +234,6 @@ func TestMatrixInterpolateAny(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

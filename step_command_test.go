@@ -174,7 +174,6 @@ func TestStepCommandMatrixInterpolate(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			tf := newMatrixInterpolator(tc.ms)
 			if err := tc.step.interpolate(tf); err != nil {
