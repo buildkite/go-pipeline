@@ -79,7 +79,7 @@ func TestCacheUnmarshalOrdered(t *testing.T) {
 			t.Parallel()
 
 			var c Cache
-			if err := c.UnmarshalOrdered(tc.input); err != nil && !errors.Is(err, tc.wantErr) {
+			if err := c.UnmarshalOrdered(tc.input); !errors.Is(err, tc.wantErr) {
 				t.Fatalf("Cache.UnmarshalOrdered(%v) = %v, want: %v", tc.input, err, tc.wantErr)
 			}
 
