@@ -8,6 +8,66 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+func TestCacheMarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		c    Cache
+		want string
+	}{
+		{
+			name: "single path",
+			c:    Cache{Paths: []string{"path/to/cache"}},
+			want: `{"paths":["path/to/cache"]}`,
+		},
+		{
+			name: "multiple paths",
+			c:    Cache{Paths: []string{"path/to/cache", "another/path"}},
+			want: `{"paths":["path/to/cache","another/path"]}`,
+		},
+		{
+			name: "empty cache settings block",
+			c:    Cache{},
+			want: `{}`,
+		},
+		{
+			name: "full cache settings block",
+			c: Cache{
+				Paths: []string{"path/to/cache", "another/path"},
+				Name:  "cache-name",
+				Size:  "25g",
+			},
+			want: `{"name":"cache-name","paths":["path/to/cache","another/path"],"size":"25g"}`,
+		},
+		{
+			name: "full cache settings block with extra fields",
+			c: Cache{
+				Paths:           []string{"path/to/cache", "another/path"},
+				Name:            "cache-name",
+				Size:            "25g",
+				RemainingFields: map[string]any{"extra": "field"},
+			},
+			want: `{"extra":"field","name":"cache-name","paths":["path/to/cache","another/path"],"size":"25g"}`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			b, err := tc.c.MarshalJSON()
+			if err != nil {
+				t.Fatalf("Cache.MarshalJSON() error: %v", err)
+			}
+
+			if diff := cmp.Diff(string(b), tc.want); diff != "" {
+				t.Errorf("Cache.MarshalJSON() diff (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestCacheUnmarshalOrdered(t *testing.T) {
 	t.Parallel()
 
@@ -31,17 +91,23 @@ func TestCacheUnmarshalOrdered(t *testing.T) {
 			name: "full cache settings block",
 			input: ordered.MapFromItems(
 				ordered.TupleSA{Key: "paths", Value: []any{"path/to/cache", "another/path"}},
+				ordered.TupleSA{Key: "name", Value: "cache-name"},
+				ordered.TupleSA{Key: "size", Value: "25g"},
 			),
-			want: Cache{Paths: []string{"path/to/cache", "another/path"}},
+			want: Cache{Paths: []string{"path/to/cache", "another/path"}, Name: "cache-name", Size: "25g"},
 		},
 		{
 			name: "full cache settings block with extra fields",
 			input: ordered.MapFromItems(
 				ordered.TupleSA{Key: "paths", Value: []any{"path/to/cache", "another/path"}},
+				ordered.TupleSA{Key: "name", Value: "cache-name"},
+				ordered.TupleSA{Key: "size", Value: "25g"},
 				ordered.TupleSA{Key: "extra", Value: "field"},
 			),
 			want: Cache{
 				Paths:           []string{"path/to/cache", "another/path"},
+				Name:            "cache-name",
+				Size:            "25g",
 				RemainingFields: map[string]any{"extra": "field"},
 			},
 		},

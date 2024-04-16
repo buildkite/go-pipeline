@@ -1,12 +1,16 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/buildkite/go-pipeline/ordered"
 )
 
-var _ ordered.Unmarshaler = (*Cache)(nil)
+var _ interface {
+	json.Marshaler
+	ordered.Unmarshaler
+} = (*Cache)(nil)
 
 var (
 	errUnsupportedCacheType = fmt.Errorf("unsupported type for cache")
@@ -14,9 +18,17 @@ var (
 
 // Cache models the cache settings for a given step
 type Cache struct {
-	Paths []string `json:"paths" yaml:"paths"`
+	Name  string   `yaml:"name,omitempty"`
+	Paths []string `yaml:"paths,omitempty"`
+	Size  string   `yaml:"size,omitempty"`
 
 	RemainingFields map[string]any `yaml:",inline"`
+}
+
+// MarshalJSON marshals the step to JSON. Special handling is needed because
+// yaml.v3 has "inline" but encoding/json has no concept of it.
+func (c *Cache) MarshalJSON() ([]byte, error) {
+	return inlineFriendlyMarshalJSON(c)
 }
 
 // UnmarshalOrdered unmarshals from the following types:
