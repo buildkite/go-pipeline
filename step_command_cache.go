@@ -18,9 +18,10 @@ var (
 
 // Cache models the cache settings for a given step
 type Cache struct {
-	Name  string   `yaml:"name,omitempty"`
-	Paths []string `yaml:"paths,omitempty"`
-	Size  string   `yaml:"size,omitempty"`
+	Disabled bool     `yaml:",omitempty"`
+	Name     string   `yaml:"name,omitempty"`
+	Paths    []string `yaml:"paths,omitempty"`
+	Size     string   `yaml:"size,omitempty"`
 
 	RemainingFields map[string]any `yaml:",inline"`
 }
@@ -28,6 +29,9 @@ type Cache struct {
 // MarshalJSON marshals the step to JSON. Special handling is needed because
 // yaml.v3 has "inline" but encoding/json has no concept of it.
 func (c *Cache) MarshalJSON() ([]byte, error) {
+	if c.Disabled {
+		return json.Marshal(false)
+	}
 	return inlineFriendlyMarshalJSON(c)
 }
 
@@ -37,6 +41,10 @@ func (c *Cache) MarshalJSON() ([]byte, error) {
 // - ordered.Map: a map containing paths, among potentially other things
 func (c *Cache) UnmarshalOrdered(o any) error {
 	switch v := o.(type) {
+	case bool:
+		if !v {
+			c.Disabled = true
+		}
 	case string:
 		c.Paths = []string{v}
 

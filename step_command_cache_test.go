@@ -50,6 +50,11 @@ func TestCacheMarshalJSON(t *testing.T) {
 			},
 			want: `{"extra":"field","name":"cache-name","paths":["path/to/cache","another/path"],"size":"25g"}`,
 		},
+		{
+			name: "disabled cache",
+			c:    Cache{Disabled: true},
+			want: `false`,
+		},
 	}
 
 	for _, tc := range cases {
