@@ -105,10 +105,7 @@ func (p *Pipeline) Interpolate(interpolationEnv InterpolationEnv) error {
 // interpolating with the variables defined in interpolationEnv, and then adding the
 // results back into p.Env. Since each environment variable in p.Env can
 // be interpolated into later environment variables, we also add the results
-// to interpolationEnv, but only if interpolationEnv does not already contain that variable
-// as interpolationEnv has precedence over p.Env. For clarification, this means that
-// if a variable name is interpolated to collide with a variable in the
-// interpolationEnv, the interpolationEnv will take precedence.
+// to interpolationEnv, making the input ordering of p.Env potentially important.
 func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv) error {
 	return p.Env.Range(func(k, v string) error {
 		// We interpolate both keys and values.
@@ -125,11 +122,7 @@ func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv) error 
 
 		p.Env.Replace(k, intk, intv)
 
-		// put it into the interpolationEnv for interpolation on a later iteration, but only if it is not
-		// already there, as interpolationEnv has precedence over p.Env
-		if _, exists := interpolationEnv.Get(intk); !exists {
-			interpolationEnv.Set(intk, intv)
-		}
+		interpolationEnv.Set(intk, intv)
 
 		return nil
 	})
