@@ -102,7 +102,7 @@ func TestInterpolator(t *testing.T) {
 				),
 				Steps: Steps{
 					&CommandStep{
-						Command: "echo hello upper_friend",
+						Command: "echo hello lower_friend",
 					},
 				},
 			},
@@ -127,7 +127,7 @@ func TestInterpolator(t *testing.T) {
 				),
 				Steps: Steps{
 					&CommandStep{
-						Command: "echo hello lower_friend",
+						Command: "echo hello upper_friend",
 					},
 				},
 			},
@@ -177,7 +177,7 @@ func TestInterpolator(t *testing.T) {
 				),
 				Steps: Steps{
 					&CommandStep{
-						Command: "echo runtime_baz",
+						Command: "echo pipeline_baz",
 					},
 				},
 			},
@@ -202,7 +202,7 @@ func TestInterpolator(t *testing.T) {
 				),
 				Steps: Steps{
 					&CommandStep{
-						Command: "echo runtime_baz",
+						Command: "echo pipeline_baz",
 					},
 				},
 			},
@@ -250,11 +250,11 @@ func TestInterpolator(t *testing.T) {
 			expected: &Pipeline{
 				Env: ordered.MapFromItems(
 					ordered.TupleSS{Key: "FOO", Value: "pipeline_foo"},
-					ordered.TupleSS{Key: "BAR", Value: "runtime_foo"},
+					ordered.TupleSS{Key: "BAR", Value: "pipeline_foo"},
 				),
 				Steps: Steps{
 					&CommandStep{
-						Command: "echo runtime_foo",
+						Command: "echo pipeline_foo",
 					},
 				},
 			},
