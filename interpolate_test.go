@@ -263,7 +263,7 @@ func TestInterpolator(t *testing.T) {
 			t.Parallel()
 
 			runtimeEnv := env.New(env.CaseSensitive(tc.caseSensitive), env.FromMap(tc.runtimeEnv))
-			err := tc.input.Interpolate(runtimeEnv)
+			err := tc.input.Interpolate(runtimeEnv, false)
 			assert.NilError(t, err)
 			if diff := diffPipeline(tc.input, tc.expected); diff != "" {
 				t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)

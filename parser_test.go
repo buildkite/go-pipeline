@@ -12,14 +12,13 @@ import (
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/buildkite/go-pipeline/warning"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
 )
 
 func ptr[T any](x T) *T { return &x }
 
 func diffPipeline(got *Pipeline, want *Pipeline) string {
-	return cmp.Diff(got, want, cmpopts.IgnoreUnexported(*got), cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA))
+	return cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA))
 }
 
 func TestParserParsesYAML(t *testing.T) {
@@ -29,7 +28,7 @@ func TestParserParsesYAML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 
@@ -166,12 +165,12 @@ steps:
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			got, err := Parse(test.input, RuntimeEnvPropagation(test.runtimePreferred))
+			got, err := Parse(test.input)
 			if err != nil {
 				t.Fatalf("Parse(input) error = %v", err)
 			}
 			runtimeEnv := env.New(env.FromMap(test.runtimeEnv))
-			if err := got.Interpolate(runtimeEnv); err != nil {
+			if err := got.Interpolate(runtimeEnv, test.runtimePreferred); err != nil {
 				t.Fatalf("p.Interpolate(nil) error = %v", err)
 			}
 
@@ -668,7 +667,7 @@ steps:
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 
@@ -847,7 +846,7 @@ func TestParserParsesJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 
@@ -896,7 +895,7 @@ func TestParserParsesJSONArrays(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 
@@ -1465,7 +1464,7 @@ func TestParserInterpolatesKeysAsWellAsValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 	want := &Pipeline{
@@ -1501,7 +1500,7 @@ steps:
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 	want := &Pipeline{
@@ -1547,7 +1546,7 @@ func TestParserLoadsGlobalEnvBlockFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 	want := &Pipeline{
@@ -1862,7 +1861,7 @@ steps:
 				t.Fatalf("Parse(input) error = %v", err)
 			}
 			if test.interpolate {
-				if err := got.Interpolate(nil); err != nil {
+				if err := got.Interpolate(nil, false); err != nil {
 					t.Fatalf("p.Interpolate(nil) error = %v", err)
 				}
 			}

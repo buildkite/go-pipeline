@@ -438,7 +438,7 @@ steps:
 			if err != nil {
 				t.Fatalf("Parse(%q) error = %v", test.input, err)
 			}
-			if err := got.Interpolate(nil); err != nil {
+			if err := got.Interpolate(nil, false); err != nil {
 				t.Fatalf("Pipeline.Interpolate(nil) = %v", err)
 			}
 			if diff := diffPipeline(got, test.want); diff != "" {

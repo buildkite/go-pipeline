@@ -12,16 +12,6 @@ import (
 // Options are functional options for creating a new Env.
 type Options func(*Pipeline)
 
-// By default if an environment variable exists in both the runtime and pipeline env
-// we will substitute with the pipeline env IF the pipeline env is defined first.
-// Setting this option to true instead preferres the runtime environment to pipeline
-// environment variables when both are defined.
-func RuntimeEnvPropagation(preferRuntimeEnv bool) Options {
-	return func(e *Pipeline) {
-		e.preferRuntimeEnv = preferRuntimeEnv
-	}
-}
-
 // Parse parses a pipeline. It does not apply interpolation.
 // Warnings are passed through the err return:
 //
@@ -34,7 +24,7 @@ func RuntimeEnvPropagation(preferRuntimeEnv bool) Options {
 //	    return err
 //	}
 //	// Use p
-func Parse(src io.Reader, opts ...Options) (*Pipeline, error) {
+func Parse(src io.Reader) (*Pipeline, error) {
 	// First get yaml.v3 to give us a raw document (*yaml.Node).
 	n := new(yaml.Node)
 	if err := yaml.NewDecoder(src).Decode(n); err != nil {
@@ -49,9 +39,6 @@ func Parse(src io.Reader, opts ...Options) (*Pipeline, error) {
 	// configuration. Then decode _that_ into a pipeline.
 	p := new(Pipeline)
 
-	for _, o := range opts {
-		o(p)
-	}
 	return p, ordered.Unmarshal(n, p)
 }
 
