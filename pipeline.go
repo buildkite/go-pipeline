@@ -80,7 +80,6 @@ type InterpolationEnv interface {
 //     conflict, to apply later.
 //   - Interpolate any string value in the rest of the pipeline.
 //
-// /
 // By default if an environment variable exists in both the runtime and pipeline env
 // we will substitute with the pipeline env IF the pipeline env is defined first.
 // Setting the preferRuntimeEnv option to true instead prefers the runtime environment to pipeline
