@@ -19,6 +19,8 @@ type Pipeline struct {
 	// RemainingFields stores any other top-level mapping items so they at least
 	// survive an unmarshal-marshal round-trip.
 	RemainingFields map[string]any `yaml:",inline"`
+
+	preferRuntimeEnv bool `yaml:",omitempty"`
 }
 
 // MarshalJSON marshals a pipeline to JSON. Special handling is needed because
@@ -122,7 +124,10 @@ func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv) error 
 
 		p.Env.Replace(k, intk, intv)
 
-		interpolationEnv.Set(intk, intv)
+		// If the variable already existed and we prefer the runtime environment then don't overwrite it
+		if _, exists := interpolationEnv.Get(intk); !(p.preferRuntimeEnv && exists) {
+			interpolationEnv.Set(intk, intv)
+		}
 
 		return nil
 	})

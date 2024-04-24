@@ -18,7 +18,9 @@ import (
 
 func ptr[T any](x T) *T { return &x }
 
-func diffPipeline(got *Pipeline, want *Pipeline) string { return cmp.Diff(got, want, cmpopts.IgnoreUnexported(*got), cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA)) }
+func diffPipeline(got *Pipeline, want *Pipeline) string {
+	return cmp.Diff(got, want, cmpopts.IgnoreUnexported(*got), cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA))
+}
 
 func TestParserParsesYAML(t *testing.T) {
 	runtimeEnv := env.New(env.FromMap(map[string]string{"ENV_VAR_FRIEND": "friend"}))
@@ -71,10 +73,11 @@ func TestParserParsesYAML(t *testing.T) {
 
 func TestParserParsesYAMLWithInterpolation(t *testing.T) {
 	tests := []struct {
-		desc       string
-		input      io.Reader
-		runtimeEnv map[string]string
-		want       *Pipeline
+		desc             string
+		input            io.Reader
+		runtimeEnv       map[string]string
+		want             *Pipeline
+		runtimePreferred bool
 	}{
 		{
 			desc:       "InterpolationInName",
@@ -94,14 +97,14 @@ steps:
 			},
 		},
 		{
-			desc:       "InterpolationInKey",
-			input:      strings.NewReader(`
+			desc: "InterpolationInKey",
+			input: strings.NewReader(`
 steps:
 - key: hello-${ENV_VAR_FRIEND}
   command: echo hello world
 `),
 			runtimeEnv: map[string]string{"ENV_VAR_FRIEND": "friend"},
-			want:       &Pipeline{
+			want: &Pipeline{
 				Steps: Steps{
 					&CommandStep{
 						Key:     "hello-friend",
@@ -110,11 +113,60 @@ steps:
 				},
 			},
 		},
+		{
+			desc:       "InterpolationWithEnvFromRuntimeAndInput",
+			runtimeEnv: map[string]string{"ENV_VAR_FRIEND": "friend"},
+			input: strings.NewReader(`
+env:
+  ENV_VAR_FRIEND: foe
+  MSG: hello ${ENV_VAR_FRIEND}
+steps:
+- name: echo message
+  command: echo ${MSG}
+`),
+			want: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "ENV_VAR_FRIEND", Value: "foe"},
+					ordered.TupleSS{Key: "MSG", Value: "hello foe"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Label:   "echo message",
+						Command: "echo hello foe",
+					},
+				},
+			},
+		},
+		{
+			desc:             "InterpolationWithEnvFromRuntimeAndInputRuntimePreferred",
+			runtimeEnv:       map[string]string{"ENV_VAR_FRIEND": "friend"},
+			runtimePreferred: true,
+			input: strings.NewReader(`
+env:
+  ENV_VAR_FRIEND: foe
+  MSG: hello ${ENV_VAR_FRIEND}
+steps:
+- name: echo message
+  command: echo ${MSG}
+`),
+			want: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "ENV_VAR_FRIEND", Value: "foe"},
+					ordered.TupleSS{Key: "MSG", Value: "hello friend"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Label:   "echo message",
+						Command: "echo hello friend",
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			got, err := Parse(test.input)
+			got, err := Parse(test.input, RuntimeEnvPropagation(test.runtimePreferred))
 			if err != nil {
 				t.Fatalf("Parse(input) error = %v", err)
 			}
