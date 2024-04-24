@@ -18,7 +18,7 @@ import (
 
 func ptr[T any](x T) *T { return &x }
 
-func diffPipeline(got *Pipeline, want *Pipeline) string { return cmp.Diff(got, want, cmpopts.IgnoreUnexported(*got)) }
+func diffPipeline(got *Pipeline, want *Pipeline) string { return cmp.Diff(got, want, cmpopts.IgnoreUnexported(*got), cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA)) }
 
 func TestParserParsesYAML(t *testing.T) {
 	runtimeEnv := env.New(env.FromMap(map[string]string{"ENV_VAR_FRIEND": "friend"}))
@@ -36,7 +36,7 @@ func TestParserParsesYAML(t *testing.T) {
 			&CommandStep{Command: "hello friend"},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got, +want):\n%s", diff)
 	}
 
@@ -142,7 +142,7 @@ func TestParserParsesYAMLWithNoInterpolation(t *testing.T) {
 			&CommandStep{Command: "hello ${ENV_VAR_FRIEND}"},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -216,7 +216,7 @@ steps:
 			),
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -315,7 +315,7 @@ steps:
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -481,7 +481,7 @@ steps:
 				t.Fatalf("Parse(input) error = %v", err)
 			}
 
-			if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+			if diff := diffPipeline(got, want); diff != "" {
 				t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 			}
 
@@ -530,7 +530,7 @@ steps:
 		},
 	}
 
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -568,7 +568,7 @@ func TestParserParsesNoSteps(t *testing.T) {
 		want := &Pipeline{
 			Steps: Steps{},
 		}
-		if diff := cmp.Diff(got, want); diff != "" {
+		if diff := diffPipeline(got, want); diff != "" {
 			t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 		}
 
@@ -640,7 +640,7 @@ steps:
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -725,7 +725,7 @@ steps:
 		},
 	}
 
-	if diff := cmp.Diff(pipeline, want); diff != "" {
+	if diff := diffPipeline(pipeline, want); diff != "" {
 		t.Fatalf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -804,7 +804,7 @@ func TestParserParsesJSON(t *testing.T) {
 			&CommandStep{Command: "bye friend"},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -853,7 +853,7 @@ func TestParserParsesJSONArrays(t *testing.T) {
 			&CommandStep{Command: "bye friend"},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -901,7 +901,7 @@ func TestParserParsesTopLevelSteps(t *testing.T) {
 			&WaitStep{Scalar: "wait"},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -995,7 +995,7 @@ steps:
 		},
 	}
 
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1074,7 +1074,7 @@ func TestParserEmitsWarningWithTopLevelStepSequence(t *testing.T) {
 		},
 	}
 
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1118,7 +1118,7 @@ steps: null
 		Env:   nil,
 		Steps: Steps{},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1161,7 +1161,7 @@ func TestParserPreservesBools(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1212,7 +1212,7 @@ func TestParserPreservesInts(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1258,7 +1258,7 @@ func TestParserPreservesNull(t *testing.T) {
 			&WaitStep{Contents: map[string]any{"wait": nil, "if": "foo"}},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1309,7 +1309,7 @@ func TestParserPreservesFloats(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1365,7 +1365,7 @@ func TestParserHandlesDates(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1425,7 +1425,7 @@ func TestParserInterpolatesKeysAsWellAsValues(t *testing.T) {
 			&WaitStep{Scalar: "wait"},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 }
@@ -1473,7 +1473,7 @@ steps:
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 }
@@ -1510,7 +1510,7 @@ func TestParserLoadsGlobalEnvBlockFirst(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 }
@@ -1581,7 +1581,7 @@ steps:
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1698,7 +1698,7 @@ func TestParserParsesScalarPlugins(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1815,7 +1815,7 @@ steps:
 				}
 			}
 
-			if diff := cmp.Diff(got, want); diff != "" {
+			if diff := diffPipeline(got, want); diff != "" {
 				t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 			}
 
@@ -2005,7 +2005,7 @@ steps:
 			if err != nil {
 				t.Fatalf("Parse(%q) error = %v", test.input, err)
 			}
-			if diff := cmp.Diff(got, test.want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+			if diff := diffPipeline(got, test.want); diff != "" {
 				t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 			}
 

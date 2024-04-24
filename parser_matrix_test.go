@@ -441,7 +441,7 @@ steps:
 			if err := got.Interpolate(nil); err != nil {
 				t.Fatalf("Pipeline.Interpolate(nil) = %v", err)
 			}
-			if diff := cmp.Diff(got, test.want, cmp.Comparer(ordered.EqualSS)); diff != "" {
+			if diff := diffPipeline(got, test.want); diff != "" {
 				t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 			}
 			gotJSON, err := json.MarshalIndent(got, "", "  ")

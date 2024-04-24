@@ -5,7 +5,6 @@ import (
 
 	"github.com/buildkite/go-pipeline/internal/env"
 	"github.com/buildkite/go-pipeline/ordered"
-	"github.com/google/go-cmp/cmp"
 	"gotest.tools/v3/assert"
 )
 
@@ -266,13 +265,9 @@ func TestInterpolator(t *testing.T) {
 			runtimeEnv := env.New(env.CaseSensitive(tc.caseSensitive), env.FromMap(tc.runtimeEnv))
 			err := tc.input.Interpolate(runtimeEnv)
 			assert.NilError(t, err)
-			assert.DeepEqual(
-				t,
-				tc.input,
-				tc.expected,
-				cmp.Comparer(ordered.EqualSA),
-				cmp.Comparer(ordered.EqualSS),
-			)
+			if diff := diffPipeline(tc.input, tc.expected); diff != "" {
+				t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
+			}
 		})
 	}
 }
