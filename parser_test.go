@@ -3,6 +3,7 @@ package pipeline
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,10 @@ import (
 
 func ptr[T any](x T) *T { return &x }
 
+func diffPipeline(got *Pipeline, want *Pipeline) string {
+	return cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA))
+}
+
 func TestParserParsesYAML(t *testing.T) {
 	runtimeEnv := env.New(env.FromMap(map[string]string{"ENV_VAR_FRIEND": "friend"}))
 	input := strings.NewReader("steps:\n  - command: \"hello ${ENV_VAR_FRIEND}\"")
@@ -23,7 +28,7 @@ func TestParserParsesYAML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 
@@ -32,7 +37,7 @@ func TestParserParsesYAML(t *testing.T) {
 			&CommandStep{Command: "hello friend"},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got, +want):\n%s", diff)
 	}
 
@@ -65,119 +70,114 @@ func TestParserParsesYAML(t *testing.T) {
 	}
 }
 
-func TestParserParsesYAMLWithInterpolationInName(t *testing.T) {
-	runtimeEnv := env.New(env.FromMap(map[string]string{"ENV_VAR_FRIEND": "friend"}))
-	input := strings.NewReader(`
+func TestParserParsesYAMLWithInterpolation(t *testing.T) {
+	tests := []struct {
+		desc             string
+		input            io.Reader
+		runtimeEnv       map[string]string
+		want             *Pipeline
+		runtimePreferred bool
+	}{
+		{
+			desc:       "InterpolationInName",
+			runtimeEnv: map[string]string{"ENV_VAR_FRIEND": "friend"},
+			input: strings.NewReader(`
 steps:
 - name: hello-${ENV_VAR_FRIEND}
   command: echo hello world
-`)
-	got, err := Parse(input)
-	if err != nil {
-		t.Fatalf("Parse(input) error = %v", err)
-	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
-		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
-	}
-
-	want := &Pipeline{
-		Steps: Steps{
-			&CommandStep{
-				Label:   "hello-friend",
-				Command: "echo hello world",
+`),
+			want: &Pipeline{
+				Steps: Steps{
+					&CommandStep{
+						Label:   "hello-friend",
+						Command: "echo hello world",
+					},
+				},
 			},
 		},
-	}
-	if diff := cmp.Diff(got, want); diff != "" {
-		t.Errorf("parsed pipeline diff (-got, +want):\n%s", diff)
-	}
-
-	gotJSON, err := json.MarshalIndent(got, "", "  ")
-	if err != nil {
-		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
-	}
-
-	const wantJSON = `{
-  "steps": [
-    {
-      "command": "echo hello world",
-      "label": "hello-friend"
-    }
-  ]
-}`
-	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
-		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
-	}
-
-	gotYAML, err := yaml.Marshal(got)
-	if err != nil {
-		t.Errorf("yaml.Marshal(got) error = %v", err)
-	}
-
-	wantYAML := `steps:
-    - label: hello-friend
-      command: echo hello world
-`
-	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
-		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
-	}
-}
-
-func TestParserParsesYAMLWithInterpolationInKey(t *testing.T) {
-	runtimeEnv := env.New(env.FromMap(map[string]string{"ENV_VAR_FRIEND": "friend"}))
-	input := strings.NewReader(`
+		{
+			desc: "InterpolationInKey",
+			input: strings.NewReader(`
 steps:
 - key: hello-${ENV_VAR_FRIEND}
   command: echo hello world
-`)
-	got, err := Parse(input)
-	if err != nil {
-		t.Fatalf("Parse(input) error = %v", err)
-	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
-		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
-	}
-
-	want := &Pipeline{
-		Steps: Steps{
-			&CommandStep{
-				Key:     "hello-friend",
-				Command: "echo hello world",
+`),
+			runtimeEnv: map[string]string{"ENV_VAR_FRIEND": "friend"},
+			want: &Pipeline{
+				Steps: Steps{
+					&CommandStep{
+						Key:     "hello-friend",
+						Command: "echo hello world",
+					},
+				},
+			},
+		},
+		{
+			desc:       "InterpolationWithEnvFromRuntimeAndInput",
+			runtimeEnv: map[string]string{"ENV_VAR_FRIEND": "friend"},
+			input: strings.NewReader(`
+env:
+  ENV_VAR_FRIEND: foe
+  MSG: hello ${ENV_VAR_FRIEND}
+steps:
+- name: echo message
+  command: echo ${MSG}
+`),
+			want: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "ENV_VAR_FRIEND", Value: "foe"},
+					ordered.TupleSS{Key: "MSG", Value: "hello foe"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Label:   "echo message",
+						Command: "echo hello foe",
+					},
+				},
+			},
+		},
+		{
+			desc:             "InterpolationWithEnvFromRuntimeAndInputRuntimePreferred",
+			runtimeEnv:       map[string]string{"ENV_VAR_FRIEND": "friend"},
+			runtimePreferred: true,
+			input: strings.NewReader(`
+env:
+  ENV_VAR_FRIEND: foe
+  MSG: hello ${ENV_VAR_FRIEND}
+steps:
+- name: echo message
+  command: echo ${MSG}
+`),
+			want: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "ENV_VAR_FRIEND", Value: "foe"},
+					ordered.TupleSS{Key: "MSG", Value: "hello friend"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Label:   "echo message",
+						Command: "echo hello friend",
+					},
+				},
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
-		t.Errorf("parsed pipeline diff (-got, +want):\n%s", diff)
-	}
 
-	gotJSON, err := json.MarshalIndent(got, "", "  ")
-	if err != nil {
-		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
-	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got, err := Parse(test.input)
+			if err != nil {
+				t.Fatalf("Parse(input) error = %v", err)
+			}
+			runtimeEnv := env.New(env.FromMap(test.runtimeEnv))
+			if err := got.Interpolate(runtimeEnv, test.runtimePreferred); err != nil {
+				t.Fatalf("p.Interpolate(nil) error = %v", err)
+			}
 
-	const wantJSON = `{
-  "steps": [
-    {
-      "command": "echo hello world",
-      "key": "hello-friend"
-    }
-  ]
-}`
-	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
-		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
-	}
-
-	gotYAML, err := yaml.Marshal(got)
-	if err != nil {
-		t.Errorf("yaml.Marshal(got) error = %v", err)
-	}
-
-	wantYAML := `steps:
-    - key: hello-friend
-      command: echo hello world
-`
-	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
-		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
+			if diff := diffPipeline(got, test.want); diff != "" {
+				t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -193,7 +193,7 @@ func TestParserParsesYAMLWithNoInterpolation(t *testing.T) {
 			&CommandStep{Command: "hello ${ENV_VAR_FRIEND}"},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -267,7 +267,7 @@ steps:
 			),
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -366,7 +366,7 @@ steps:
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -532,7 +532,7 @@ steps:
 				t.Fatalf("Parse(input) error = %v", err)
 			}
 
-			if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+			if diff := diffPipeline(got, want); diff != "" {
 				t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 			}
 
@@ -581,7 +581,7 @@ steps:
 		},
 	}
 
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -619,7 +619,7 @@ func TestParserParsesNoSteps(t *testing.T) {
 		want := &Pipeline{
 			Steps: Steps{},
 		}
-		if diff := cmp.Diff(got, want); diff != "" {
+		if diff := diffPipeline(got, want); diff != "" {
 			t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 		}
 
@@ -667,7 +667,7 @@ steps:
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 
@@ -691,7 +691,7 @@ steps:
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -776,7 +776,7 @@ steps:
 		},
 	}
 
-	if diff := cmp.Diff(pipeline, want); diff != "" {
+	if diff := diffPipeline(pipeline, want); diff != "" {
 		t.Fatalf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -846,7 +846,7 @@ func TestParserParsesJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 
@@ -855,7 +855,7 @@ func TestParserParsesJSON(t *testing.T) {
 			&CommandStep{Command: "bye friend"},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -895,7 +895,7 @@ func TestParserParsesJSONArrays(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 
@@ -904,7 +904,7 @@ func TestParserParsesJSONArrays(t *testing.T) {
 			&CommandStep{Command: "bye friend"},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -952,7 +952,7 @@ func TestParserParsesTopLevelSteps(t *testing.T) {
 			&WaitStep{Scalar: "wait"},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1046,7 +1046,7 @@ steps:
 		},
 	}
 
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1125,7 +1125,7 @@ func TestParserEmitsWarningWithTopLevelStepSequence(t *testing.T) {
 		},
 	}
 
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1169,7 +1169,7 @@ steps: null
 		Env:   nil,
 		Steps: Steps{},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1212,7 +1212,7 @@ func TestParserPreservesBools(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1263,7 +1263,7 @@ func TestParserPreservesInts(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1309,7 +1309,7 @@ func TestParserPreservesNull(t *testing.T) {
 			&WaitStep{Contents: map[string]any{"wait": nil, "if": "foo"}},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1360,7 +1360,7 @@ func TestParserPreservesFloats(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1416,7 +1416,7 @@ func TestParserHandlesDates(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1464,7 +1464,7 @@ func TestParserInterpolatesKeysAsWellAsValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 	want := &Pipeline{
@@ -1476,7 +1476,7 @@ func TestParserInterpolatesKeysAsWellAsValues(t *testing.T) {
 			&WaitStep{Scalar: "wait"},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 }
@@ -1500,7 +1500,7 @@ steps:
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 	want := &Pipeline{
@@ -1524,7 +1524,7 @@ steps:
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 }
@@ -1546,7 +1546,7 @@ func TestParserLoadsGlobalEnvBlockFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse(input) error = %v", err)
 	}
-	if err := got.Interpolate(runtimeEnv); err != nil {
+	if err := got.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate(%v) error = %v", runtimeEnv, err)
 	}
 	want := &Pipeline{
@@ -1561,7 +1561,7 @@ func TestParserLoadsGlobalEnvBlockFirst(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 }
@@ -1632,7 +1632,7 @@ steps:
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1749,7 +1749,7 @@ func TestParserParsesScalarPlugins(t *testing.T) {
 			},
 		},
 	}
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := diffPipeline(got, want); diff != "" {
 		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 	}
 
@@ -1861,12 +1861,12 @@ steps:
 				t.Fatalf("Parse(input) error = %v", err)
 			}
 			if test.interpolate {
-				if err := got.Interpolate(nil); err != nil {
+				if err := got.Interpolate(nil, false); err != nil {
 					t.Fatalf("p.Interpolate(nil) error = %v", err)
 				}
 			}
 
-			if diff := cmp.Diff(got, want); diff != "" {
+			if diff := diffPipeline(got, want); diff != "" {
 				t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 			}
 
@@ -2056,7 +2056,7 @@ steps:
 			if err != nil {
 				t.Fatalf("Parse(%q) error = %v", test.input, err)
 			}
-			if diff := cmp.Diff(got, test.want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+			if diff := diffPipeline(got, test.want); diff != "" {
 				t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
 			}
 

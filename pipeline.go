@@ -79,14 +79,19 @@ type InterpolationEnv interface {
 //   - Interpolate pipeline.Env and copy the results into interpolationEnv, provided they don't
 //     conflict, to apply later.
 //   - Interpolate any string value in the rest of the pipeline.
-func (p *Pipeline) Interpolate(interpolationEnv InterpolationEnv) error {
+//
+// By default if an environment variable exists in both the runtime and pipeline env
+// we will substitute with the pipeline env IF the pipeline env is defined first.
+// Setting the preferRuntimeEnv option to true instead prefers the runtime environment to pipeline
+// environment variables when both are defined.
+func (p *Pipeline) Interpolate(interpolationEnv InterpolationEnv, preferRuntimeEnv bool) error {
 	if interpolationEnv == nil {
 		interpolationEnv = env.New()
 	}
 
 	// Preprocess any env that are defined in the top level block and place them
 	// into env for later interpolation into the rest of the pipeline.
-	if err := p.interpolateEnvBlock(interpolationEnv); err != nil {
+	if err := p.interpolateEnvBlock(interpolationEnv, preferRuntimeEnv); err != nil {
 		return err
 	}
 
@@ -106,7 +111,7 @@ func (p *Pipeline) Interpolate(interpolationEnv InterpolationEnv) error {
 // results back into p.Env. Since each environment variable in p.Env can
 // be interpolated into later environment variables, we also add the results
 // to interpolationEnv, making the input ordering of p.Env potentially important.
-func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv) error {
+func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv, preferRuntimeEnv bool) error {
 	return p.Env.Range(func(k, v string) error {
 		// We interpolate both keys and values.
 		intk, err := interpolate.Interpolate(interpolationEnv, k)
@@ -122,7 +127,10 @@ func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv) error 
 
 		p.Env.Replace(k, intk, intv)
 
-		interpolationEnv.Set(intk, intv)
+		// If the variable already existed and we prefer the runtime environment then don't overwrite it
+		if _, exists := interpolationEnv.Get(intk); !(preferRuntimeEnv && exists) {
+			interpolationEnv.Set(intk, intv)
+		}
 
 		return nil
 	})
