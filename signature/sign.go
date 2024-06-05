@@ -1,6 +1,9 @@
 package signature
 
 import (
+	"context"
+	"crypto"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,9 +38,11 @@ type SignedFielder interface {
 	ValuesForFields([]string) (map[string]any, error)
 }
 
+type Logger interface {Debug(f string, v ...any) }
+
 // Sign computes a new signature for an environment (env) combined with an
 // object containing values (sf) using a given key.
-func Sign(key jwk.Key, env map[string]string, sf SignedFielder) (*pipeline.Signature, error) {
+func Sign(key jwk.Key, env map[string]string, sf SignedFielder, logger Logger) (*pipeline.Signature, error) {
 	values, err := sf.SignedFields()
 	if err != nil {
 		return nil, err
@@ -73,6 +78,17 @@ func Sign(key jwk.Key, env map[string]string, sf SignedFielder) (*pipeline.Signa
 		return nil, err
 	}
 
+	if pk, err := key.PublicKey(); err == nil && logger != nil {
+		fingerprint, err := pk.Thumbprint(crypto.SHA256)
+		if err != nil {
+			logger.Debug("Cannot calculate key thumbprint")
+		} else {
+			logger.Debug("Public Key Thumbprint: %s", hex.EncodeToString(fingerprint))
+		}
+	} else {
+		logger.Debug("Unable to generate public key")
+	}
+
 	sig, err := jws.Sign(nil,
 		jws.WithKey(key.Algorithm(), key),
 		jws.WithDetachedPayload(payload),
@@ -91,7 +107,7 @@ func Sign(key jwk.Key, env map[string]string, sf SignedFielder) (*pipeline.Signa
 
 // Verify verifies an existing signature against environment (env) combined with
 // an object containing values (sf) using keys from a keySet.
-func Verify(s *pipeline.Signature, keySet jwk.Set, env map[string]string, sf SignedFielder) error {
+func Verify(s *pipeline.Signature, keySet jwk.Set, env map[string]string, sf SignedFielder, logger Logger) error {
 	if len(s.SignedFields) == 0 {
 		return errors.New("signature covers no fields")
 	}
@@ -127,6 +143,19 @@ func Verify(s *pipeline.Signature, keySet jwk.Set, env map[string]string, sf Sig
 	payload, err := canonicalPayload(s.Algorithm, required)
 	if err != nil {
 		return err
+	}
+
+	if logger != nil {
+		for it := keySet.Keys(context.Background()); it.Next(context.Background()); {
+			pair := it.Pair()
+			publicKey := pair.Value.(jwk.Key)
+			fingerprint, err := publicKey.Thumbprint(crypto.SHA256)
+			if err != nil {
+				logger.Debug("Cannot calculate key thumbprint")
+			} else {
+				logger.Debug("Public Key Thumbprint: %s", hex.EncodeToString(fingerprint))
+			}
+		}
 	}
 
 	_, err = jws.Verify([]byte(s.Value),

@@ -96,7 +96,7 @@ func TestSignVerify(t *testing.T) {
 				t.Fatalf("jwkutil.LoadKey(%v, %v) error = %v", privPath, keyName, err)
 			}
 
-			sig, err := Sign(sKey, signEnv, stepWithInvariants)
+			sig, err := Sign(sKey, signEnv, stepWithInvariants, nil)
 			if err != nil {
 				t.Fatalf("Sign(CommandStep, signer) error = %v", err)
 			}
@@ -122,7 +122,7 @@ func TestSignVerify(t *testing.T) {
 				t.Fatalf("verifier.AddKey(%v) error = %v", vKey, err)
 			}
 
-			if err := Verify(sig, verifier, verifyEnv, stepWithInvariants); err != nil {
+			if err := Verify(sig, verifier, verifyEnv, stepWithInvariants, nil); err != nil {
 				t.Errorf("Verify(sig,CommandStep, verifier) = %v", err)
 			}
 		})
@@ -183,7 +183,7 @@ func TestSignConcatenatedFields(t *testing.T) {
 	}
 
 	for _, m := range maps {
-		sig, err := Sign(key, nil, m)
+		sig, err := Sign(key, nil, m, nil)
 		if err != nil {
 			t.Fatalf("Sign(%v, pts) error = %v", m, err)
 		}
@@ -221,6 +221,7 @@ func TestUnknownAlgorithm(t *testing.T) {
 		key,
 		nil,
 		&CommandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}},
+		nil,
 	); err == nil {
 		t.Errorf("Sign(nil, CommandStep, signer) = %v, want non-nil error", err)
 	}
@@ -242,7 +243,7 @@ func TestVerifyBadSignature(t *testing.T) {
 		t.Fatalf("NewSymmetricKeyPairFromString(alpacas) error = %v", err)
 	}
 
-	if err := Verify(sig, verifier, nil, cs); err == nil {
+	if err := Verify(sig, verifier, nil, cs, nil); err == nil {
 		t.Errorf("Verify(sig,CommandStep, alpacas) = %v, want non-nil error", err)
 	}
 }
@@ -266,7 +267,7 @@ func TestSignUnknownStep(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	if err := SignSteps(steps, key, nil, ""); !errors.Is(err, errSigningRefusedUnknownStepType) {
+	if err := SignSteps(steps, key, nil, "", nil); !errors.Is(err, errSigningRefusedUnknownStepType) {
 		t.Errorf("steps.sign(signer) = %v, want %v", err, errSigningRefusedUnknownStepType)
 	}
 }
@@ -354,12 +355,12 @@ func TestSignVerifyEnv(t *testing.T) {
 				RepositoryURL: tc.repositoryURL,
 			}
 
-			sig, err := Sign(key, tc.pipelineEnv, stepWithInvariants)
+			sig, err := Sign(key, tc.pipelineEnv, stepWithInvariants, nil)
 			if err != nil {
 				t.Fatalf("Sign(CommandStep, signer) error = %v", err)
 			}
 
-			if err := Verify(sig, verifier, tc.verifyEnv, stepWithInvariants); err != nil {
+			if err := Verify(sig, verifier, tc.verifyEnv, stepWithInvariants, nil); err != nil {
 				t.Errorf("Verify(sig,CommandStep, verifier) = %v", err)
 			}
 		})
@@ -409,12 +410,12 @@ func TestSignatureStability(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	sig, err := Sign(key, env, stepWithInvariants)
+	sig, err := Sign(key, env, stepWithInvariants, nil)
 	if err != nil {
 		t.Fatalf("Sign(env, CommandStep, signer) error = %v", err)
 	}
 
-	if err := Verify(sig, verifier, env, stepWithInvariants); err != nil {
+	if err := Verify(sig, verifier, env, stepWithInvariants, nil); err != nil {
 		t.Errorf("Verify(sig,env, CommandStep, verifier) = %v", err)
 	}
 }
