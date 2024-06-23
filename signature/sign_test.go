@@ -417,3 +417,94 @@ func TestSignatureStability(t *testing.T) {
 		t.Errorf("Verify(sig,env, CommandStep, verifier) = %v", err)
 	}
 }
+
+func TestDebugSigning(t *testing.T) {
+	t.Parallel()
+
+	step := &pipeline.CommandStep{
+		Command: "llamas",
+		Plugins: pipeline.Plugins{
+			{
+				Source: "some-plugin#v1.0.0",
+				Config: nil,
+			},
+			{
+				Source: "another-plugin#v3.4.5",
+				Config: map[string]any{"llama": "Kuzco"},
+			},
+		},
+		Env: map[string]string{
+			"CONTEXT": "cats",
+			"DEPLOY":  "0",
+		},
+	}
+	// The pipeline-level env that the agent uploads:
+	signEnv := map[string]string{
+		"DEPLOY": "1",
+	}
+
+	stepWithInvariants := &CommandStepWithInvariants{
+		CommandStep:   *step,
+		RepositoryURL: "fake-repo",
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd() error = %v", err)
+	}
+
+	// We load the key from disk so that we can have deterministic signatures - key generation is non-deterministic,
+	// but signature itself is deterministic across keys for HS512 and EdDSA.
+	keyPath := path.Join(wd, "fixtures", "keys", jwa.EdDSA.String())
+
+	keyName := "TEST_DO_NOT_USE"
+	privPath := path.Join(keyPath, fmt.Sprintf("%s-private.json", keyName))
+
+	sKey, err := jwkutil.LoadKey(privPath, keyName)
+	if err != nil {
+		t.Fatalf("jwkutil.LoadKey(%v, %v) error = %v", privPath, keyName, err)
+	}
+
+	// Test that step payload is not logged when debugSigning is false
+	logger := &mockLogger{
+		expectedFormat: "Signed Step: %s",
+	}
+	_, err = Sign(sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(false), WithLogger(logger))
+	if err != nil {
+		t.Fatalf("Sign(CommandStep, signer) error = %v", err)
+	}
+
+	if logger.passed {
+		t.Errorf("Expected \"%s\" not to be logged, but got %v", logger.expectedFormat, logger.actualFormats)
+	}
+
+	// Test that step payload is logged when debugSigning is true
+	logger = &mockLogger{
+		expectedFormat: "Signed Step: %s",
+	}
+	_, err = Sign(sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(true), WithLogger(logger))
+	if err != nil {
+		t.Fatalf("Sign(CommandStep, signer) error = %v", err)
+	}
+
+	if !logger.passed {
+		t.Errorf("Expected \"%s\" to be logged, but only got %v", logger.expectedFormat, logger.actualFormats)
+	}
+}
+
+type mockLogger struct {
+	passed         bool
+	expectedFormat string
+	actualFormats  []string
+}
+
+func (m *mockLogger) Debug(f string, v ...any) {
+	if m.passed {
+		return
+	}
+
+	m.actualFormats = append(m.actualFormats, f)
+	if f == m.expectedFormat {
+		m.passed = true
+	}
+}

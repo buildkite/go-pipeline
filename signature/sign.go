@@ -41,8 +41,9 @@ type SignedFielder interface {
 type Logger interface{ Debug(f string, v ...any) }
 
 type options struct {
-	env    map[string]string
-	logger Logger
+	env          map[string]string
+	logger       Logger
+	debugSigning bool
 }
 
 type Option interface {
@@ -51,12 +52,15 @@ type Option interface {
 
 type envOption struct{ env map[string]string }
 type loggerOption struct{ logger Logger }
+type debugSigningOption struct{ debugSigning bool }
 
-func (o envOption) apply(opts *options)    { opts.env = o.env }
-func (o loggerOption) apply(opts *options) { opts.logger = o.logger }
+func (o envOption) apply(opts *options)          { opts.env = o.env }
+func (o loggerOption) apply(opts *options)       { opts.logger = o.logger }
+func (o debugSigningOption) apply(opts *options) { opts.debugSigning = o.debugSigning }
 
-func WithEnv(env map[string]string) Option { return envOption{env} }
-func WithLogger(logger Logger) Option      { return loggerOption{logger} }
+func WithEnv(env map[string]string) Option      { return envOption{env} }
+func WithLogger(logger Logger) Option           { return loggerOption{logger} }
+func WithDebugSigning(debugSigning bool) Option { return debugSigningOption{debugSigning} }
 
 // Sign computes a new signature for an environment (env) combined with an
 // object containing values (sf) using a given key.
@@ -110,6 +114,10 @@ func Sign(key jwk.Key, sf SignedFielder, opts ...Option) (*pipeline.Signature, e
 		}
 	} else {
 		debug(options.logger, "Unable to generate public key")
+	}
+
+	if options.debugSigning {
+		debug(options.logger, "Signed Step: %s", payload)
 	}
 
 	sig, err := jws.Sign(nil,
@@ -184,6 +192,10 @@ func Verify(s *pipeline.Signature, keySet jwk.Set, sf SignedFielder, opts ...Opt
 				debug(options.logger, "Public Key Thumbprint: %s", hex.EncodeToString(fingerprint))
 			}
 		}
+	}
+
+	if options.debugSigning {
+		debug(options.logger, "Signed Step: %s", payload)
 	}
 
 	_, err = jws.Verify([]byte(s.Value),
