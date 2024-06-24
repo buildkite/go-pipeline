@@ -108,12 +108,12 @@ func Sign(key jwk.Key, sf SignedFielder, opts ...Option) (*pipeline.Signature, e
 	if pk, err := key.PublicKey(); err == nil && options.logger != nil {
 		fingerprint, err := pk.Thumbprint(crypto.SHA256)
 		if err != nil {
-			debug(options.logger, "Cannot calculate key thumbprint")
+			return nil, fmt.Errorf("calculating key thumbprint: %w", err)
 		} else {
 			debug(options.logger, "Public Key Thumbprint (sha256): %s", hex.EncodeToString(fingerprint))
 		}
-	} else {
-		debug(options.logger, "Unable to generate public key")
+	} else if err != nil {
+		return nil, fmt.Errorf("unable to generate public key: %w", err)
 	}
 
 	if options.debugSigning {
@@ -181,16 +181,14 @@ func Verify(s *pipeline.Signature, keySet jwk.Set, sf SignedFielder, opts ...Opt
 		return err
 	}
 
-	if options.logger != nil {
-		for it := keySet.Keys(context.Background()); it.Next(context.Background()); {
-			pair := it.Pair()
-			publicKey := pair.Value.(jwk.Key)
-			fingerprint, err := publicKey.Thumbprint(crypto.SHA256)
-			if err != nil {
-				debug(options.logger, "Cannot calculate key thumbprint")
-			} else {
-				debug(options.logger, "Public Key Thumbprint (sha256): %s", hex.EncodeToString(fingerprint))
-			}
+	for it := keySet.Keys(context.Background()); it.Next(context.Background()); {
+		pair := it.Pair()
+		publicKey := pair.Value.(jwk.Key)
+		fingerprint, err := publicKey.Thumbprint(crypto.SHA256)
+		if err != nil {
+			return fmt.Errorf("calculating key thumbprint: %w", err)
+		} else if options.logger != nil {
+			debug(options.logger, "Public Key Thumbprint (sha256): %s", hex.EncodeToString(fingerprint))
 		}
 	}
 
