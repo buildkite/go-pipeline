@@ -1,6 +1,9 @@
 package signature
 
 import (
+	"context"
+	"crypto"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,9 +38,50 @@ type SignedFielder interface {
 	ValuesForFields([]string) (map[string]any, error)
 }
 
+type Logger interface{ Debug(f string, v ...any) }
+
+type options struct {
+	env          map[string]string
+	logger       Logger
+	debugSigning bool
+	ctx          context.Context
+}
+
+type Option interface {
+	apply(*options)
+}
+
+type envOption struct{ env map[string]string }
+type loggerOption struct{ logger Logger }
+type debugSigningOption struct{ debugSigning bool }
+type contextOption struct{ ctx context.Context }
+
+func (o envOption) apply(opts *options)          { opts.env = o.env }
+func (o loggerOption) apply(opts *options)       { opts.logger = o.logger }
+func (o debugSigningOption) apply(opts *options) { opts.debugSigning = o.debugSigning }
+func (o contextOption) apply(opts *options)      { opts.ctx = o.ctx }
+
+func WithEnv(env map[string]string) Option      { return envOption{env} }
+func WithLogger(logger Logger) Option           { return loggerOption{logger} }
+func WithDebugSigning(debugSigning bool) Option { return debugSigningOption{debugSigning} }
+func WithContext(ctx context.Context) Option    { return contextOption{ctx} }
+
+func configureOptions(opts ...Option) options {
+	options := options{
+		env: make(map[string]string),
+		ctx: context.Background(),
+	}
+	for _, o := range opts {
+		o.apply(&options)
+	}
+	return options
+}
+
 // Sign computes a new signature for an environment (env) combined with an
 // object containing values (sf) using a given key.
-func Sign(key jwk.Key, env map[string]string, sf SignedFielder) (*pipeline.Signature, error) {
+func Sign(key jwk.Key, sf SignedFielder, opts ...Option) (*pipeline.Signature, error) {
+	options := configureOptions(opts...)
+
 	values, err := sf.SignedFields()
 	if err != nil {
 		return nil, err
@@ -54,7 +98,7 @@ func Sign(key jwk.Key, env map[string]string, sf SignedFielder) (*pipeline.Signa
 	objEnv, _ := values["env"].(map[string]string)
 
 	// Namespace the env values and include them in the values to sign.
-	for k, v := range env {
+	for k, v := range options.env {
 		if _, has := objEnv[k]; has {
 			continue
 		}
@@ -71,6 +115,21 @@ func Sign(key jwk.Key, env map[string]string, sf SignedFielder) (*pipeline.Signa
 	payload, err := canonicalPayload(key.Algorithm().String(), values)
 	if err != nil {
 		return nil, err
+	}
+
+	if pk, err := key.PublicKey(); err == nil && options.logger != nil {
+		fingerprint, err := pk.Thumbprint(crypto.SHA256)
+		if err != nil {
+			return nil, fmt.Errorf("calculating key thumbprint: %w", err)
+		} else {
+			debug(options.logger, "Public Key Thumbprint (sha256): %s", hex.EncodeToString(fingerprint))
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("unable to generate public key: %w", err)
+	}
+
+	if options.debugSigning {
+		debug(options.logger, "Signed Step: %s", payload)
 	}
 
 	sig, err := jws.Sign(nil,
@@ -91,7 +150,9 @@ func Sign(key jwk.Key, env map[string]string, sf SignedFielder) (*pipeline.Signa
 
 // Verify verifies an existing signature against environment (env) combined with
 // an object containing values (sf) using keys from a keySet.
-func Verify(s *pipeline.Signature, keySet jwk.Set, env map[string]string, sf SignedFielder) error {
+func Verify(s *pipeline.Signature, keySet jwk.Set, sf SignedFielder, opts ...Option) error {
+	options := configureOptions(opts...)
+
 	if len(s.SignedFields) == 0 {
 		return errors.New("signature covers no fields")
 	}
@@ -106,7 +167,7 @@ func Verify(s *pipeline.Signature, keySet jwk.Set, env map[string]string, sf Sig
 	objEnv, _ := values["env"].(map[string]string)
 
 	// Namespace the env values and include them in the values to sign.
-	for k, v := range env {
+	for k, v := range options.env {
 		if _, has := objEnv[k]; has {
 			continue
 		}
@@ -127,6 +188,21 @@ func Verify(s *pipeline.Signature, keySet jwk.Set, env map[string]string, sf Sig
 	payload, err := canonicalPayload(s.Algorithm, required)
 	if err != nil {
 		return err
+	}
+
+	for it := keySet.Keys(options.ctx); it.Next(options.ctx); {
+		pair := it.Pair()
+		publicKey := pair.Value.(jwk.Key)
+		fingerprint, err := publicKey.Thumbprint(crypto.SHA256)
+		if err != nil {
+			return fmt.Errorf("calculating key thumbprint: %w", err)
+		} else if options.logger != nil {
+			debug(options.logger, "Public Key Thumbprint (sha256): %s", hex.EncodeToString(fingerprint))
+		}
+	}
+
+	if options.debugSigning {
+		debug(options.logger, "Signed Step: %s", payload)
 	}
 
 	_, err = jws.Verify([]byte(s.Value),
@@ -168,4 +244,10 @@ func requireKeys[K comparable, V any, M ~map[K]V](in M, keys []K) (M, error) {
 		out[k] = v
 	}
 	return out, nil
+}
+
+func debug(logger Logger, f string, v ...any) {
+	if logger != nil {
+		logger.Debug(f, v...)
+	}
 }

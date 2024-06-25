@@ -96,7 +96,7 @@ func TestSignVerify(t *testing.T) {
 				t.Fatalf("jwkutil.LoadKey(%v, %v) error = %v", privPath, keyName, err)
 			}
 
-			sig, err := Sign(sKey, signEnv, stepWithInvariants)
+			sig, err := Sign(sKey, stepWithInvariants, WithEnv(signEnv))
 			if err != nil {
 				t.Fatalf("Sign(CommandStep, signer) error = %v", err)
 			}
@@ -122,7 +122,7 @@ func TestSignVerify(t *testing.T) {
 				t.Fatalf("verifier.AddKey(%v) error = %v", vKey, err)
 			}
 
-			if err := Verify(sig, verifier, verifyEnv, stepWithInvariants); err != nil {
+			if err := Verify(sig, verifier, stepWithInvariants, WithEnv(verifyEnv)); err != nil {
 				t.Errorf("Verify(sig,CommandStep, verifier) = %v", err)
 			}
 		})
@@ -183,7 +183,7 @@ func TestSignConcatenatedFields(t *testing.T) {
 	}
 
 	for _, m := range maps {
-		sig, err := Sign(key, nil, m)
+		sig, err := Sign(key, m)
 		if err != nil {
 			t.Fatalf("Sign(%v, pts) error = %v", m, err)
 		}
@@ -219,7 +219,6 @@ func TestUnknownAlgorithm(t *testing.T) {
 
 	if _, err := Sign(
 		key,
-		nil,
 		&CommandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}},
 	); err == nil {
 		t.Errorf("Sign(nil, CommandStep, signer) = %v, want non-nil error", err)
@@ -242,7 +241,7 @@ func TestVerifyBadSignature(t *testing.T) {
 		t.Fatalf("NewSymmetricKeyPairFromString(alpacas) error = %v", err)
 	}
 
-	if err := Verify(sig, verifier, nil, cs); err == nil {
+	if err := Verify(sig, verifier, cs); err == nil {
 		t.Errorf("Verify(sig,CommandStep, alpacas) = %v, want non-nil error", err)
 	}
 }
@@ -266,7 +265,7 @@ func TestSignUnknownStep(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	if err := SignSteps(steps, key, nil, ""); !errors.Is(err, errSigningRefusedUnknownStepType) {
+	if err := SignSteps(steps, key, ""); !errors.Is(err, errSigningRefusedUnknownStepType) {
 		t.Errorf("steps.sign(signer) = %v, want %v", err, errSigningRefusedUnknownStepType)
 	}
 }
@@ -354,12 +353,12 @@ func TestSignVerifyEnv(t *testing.T) {
 				RepositoryURL: tc.repositoryURL,
 			}
 
-			sig, err := Sign(key, tc.pipelineEnv, stepWithInvariants)
+			sig, err := Sign(key, stepWithInvariants, WithEnv(tc.pipelineEnv))
 			if err != nil {
 				t.Fatalf("Sign(CommandStep, signer) error = %v", err)
 			}
 
-			if err := Verify(sig, verifier, tc.verifyEnv, stepWithInvariants); err != nil {
+			if err := Verify(sig, verifier, stepWithInvariants, WithEnv(tc.verifyEnv)); err != nil {
 				t.Errorf("Verify(sig,CommandStep, verifier) = %v", err)
 			}
 		})
@@ -409,12 +408,103 @@ func TestSignatureStability(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	sig, err := Sign(key, env, stepWithInvariants)
+	sig, err := Sign(key, stepWithInvariants, WithEnv(env))
 	if err != nil {
 		t.Fatalf("Sign(env, CommandStep, signer) error = %v", err)
 	}
 
-	if err := Verify(sig, verifier, env, stepWithInvariants); err != nil {
+	if err := Verify(sig, verifier, stepWithInvariants, WithEnv(env)); err != nil {
 		t.Errorf("Verify(sig,env, CommandStep, verifier) = %v", err)
+	}
+}
+
+func TestDebugSigning(t *testing.T) {
+	t.Parallel()
+
+	step := &pipeline.CommandStep{
+		Command: "llamas",
+		Plugins: pipeline.Plugins{
+			{
+				Source: "some-plugin#v1.0.0",
+				Config: nil,
+			},
+			{
+				Source: "another-plugin#v3.4.5",
+				Config: map[string]any{"llama": "Kuzco"},
+			},
+		},
+		Env: map[string]string{
+			"CONTEXT": "cats",
+			"DEPLOY":  "0",
+		},
+	}
+	// The pipeline-level env that the agent uploads:
+	signEnv := map[string]string{
+		"DEPLOY": "1",
+	}
+
+	stepWithInvariants := &CommandStepWithInvariants{
+		CommandStep:   *step,
+		RepositoryURL: "fake-repo",
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd() error = %v", err)
+	}
+
+	// We load the key from disk so that we can have deterministic signatures - key generation is non-deterministic,
+	// but signature itself is deterministic across keys for HS512 and EdDSA.
+	keyPath := path.Join(wd, "fixtures", "keys", jwa.EdDSA.String())
+
+	keyName := "TEST_DO_NOT_USE"
+	privPath := path.Join(keyPath, fmt.Sprintf("%s-private.json", keyName))
+
+	sKey, err := jwkutil.LoadKey(privPath, keyName)
+	if err != nil {
+		t.Fatalf("jwkutil.LoadKey(%v, %v) error = %v", privPath, keyName, err)
+	}
+
+	// Test that step payload is not logged when debugSigning is false
+	logger := &mockLogger{
+		expectedFormat: "Signed Step: %s",
+	}
+	_, err = Sign(sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(false), WithLogger(logger))
+	if err != nil {
+		t.Fatalf("Sign(CommandStep, signer) error = %v", err)
+	}
+
+	if logger.passed {
+		t.Errorf("Expected \"%s\" not to be logged, but got %v", logger.expectedFormat, logger.actualFormats)
+	}
+
+	// Test that step payload is logged when debugSigning is true
+	logger = &mockLogger{
+		expectedFormat: "Signed Step: %s",
+	}
+	_, err = Sign(sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(true), WithLogger(logger))
+	if err != nil {
+		t.Fatalf("Sign(CommandStep, signer) error = %v", err)
+	}
+
+	if !logger.passed {
+		t.Errorf("Expected \"%s\" to be logged, but only got %v", logger.expectedFormat, logger.actualFormats)
+	}
+}
+
+type mockLogger struct {
+	passed         bool
+	expectedFormat string
+	actualFormats  []string
+}
+
+func (m *mockLogger) Debug(f string, v ...any) {
+	if m.passed {
+		return
+	}
+
+	m.actualFormats = append(m.actualFormats, f)
+	if f == m.expectedFormat {
+		m.passed = true
 	}
 }
