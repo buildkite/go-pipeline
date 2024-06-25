@@ -50,8 +50,9 @@ func SignSteps(s pipeline.Steps, key jwk.Key, repoURL string, opts ...Option) er
 }
 
 // SignPipeline adds signatures to each command step (and recursively to any command steps that are within group steps) within a pipeline
-func SignPipeline(p *pipeline.Pipeline, key jwk.Key, repo string, logger Logger, debugSigning bool) error {
-	if err := SignSteps(p.Steps, key, repo, WithEnv(p.Env.ToMap()), WithLogger(logger), WithDebugSigning(debugSigning)); err != nil {
+// func SignPipeline(p *pipeline.Pipeline, key jwk.Key, repo string, logger Logger, debugSigning bool) error {
+func SignPipeline(s pipeline.Steps, key jwk.Key, repo string, opts ...Option) error {
+	if err := SignSteps(s, key, repo, opts...); err != nil {
 		return fmt.Errorf("signing steps: %w", err)
 	}
 	return nil
