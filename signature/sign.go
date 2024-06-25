@@ -62,13 +62,20 @@ func WithEnv(env map[string]string) Option      { return envOption{env} }
 func WithLogger(logger Logger) Option           { return loggerOption{logger} }
 func WithDebugSigning(debugSigning bool) Option { return debugSigningOption{debugSigning} }
 
-// Sign computes a new signature for an environment (env) combined with an
-// object containing values (sf) using a given key.
-func Sign(key jwk.Key, sf SignedFielder, opts ...Option) (*pipeline.Signature, error) {
-	options := options{env: make(map[string]string)}
+func configureOptions(opts ...Option) options {
+	options := options{
+		env: make(map[string]string),
+	}
 	for _, o := range opts {
 		o.apply(&options)
 	}
+	return options
+}
+
+// Sign computes a new signature for an environment (env) combined with an
+// object containing values (sf) using a given key.
+func Sign(key jwk.Key, sf SignedFielder, opts ...Option) (*pipeline.Signature, error) {
+	options := configureOptions(opts...)
 
 	values, err := sf.SignedFields()
 	if err != nil {
@@ -141,10 +148,7 @@ func Sign(key jwk.Key, sf SignedFielder, opts ...Option) (*pipeline.Signature, e
 // Verify verifies an existing signature against environment (env) combined with
 // an object containing values (sf) using keys from a keySet.
 func Verify(s *pipeline.Signature, keySet jwk.Set, sf SignedFielder, opts ...Option) error {
-	options := options{env: make(map[string]string)}
-	for _, o := range opts {
-		o.apply(&options)
-	}
+	options := configureOptions(opts...)
 
 	if len(s.SignedFields) == 0 {
 		return errors.New("signature covers no fields")
