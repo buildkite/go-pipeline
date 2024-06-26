@@ -1,6 +1,7 @@
 package signature
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -12,7 +13,7 @@ var errSigningRefusedUnknownStepType = errors.New("refusing to sign pipeline con
 
 // SignSteps adds signatures to each command step (and recursively to any command steps that are within group steps).
 // The steps are mutated directly, so an error part-way through may leave some steps un-signed.
-func SignSteps(s pipeline.Steps, key jwk.Key, repoURL string, opts ...Option) error {
+func SignSteps(ctx context.Context, s pipeline.Steps, key jwk.Key, repoURL string, opts ...Option) error {
 	for _, step := range s {
 		switch step := step.(type) {
 		case *pipeline.CommandStep:
@@ -21,14 +22,14 @@ func SignSteps(s pipeline.Steps, key jwk.Key, repoURL string, opts ...Option) er
 				RepositoryURL: repoURL,
 			}
 
-			sig, err := Sign(key, stepWithInvariants, opts...)
+			sig, err := Sign(ctx, key, stepWithInvariants, opts...)
 			if err != nil {
 				return fmt.Errorf("signing step with command %q: %w", step.Command, err)
 			}
 			step.Signature = sig
 
 		case *pipeline.GroupStep:
-			if err := SignSteps(step.Steps, key, repoURL, opts...); err != nil {
+			if err := SignSteps(ctx, step.Steps, key, repoURL, opts...); err != nil {
 				return fmt.Errorf("signing group step: %w", err)
 			}
 
@@ -45,8 +46,8 @@ func SignSteps(s pipeline.Steps, key jwk.Key, repoURL string, opts ...Option) er
 }
 
 // SignPipeline adds signatures to each command step (and recursively to any command steps that are within group steps) within a pipeline
-func SignPipeline(s pipeline.Steps, key jwk.Key, repo string, opts ...Option) error {
-	if err := SignSteps(s, key, repo, opts...); err != nil {
+func SignPipeline(ctx context.Context, s pipeline.Steps, key jwk.Key, repo string, opts ...Option) error {
+	if err := SignSteps(ctx, s, key, repo, opts...); err != nil {
 		return fmt.Errorf("signing steps: %w", err)
 	}
 	return nil

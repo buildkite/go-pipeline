@@ -1,6 +1,7 @@
 package signature
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -21,6 +22,9 @@ const (
 )
 
 func TestSignVerify(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
 	step := &pipeline.CommandStep{
 		Command: "llamas",
 		Plugins: pipeline.Plugins{
@@ -96,7 +100,7 @@ func TestSignVerify(t *testing.T) {
 				t.Fatalf("jwkutil.LoadKey(%v, %v) error = %v", privPath, keyName, err)
 			}
 
-			sig, err := Sign(sKey, stepWithInvariants, WithEnv(signEnv))
+			sig, err := Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv))
 			if err != nil {
 				t.Fatalf("Sign(CommandStep, signer) error = %v", err)
 			}
@@ -122,8 +126,8 @@ func TestSignVerify(t *testing.T) {
 				t.Fatalf("verifier.AddKey(%v) error = %v", vKey, err)
 			}
 
-			if err := Verify(sig, verifier, stepWithInvariants, WithEnv(verifyEnv)); err != nil {
-				t.Errorf("Verify(sig,CommandStep, verifier) = %v", err)
+			if err := Verify(ctx, sig, verifier, stepWithInvariants, WithEnv(verifyEnv)); err != nil {
+				t.Errorf("Verify(sig, CommandStep, verifier) = %v", err)
 			}
 		})
 	}
@@ -147,6 +151,7 @@ func (m testFields) ValuesForFields(fields []string) (map[string]any, error) {
 
 func TestSignConcatenatedFields(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	// Tests that Sign is resilient to concatenation.
 	// Specifically, these maps should all have distinct "content". (If you
@@ -183,7 +188,7 @@ func TestSignConcatenatedFields(t *testing.T) {
 	}
 
 	for _, m := range maps {
-		sig, err := Sign(key, m)
+		sig, err := Sign(ctx, key, m)
 		if err != nil {
 			t.Fatalf("Sign(%v, pts) error = %v", m, err)
 		}
@@ -204,6 +209,7 @@ func TestSignConcatenatedFields(t *testing.T) {
 
 func TestUnknownAlgorithm(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	signer, _, err := jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", jwa.HS256)
 	if err != nil {
@@ -217,16 +223,20 @@ func TestUnknownAlgorithm(t *testing.T) {
 
 	key.Set(jwk.AlgorithmKey, "rot13")
 
-	if _, err := Sign(
-		key,
-		&CommandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}},
-	); err == nil {
+	step := &CommandStepWithInvariants{
+		CommandStep: pipeline.CommandStep{
+			Command: "llamas",
+		},
+	}
+
+	if _, err := Sign(ctx, key, step); err == nil {
 		t.Errorf("Sign(nil, CommandStep, signer) = %v, want non-nil error", err)
 	}
 }
 
 func TestVerifyBadSignature(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	cs := &CommandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}}
 
@@ -241,13 +251,14 @@ func TestVerifyBadSignature(t *testing.T) {
 		t.Fatalf("NewSymmetricKeyPairFromString(alpacas) error = %v", err)
 	}
 
-	if err := Verify(sig, verifier, cs); err == nil {
+	if err := Verify(ctx, sig, verifier, cs); err == nil {
 		t.Errorf("Verify(sig,CommandStep, alpacas) = %v, want non-nil error", err)
 	}
 }
 
 func TestSignUnknownStep(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	steps := pipeline.Steps{
 		&pipeline.UnknownStep{
@@ -265,13 +276,14 @@ func TestSignUnknownStep(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	if err := SignSteps(steps, key, ""); !errors.Is(err, errSigningRefusedUnknownStepType) {
+	if err := SignSteps(ctx, steps, key, ""); !errors.Is(err, errSigningRefusedUnknownStepType) {
 		t.Errorf("steps.sign(signer) = %v, want %v", err, errSigningRefusedUnknownStepType)
 	}
 }
 
 func TestSignVerifyEnv(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	cases := []struct {
 		name          string
@@ -353,12 +365,12 @@ func TestSignVerifyEnv(t *testing.T) {
 				RepositoryURL: tc.repositoryURL,
 			}
 
-			sig, err := Sign(key, stepWithInvariants, WithEnv(tc.pipelineEnv))
+			sig, err := Sign(ctx, key, stepWithInvariants, WithEnv(tc.pipelineEnv))
 			if err != nil {
 				t.Fatalf("Sign(CommandStep, signer) error = %v", err)
 			}
 
-			if err := Verify(sig, verifier, stepWithInvariants, WithEnv(tc.verifyEnv)); err != nil {
+			if err := Verify(ctx, sig, verifier, stepWithInvariants, WithEnv(tc.verifyEnv)); err != nil {
 				t.Errorf("Verify(sig,CommandStep, verifier) = %v", err)
 			}
 		})
@@ -367,6 +379,7 @@ func TestSignVerifyEnv(t *testing.T) {
 
 func TestSignatureStability(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	// The idea here is to sign and verify a step that is likely to encode in a
 	// non-stable way if there are ordering bugs.
@@ -408,18 +421,19 @@ func TestSignatureStability(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	sig, err := Sign(key, stepWithInvariants, WithEnv(env))
+	sig, err := Sign(ctx, key, stepWithInvariants, WithEnv(env))
 	if err != nil {
 		t.Fatalf("Sign(env, CommandStep, signer) error = %v", err)
 	}
 
-	if err := Verify(sig, verifier, stepWithInvariants, WithEnv(env)); err != nil {
-		t.Errorf("Verify(sig,env, CommandStep, verifier) = %v", err)
+	if err := Verify(ctx, sig, verifier, stepWithInvariants, WithEnv(env)); err != nil {
+		t.Errorf("Verify(sig, env, CommandStep, verifier) = %v", err)
 	}
 }
 
 func TestDebugSigning(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	step := &pipeline.CommandStep{
 		Command: "llamas",
@@ -469,7 +483,7 @@ func TestDebugSigning(t *testing.T) {
 	logger := &mockLogger{
 		expectedFormat: "Signed Step: %s",
 	}
-	_, err = Sign(sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(false), WithLogger(logger))
+	_, err = Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(false), WithLogger(logger))
 	if err != nil {
 		t.Fatalf("Sign(CommandStep, signer) error = %v", err)
 	}
@@ -482,7 +496,7 @@ func TestDebugSigning(t *testing.T) {
 	logger = &mockLogger{
 		expectedFormat: "Signed Step: %s",
 	}
-	_, err = Sign(sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(true), WithLogger(logger))
+	_, err = Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(true), WithLogger(logger))
 	if err != nil {
 		t.Fatalf("Sign(CommandStep, signer) error = %v", err)
 	}
