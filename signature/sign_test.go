@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/buildkite/go-pipeline"
@@ -487,45 +488,40 @@ func TestDebugSigning(t *testing.T) {
 	}
 
 	// Test that step payload is not logged when debugSigning is false
-	logger := &mockLogger{
-		expectedFormat: "Signed Step: %s",
-	}
+	logger := &fakeLogger{}
 	_, err = Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(false), WithLogger(logger))
 	if err != nil {
 		t.Fatalf("Sign(ctx, sKey, %v, WithEnv(%v), WithDebugSigning(false), WithLogger(logger)) error = %v", stepWithInvariants, signEnv, err)
 	}
 
-	if logger.passed {
-		t.Errorf("Expected \"%s\" not to be logged, but got %v", logger.expectedFormat, logger.actualFormats)
+	logged := logger.buf.String()
+	if want := "Public Key Thumbprint (sha256)"; !strings.Contains(logged, want) {
+		t.Errorf("logger.buf.String() = %q, missing %q", logged, want)
+	}
+	if want := "Signed Step"; strings.Contains(logged, want) {
+		t.Errorf("logger.buf.String() = %q, contains %q", logged, want)
 	}
 
 	// Test that step payload is logged when debugSigning is true
-	logger = &mockLogger{
-		expectedFormat: "Signed Step: %s",
-	}
+	logger = &fakeLogger{}
 	_, err = Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(true), WithLogger(logger))
 	if err != nil {
 		t.Fatalf("Sign(ctx, sKey, %v, WithEnv(%v), WithDebugSigning(true), WithLogger(logger)) error = %v", stepWithInvariants, signEnv, err)
 	}
 
-	if !logger.passed {
-		t.Errorf("Expected \"%s\" to be logged, but only got %v", logger.expectedFormat, logger.actualFormats)
+	logged = logger.buf.String()
+	if want := "Public Key Thumbprint (sha256)"; !strings.Contains(logged, want) {
+		t.Errorf("logger.buf.String() = %q, missing %q", logged, want)
+	}
+	if want := "Signed Step"; !strings.Contains(logged, want) {
+		t.Errorf("logger.buf.String() = %q, missing %q", logged, want)
 	}
 }
 
-type mockLogger struct {
-	passed         bool
-	expectedFormat string
-	actualFormats  []string
+type fakeLogger struct {
+	buf strings.Builder
 }
 
-func (m *mockLogger) Debug(f string, v ...any) {
-	if m.passed {
-		return
-	}
-
-	m.actualFormats = append(m.actualFormats, f)
-	if f == m.expectedFormat {
-		m.passed = true
-	}
+func (l *fakeLogger) Debug(f string, v ...any) {
+	fmt.Fprintf(&l.buf, f, v...)
 }
