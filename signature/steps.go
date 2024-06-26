@@ -44,11 +44,3 @@ func SignSteps(ctx context.Context, s pipeline.Steps, key jwk.Key, repoURL strin
 	}
 	return nil
 }
-
-// SignPipeline adds signatures to each command step (and recursively to any command steps that are within group steps) within a pipeline
-func SignPipeline(ctx context.Context, s pipeline.Steps, key jwk.Key, repo string, opts ...Option) error {
-	if err := SignSteps(ctx, s, key, repo, opts...); err != nil {
-		return fmt.Errorf("signing steps: %w", err)
-	}
-	return nil
-}
