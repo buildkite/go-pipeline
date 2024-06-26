@@ -1,12 +1,14 @@
 package signature
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
 	"os"
 	"path"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/buildkite/go-pipeline"
@@ -21,6 +23,9 @@ const (
 )
 
 func TestSignVerify(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
 	step := &pipeline.CommandStep{
 		Command: "llamas",
 		Plugins: pipeline.Plugins{
@@ -96,9 +101,9 @@ func TestSignVerify(t *testing.T) {
 				t.Fatalf("jwkutil.LoadKey(%v, %v) error = %v", privPath, keyName, err)
 			}
 
-			sig, err := Sign(sKey, stepWithInvariants, WithEnv(signEnv))
+			sig, err := Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv))
 			if err != nil {
-				t.Fatalf("Sign(CommandStep, signer) error = %v", err)
+				t.Fatalf("Sign(ctx, sKey, %v, WithEnv(%v)) error = %v", stepWithInvariants, signEnv, err)
 			}
 
 			if sig.Algorithm != tc.alg.String() {
@@ -122,8 +127,8 @@ func TestSignVerify(t *testing.T) {
 				t.Fatalf("verifier.AddKey(%v) error = %v", vKey, err)
 			}
 
-			if err := Verify(sig, verifier, stepWithInvariants, WithEnv(verifyEnv)); err != nil {
-				t.Errorf("Verify(sig,CommandStep, verifier) = %v", err)
+			if err := Verify(ctx, sig, verifier, stepWithInvariants, WithEnv(verifyEnv)); err != nil {
+				t.Errorf("Verify(ctx, %v, verifier, %v, WithEnv(%v)) = %v", sig, stepWithInvariants, verifyEnv, err)
 			}
 		})
 	}
@@ -147,6 +152,7 @@ func (m testFields) ValuesForFields(fields []string) (map[string]any, error) {
 
 func TestSignConcatenatedFields(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	// Tests that Sign is resilient to concatenation.
 	// Specifically, these maps should all have distinct "content". (If you
@@ -172,9 +178,10 @@ func TestSignConcatenatedFields(t *testing.T) {
 
 	sigs := make(map[string][]testFields)
 
-	signer, _, err := jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", jwa.HS256)
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	signer, _, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
-		t.Fatalf("NewSymmetricKeyPairFromString(alpacas) error = %v", err)
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
 	}
 
 	key, ok := signer.Key(0)
@@ -183,9 +190,9 @@ func TestSignConcatenatedFields(t *testing.T) {
 	}
 
 	for _, m := range maps {
-		sig, err := Sign(key, m)
+		sig, err := Sign(ctx, key, m)
 		if err != nil {
-			t.Fatalf("Sign(%v, pts) error = %v", m, err)
+			t.Fatalf("Sign(ctx, key, %v) error = %v", m, err)
 		}
 
 		sigs[sig.Value] = append(sigs[sig.Value], m)
@@ -204,10 +211,12 @@ func TestSignConcatenatedFields(t *testing.T) {
 
 func TestUnknownAlgorithm(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
-	signer, _, err := jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", jwa.HS256)
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	signer, _, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
-		t.Fatalf("NewSymmetricKeyPairFromString(alpacas) error = %v", err)
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
 	}
 
 	key, ok := signer.Key(0)
@@ -217,16 +226,20 @@ func TestUnknownAlgorithm(t *testing.T) {
 
 	key.Set(jwk.AlgorithmKey, "rot13")
 
-	if _, err := Sign(
-		key,
-		&CommandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}},
-	); err == nil {
-		t.Errorf("Sign(nil, CommandStep, signer) = %v, want non-nil error", err)
+	step := &CommandStepWithInvariants{
+		CommandStep: pipeline.CommandStep{
+			Command: "llamas",
+		},
+	}
+
+	if _, err := Sign(ctx, key, step); err == nil {
+		t.Errorf("Sign(ctx, key, %v) = %v, want non-nil error", step, err)
 	}
 }
 
 func TestVerifyBadSignature(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	cs := &CommandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}}
 
@@ -236,18 +249,20 @@ func TestVerifyBadSignature(t *testing.T) {
 		Value:        "YWxwYWNhcw==", // base64("alpacas")
 	}
 
-	_, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", jwa.HS256)
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	_, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
-		t.Fatalf("NewSymmetricKeyPairFromString(alpacas) error = %v", err)
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
 	}
 
-	if err := Verify(sig, verifier, cs); err == nil {
-		t.Errorf("Verify(sig,CommandStep, alpacas) = %v, want non-nil error", err)
+	if err := Verify(ctx, sig, verifier, cs); err == nil {
+		t.Errorf("Verify(ctx, sig, verifier, %v) = %v, want non-nil error", cs, err)
 	}
 }
 
 func TestSignUnknownStep(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	steps := pipeline.Steps{
 		&pipeline.UnknownStep{
@@ -255,9 +270,10 @@ func TestSignUnknownStep(t *testing.T) {
 		},
 	}
 
-	signer, _, err := jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", jwa.HS256)
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	signer, _, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
-		t.Fatalf("NewSymmetricKeyPairFromString(alpacas) error = %v", err)
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
 	}
 
 	key, ok := signer.Key(0)
@@ -265,13 +281,14 @@ func TestSignUnknownStep(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	if err := SignSteps(steps, key, ""); !errors.Is(err, errSigningRefusedUnknownStepType) {
-		t.Errorf("steps.sign(signer) = %v, want %v", err, errSigningRefusedUnknownStepType)
+	if err := SignSteps(ctx, steps, key, ""); !errors.Is(err, errSigningRefusedUnknownStepType) {
+		t.Errorf(`SignSteps(ctx, %v, key, "") = %v, want %v`, steps, err, errSigningRefusedUnknownStepType)
 	}
 }
 
 func TestSignVerifyEnv(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	cases := []struct {
 		name          string
@@ -338,9 +355,11 @@ func TestSignVerifyEnv(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", jwa.HS256)
+
+			keyStr, keyAlg := "alpacas", jwa.HS256
+			signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 			if err != nil {
-				t.Fatalf("NewSymmetricKeyPairFromString(alpacas) error = %v", err)
+				t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
 			}
 
 			key, ok := signer.Key(0)
@@ -353,13 +372,13 @@ func TestSignVerifyEnv(t *testing.T) {
 				RepositoryURL: tc.repositoryURL,
 			}
 
-			sig, err := Sign(key, stepWithInvariants, WithEnv(tc.pipelineEnv))
+			sig, err := Sign(ctx, key, stepWithInvariants, WithEnv(tc.pipelineEnv))
 			if err != nil {
-				t.Fatalf("Sign(CommandStep, signer) error = %v", err)
+				t.Fatalf("Sign(ctx, key, %v, WithEnv(%v)) error = %v", stepWithInvariants, tc.pipelineEnv, err)
 			}
 
-			if err := Verify(sig, verifier, stepWithInvariants, WithEnv(tc.verifyEnv)); err != nil {
-				t.Errorf("Verify(sig,CommandStep, verifier) = %v", err)
+			if err := Verify(ctx, sig, verifier, stepWithInvariants, WithEnv(tc.verifyEnv)); err != nil {
+				t.Errorf("Verify(ctx, %v, verifier, %v, WithEnv(%v)) = %v", sig, stepWithInvariants, tc.verifyEnv, err)
 			}
 		})
 	}
@@ -367,6 +386,7 @@ func TestSignVerifyEnv(t *testing.T) {
 
 func TestSignatureStability(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	// The idea here is to sign and verify a step that is likely to encode in a
 	// non-stable way if there are ordering bugs.
@@ -398,9 +418,10 @@ func TestSignatureStability(t *testing.T) {
 		pluginSubCfg[fmt.Sprintf("key%08x", rand.Uint32())] = fmt.Sprintf("value%08x", rand.Uint32())
 	}
 
-	signer, verifier, err := jwkutil.NewKeyPair(keyID, jwa.ES512)
+	keyAlg := jwa.ES512
+	signer, verifier, err := jwkutil.NewKeyPair(keyID, keyAlg)
 	if err != nil {
-		t.Fatalf("NewKeyPair error = %v", err)
+		t.Fatalf("jwk.NewKeyPair(%q, %q) error = %v", keyID, keyAlg, err)
 	}
 
 	key, ok := signer.Key(0)
@@ -408,18 +429,19 @@ func TestSignatureStability(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	sig, err := Sign(key, stepWithInvariants, WithEnv(env))
+	sig, err := Sign(ctx, key, stepWithInvariants, WithEnv(env))
 	if err != nil {
-		t.Fatalf("Sign(env, CommandStep, signer) error = %v", err)
+		t.Fatalf("Sign(ctx, key, %v, WithEnv(%v)) error = %v", stepWithInvariants, env, err)
 	}
 
-	if err := Verify(sig, verifier, stepWithInvariants, WithEnv(env)); err != nil {
-		t.Errorf("Verify(sig,env, CommandStep, verifier) = %v", err)
+	if err := Verify(ctx, sig, verifier, stepWithInvariants, WithEnv(env)); err != nil {
+		t.Errorf("Verify(ctx, %v, verifier, %v, WithEnv(%v)) = %v", sig, stepWithInvariants, env, err)
 	}
 }
 
 func TestDebugSigning(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	step := &pipeline.CommandStep{
 		Command: "llamas",
@@ -462,49 +484,44 @@ func TestDebugSigning(t *testing.T) {
 
 	sKey, err := jwkutil.LoadKey(privPath, keyName)
 	if err != nil {
-		t.Fatalf("jwkutil.LoadKey(%v, %v) error = %v", privPath, keyName, err)
+		t.Fatalf("jwkutil.LoadKey(%q, %q) error = %v", privPath, keyName, err)
 	}
 
 	// Test that step payload is not logged when debugSigning is false
-	logger := &mockLogger{
-		expectedFormat: "Signed Step: %s",
-	}
-	_, err = Sign(sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(false), WithLogger(logger))
+	logger := &fakeLogger{}
+	_, err = Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(false), WithLogger(logger))
 	if err != nil {
-		t.Fatalf("Sign(CommandStep, signer) error = %v", err)
+		t.Fatalf("Sign(ctx, sKey, %v, WithEnv(%v), WithDebugSigning(false), WithLogger(logger)) error = %v", stepWithInvariants, signEnv, err)
 	}
 
-	if logger.passed {
-		t.Errorf("Expected \"%s\" not to be logged, but got %v", logger.expectedFormat, logger.actualFormats)
+	logged := logger.buf.String()
+	if want := "Public Key Thumbprint (sha256)"; !strings.Contains(logged, want) {
+		t.Errorf("logger.buf.String() = %q, missing %q", logged, want)
+	}
+	if want := "Signed Step"; strings.Contains(logged, want) {
+		t.Errorf("logger.buf.String() = %q, contains %q", logged, want)
 	}
 
 	// Test that step payload is logged when debugSigning is true
-	logger = &mockLogger{
-		expectedFormat: "Signed Step: %s",
-	}
-	_, err = Sign(sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(true), WithLogger(logger))
+	logger = &fakeLogger{}
+	_, err = Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(true), WithLogger(logger))
 	if err != nil {
-		t.Fatalf("Sign(CommandStep, signer) error = %v", err)
+		t.Fatalf("Sign(ctx, sKey, %v, WithEnv(%v), WithDebugSigning(true), WithLogger(logger)) error = %v", stepWithInvariants, signEnv, err)
 	}
 
-	if !logger.passed {
-		t.Errorf("Expected \"%s\" to be logged, but only got %v", logger.expectedFormat, logger.actualFormats)
+	logged = logger.buf.String()
+	if want := "Public Key Thumbprint (sha256)"; !strings.Contains(logged, want) {
+		t.Errorf("logger.buf.String() = %q, missing %q", logged, want)
+	}
+	if want := "Signed Step"; !strings.Contains(logged, want) {
+		t.Errorf("logger.buf.String() = %q, missing %q", logged, want)
 	}
 }
 
-type mockLogger struct {
-	passed         bool
-	expectedFormat string
-	actualFormats  []string
+type fakeLogger struct {
+	buf strings.Builder
 }
 
-func (m *mockLogger) Debug(f string, v ...any) {
-	if m.passed {
-		return
-	}
-
-	m.actualFormats = append(m.actualFormats, f)
-	if f == m.expectedFormat {
-		m.passed = true
-	}
+func (l *fakeLogger) Debug(f string, v ...any) {
+	fmt.Fprintf(&l.buf, f, v...)
 }
