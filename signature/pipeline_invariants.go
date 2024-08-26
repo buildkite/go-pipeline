@@ -19,9 +19,9 @@ type CommandStepWithInvariants struct {
 func (c *CommandStepWithInvariants) SignedFields() (map[string]any, error) {
 	return map[string]any{
 		"command":        c.Command,
-		"env":            c.Env,
-		"plugins":        c.Plugins,
-		"matrix":         c.Matrix,
+		"env":            EmptyToNilMap(c.Env),
+		"plugins":        EmptyToNilSlice(c.Plugins),
+		"matrix":         EmptyToNilPtr(c.Matrix),
 		"repository_url": c.RepositoryURL,
 	}, nil
 }
@@ -47,13 +47,13 @@ func (c *CommandStepWithInvariants) ValuesForFields(fields []string) (map[string
 			out["command"] = c.Command
 
 		case "env":
-			out["env"] = c.Env
+			out["env"] = EmptyToNilMap(c.Env)
 
 		case "plugins":
-			out["plugins"] = c.Plugins
+			out["plugins"] = EmptyToNilSlice(c.Plugins)
 
 		case "matrix":
-			out["matrix"] = c.Matrix
+			out["matrix"] = EmptyToNilPtr(c.Matrix)
 
 		case "repository_url":
 			out["repository_url"] = c.RepositoryURL

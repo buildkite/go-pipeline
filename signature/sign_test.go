@@ -384,6 +384,130 @@ func TestSignVerifyEnv(t *testing.T) {
 	}
 }
 
+func TestSignVerify_NilVsEmpty(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	cases := []struct {
+		name       string
+		stepSign   *pipeline.CommandStep
+		stepVerify *pipeline.CommandStep
+	}{
+		{
+			name: "env both non-empty",
+			stepSign: &pipeline.CommandStep{
+				Command: "llamas",
+				Env: map[string]string{
+					"CONTEXT": "cats",
+					"DEPLOY":  "0",
+				},
+			},
+			stepVerify: &pipeline.CommandStep{
+				Command: "llamas",
+				Env: map[string]string{
+					"CONTEXT": "cats",
+					"DEPLOY":  "0",
+				},
+			},
+		},
+		{
+			name:       "env sign nil verify nil",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Env: nil},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Env: nil},
+		},
+		{
+			name:       "env sign empty verify nil",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Env: map[string]string{}},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Env: nil},
+		},
+		{
+			name:       "env sign nil verify empty",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Env: nil},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Env: map[string]string{}},
+		},
+		{
+			name:       "env sign empty verify empty",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Env: map[string]string{}},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Env: map[string]string{}},
+		},
+		{
+			name:       "plugins sign nil verify nil",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Plugins: nil},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Plugins: nil},
+		},
+		{
+			name:       "plugins sign nil verify empty",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Plugins: nil},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Plugins: pipeline.Plugins{}},
+		},
+		{
+			name:       "plugins sign empty verify nil",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Plugins: pipeline.Plugins{}},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Plugins: nil},
+		},
+		{
+			name:       "plugins sign empty verify empty",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Plugins: pipeline.Plugins{}},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Plugins: pipeline.Plugins{}},
+		},
+		{
+			name:       "matrix sign nil verify nil",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Matrix: nil},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Matrix: nil},
+		},
+		{
+			name:       "matrix sign nil verify empty",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Matrix: nil},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Matrix: &pipeline.Matrix{}},
+		},
+		{
+			name:       "matrix sign empty verify nil",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Matrix: &pipeline.Matrix{}},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Matrix: nil},
+		},
+		{
+			name:       "matrix sign empty verify empty",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Matrix: &pipeline.Matrix{}},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Matrix: &pipeline.Matrix{}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			keyStr, keyAlg := "alpacas", jwa.HS256
+			signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
+			if err != nil {
+				t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
+			}
+
+			key, ok := signer.Key(0)
+			if !ok {
+				t.Fatalf("signer.Key(0) = _, false, want true")
+			}
+
+			toSign := &CommandStepWithInvariants{
+				CommandStep:   *tc.stepSign,
+				RepositoryURL: fakeRepositoryURL,
+			}
+			toVerify := &CommandStepWithInvariants{
+				CommandStep:   *tc.stepVerify,
+				RepositoryURL: fakeRepositoryURL,
+			}
+
+			sig, err := Sign(ctx, key, toSign)
+			if err != nil {
+				t.Fatalf("Sign(ctx, key, %v) error = %v", toSign, err)
+			}
+
+			if err := Verify(ctx, sig, verifier, toVerify); err != nil {
+				t.Errorf("Verify(ctx, %v, verifier, %v) = %v", sig, toVerify, err)
+			}
+		})
+	}
+}
+
 func TestSignatureStability(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

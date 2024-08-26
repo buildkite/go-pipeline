@@ -207,6 +207,53 @@ func Verify(ctx context.Context, s *pipeline.Signature, keySet jwk.Set, sf Signe
 	return err
 }
 
+// EmptyToNilMap returns a nil map if m is empty, otherwise it returns m.
+// This can be used to canonicalise empty/nil values if there is no semantic
+// distinction between nil and empty.
+// Sign and Verify do not apply this automatically.
+// nil was chosen as the canonical value, since it is the zero value for the
+// type. (A user would have to write e.g. "env: {}" to get a zero-length
+// non-nil env map.)
+func EmptyToNilMap[K comparable, V any, M ~map[K]V](m M) M {
+	if len(m) == 0 {
+		return nil
+	}
+	return m
+}
+
+// EmptyToNilSlice returns a nil slice if s is empty, otherwise it returns s.
+// This can be used to canonicalise empty/nil values if there is no semantic
+// distinction between nil and empty.
+// Sign and Verify do not apply this automatically.
+// nil was chosen as the canonical value, since it is the zero value for the
+// type. (A user would have to write e.g. "plugins: []" to get a zero-length
+// non-nil plugins slice.)
+func EmptyToNilSlice[E any, S ~[]E](s S) S {
+	if len(s) == 0 {
+		return nil
+	}
+	return s
+}
+
+type pointerEmptyable[V any] interface {
+	~*V
+	IsEmpty() bool
+}
+
+// EmptyToNilPtr returns a nil pointer if p points to a variable containing
+// an empty value for V, otherwise it returns p. Emptiness is determined by
+// calling IsEmpty on p.
+// Sign and Verify do not apply this automatically.
+// nil was chosen as the canonical value since it is the zero value for pointer
+// types. (A user would have to write e.g. "matrix: {}" to get an empty non-nil
+// matrix specification.)
+func EmptyToNilPtr[V any, P pointerEmptyable[V]](p P) P {
+	if p.IsEmpty() {
+		return nil
+	}
+	return p
+}
+
 // canonicalPayload returns a unique sequence of bytes representing the given
 // algorithm and values using JCS (RFC 8785).
 func canonicalPayload(alg string, values map[string]any) ([]byte, error) {
