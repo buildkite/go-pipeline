@@ -1,8 +1,6 @@
 module github.com/buildkite/go-pipeline
 
-go 1.22
-
-toolchain go1.22.1
+go 1.22.6
 
 retract (
 	v1.0.1 // Solely to publish the retraction of v1.0.0. We'll skip straight to v1.0.2 when we're ready to publish
@@ -14,7 +12,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/gowebpki/jcs v1.0.1
 	github.com/lestrrat-go/jwx/v2 v2.1.1
-	github.com/oleiade/reflections v1.0.1
+	github.com/oleiade/reflections v1.1.0
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools/v3 v3.5.1
 )
