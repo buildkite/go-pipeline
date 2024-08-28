@@ -3,6 +3,7 @@ package signature
 import (
 	"context"
 	"crypto"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -125,7 +126,7 @@ func Sign(_ context.Context, key jwk.Key, sf SignedFielder, opts ...Option) (*pi
 	}
 
 	if options.debugSigning {
-		debug(options.logger, "Signed Step: %s", payload)
+		debug(options.logger, "Signed Step: %s checksum: %x", payload, sha256.Sum256(payload))
 	}
 
 	sig, err := jws.Sign(nil,
@@ -197,7 +198,7 @@ func Verify(ctx context.Context, s *pipeline.Signature, keySet jwk.Set, sf Signe
 	}
 
 	if options.debugSigning {
-		debug(options.logger, "Signed Step: %s", payload)
+		debug(options.logger, "Signed Step: %s checksum: %x", payload, sha256.Sum256(payload))
 	}
 
 	_, err = jws.Verify([]byte(s.Value),
