@@ -80,7 +80,8 @@ type Key interface {
 }
 
 // Sign computes a new signature for an environment (env) combined with an
-// object containing values (sf) using a given key.
+// object containing values (sf) using a given key. The key can be a jwk.Key
+// or a crypto.Signer. If it is a jwk.Key, the public key thumbprint is logged.
 func Sign(_ context.Context, key Key, sf SignedFielder, opts ...Option) (*pipeline.Signature, error) {
 	options := configureOptions(opts...)
 
@@ -164,7 +165,8 @@ func Sign(_ context.Context, key Key, sf SignedFielder, opts ...Option) (*pipeli
 }
 
 // Verify verifies an existing signature against environment (env) combined with
-// an object containing values (sf) using keys from a keySet.
+// the keyset. The keySet can be a jwk.Set or a crypto.Signer. If it is a jwk.Set,
+// the public key thumbprints are logged.
 func Verify(ctx context.Context, s *pipeline.Signature, keySet any, sf SignedFielder, opts ...Option) error {
 	options := configureOptions(opts...)
 
