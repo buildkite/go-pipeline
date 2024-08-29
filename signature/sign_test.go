@@ -220,7 +220,10 @@ func TestSignVerifyCryptoSigner(t *testing.T) {
 
 	block, _ := pem.Decode([]byte(pemPrivateKey))
 	x509Encoded := block.Bytes
-	privateKey, _ := x509.ParseECPrivateKey(x509Encoded)
+	privateKey, err := x509.ParseECPrivateKey(x509Encoded)
+	if err != nil {
+		t.Fatalf("x509.ParseECPrivateKey(%v) error = %v", x509Encoded, err)
+	}
 
 	publicKeyPath := path.Join(wd, "fixtures", "crypto_signer", "P256", "public.pem")
 	pemPublicKey, err := os.ReadFile(publicKeyPath)
@@ -230,7 +233,11 @@ func TestSignVerifyCryptoSigner(t *testing.T) {
 
 	blockPub, _ := pem.Decode([]byte(pemPublicKey))
 	x509EncodedPub := blockPub.Bytes
-	genericPublicKey, _ := x509.ParsePKIXPublicKey(x509EncodedPub)
+	genericPublicKey, err := x509.ParsePKIXPublicKey(x509EncodedPub)
+	if err != nil {
+		t.Fatalf("x509.ParsePKIXPublicKey(%v) error = %v", x509EncodedPub, err)
+	}
+
 	publicKey := genericPublicKey.(*ecdsa.PublicKey)
 
 	for _, tc := range cases {
