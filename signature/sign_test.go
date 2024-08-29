@@ -139,20 +139,20 @@ func TestSignVerify(t *testing.T) {
 	}
 }
 
-var _ crypto.Signer = MockCryptoSigner{}
+var _ crypto.Signer = testECDSASigner{}
 
-type MockCryptoSigner struct {
+type testECDSASigner struct {
 	privateKey crypto.PrivateKey
 	publickKey crypto.PublicKey
 }
 
-func (m MockCryptoSigner) Public() crypto.PublicKey { return m.publickKey }
+func (m testECDSASigner) Public() crypto.PublicKey { return m.publickKey }
 
-func (m MockCryptoSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+func (m testECDSASigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	return ecdsa.SignASN1(rand, m.privateKey.(*ecdsa.PrivateKey), digest)
 }
 
-func (m MockCryptoSigner) Algorithm() jwa.KeyAlgorithm {
+func (m testECDSASigner) Algorithm() jwa.KeyAlgorithm {
 	return jwa.ES256
 }
 
@@ -237,7 +237,7 @@ func TestSignVerifyCryptoSigner(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			sKey := MockCryptoSigner{
+			sKey := testECDSASigner{
 				privateKey: privateKey,
 				publickKey: publicKey,
 			}

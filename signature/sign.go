@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -132,7 +131,7 @@ func Sign(_ context.Context, key Key, sf SignedFielder, opts ...Option) (*pipeli
 			return nil, fmt.Errorf("calculating key thumbprint: %w", err)
 		}
 
-		debug(options.logger, "Public Key Thumbprint (sha256): %s", hex.EncodeToString(fingerprint))
+		debug(options.logger, "Public Key Thumbprint (sha256): %x", fingerprint)
 	case crypto.Signer:
 		data, err := x509.MarshalPKIXPublicKey(key.Public())
 		if err != nil {
@@ -222,7 +221,7 @@ func Verify(ctx context.Context, s *pipeline.Signature, keySet any, sf SignedFie
 				return fmt.Errorf("calculating key thumbprint: %w", err)
 			}
 
-			debug(options.logger, "Public Key Thumbprint (sha256): %s", hex.EncodeToString(fingerprint))
+			debug(options.logger, "Public Key Thumbprint (sha256): %x", fingerprint)
 		}
 
 		keyOpt = jws.WithKeySet(keySet)
