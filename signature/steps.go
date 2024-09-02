@@ -6,14 +6,13 @@ import (
 	"fmt"
 
 	"github.com/buildkite/go-pipeline"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
 var errSigningRefusedUnknownStepType = errors.New("refusing to sign pipeline containing a step of unknown type, because the pipeline could be incorrectly parsed - please contact support")
 
 // SignSteps adds signatures to each command step (and recursively to any command steps that are within group steps).
 // The steps are mutated directly, so an error part-way through may leave some steps un-signed.
-func SignSteps(ctx context.Context, s pipeline.Steps, key jwk.Key, repoURL string, opts ...Option) error {
+func SignSteps(ctx context.Context, s pipeline.Steps, key Key, repoURL string, opts ...Option) error {
 	for _, step := range s {
 		switch step := step.(type) {
 		case *pipeline.CommandStep:

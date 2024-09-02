@@ -2,8 +2,13 @@ package signature
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"path"
@@ -130,6 +135,133 @@ func TestSignVerify(t *testing.T) {
 			if err := Verify(ctx, sig, verifier, stepWithInvariants, WithEnv(verifyEnv)); err != nil {
 				t.Errorf("Verify(ctx, %v, verifier, %v, WithEnv(%v)) = %v", sig, stepWithInvariants, verifyEnv, err)
 			}
+		})
+	}
+}
+
+var _ crypto.Signer = testECDSASigner{}
+
+type testECDSASigner struct {
+	privateKey crypto.PrivateKey
+	publickKey crypto.PublicKey
+}
+
+func (m testECDSASigner) Public() crypto.PublicKey { return m.publickKey }
+
+func (m testECDSASigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	return ecdsa.SignASN1(rand, m.privateKey.(*ecdsa.PrivateKey), digest)
+}
+
+func (m testECDSASigner) Algorithm() jwa.KeyAlgorithm {
+	return jwa.ES256
+}
+
+func TestSignVerifyCryptoSigner(t *testing.T) {
+
+	t.Parallel()
+	ctx := context.Background()
+
+	step := &pipeline.CommandStep{
+		Command: "llamas",
+		Plugins: pipeline.Plugins{
+			{
+				Source: "some-plugin#v1.0.0",
+				Config: nil,
+			},
+			{
+				Source: "another-plugin#v3.4.5",
+				Config: map[string]any{"llama": "Kuzco"},
+			},
+		},
+		Env: map[string]string{
+			"CONTEXT": "cats",
+			"DEPLOY":  "0",
+		},
+	}
+	// The pipeline-level env that the agent uploads:
+	signEnv := map[string]string{
+		"DEPLOY": "1",
+	}
+
+	// The backend combines the pipeline and step envs, providing a new env:
+	verifyEnv := map[string]string{
+		"CONTEXT": "cats",
+		"DEPLOY":  "0",
+		"MISC":    "llama drama",
+	}
+
+	stepWithInvariants := &CommandStepWithInvariants{
+		CommandStep:   *step,
+		RepositoryURL: "fake-repo",
+	}
+
+	cases := []struct {
+		name              string
+		alg               jwa.SignatureAlgorithm
+		expectedSignature string
+	}{
+		{
+			name:              "should sign using crypto.Signer",
+			alg:               jwa.ES256,
+			expectedSignature: "eyJhbGciOiJFUzI1NiJ9..Op5KSww95n5s1b9jz0Me5UGqUQPcHzEIFvkWTB_yEv6qEDnnFUO1XsC5592fQoAcB0VnPnHaK31iSiCypREIdA",
+		},
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd() error = %v", err)
+	}
+
+	privateKeyPath := path.Join(wd, "fixtures", "crypto_signer", "P256", "private.pem")
+	pemPrivateKey, err := os.ReadFile(privateKeyPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", privateKeyPath, err)
+	}
+
+	block, _ := pem.Decode([]byte(pemPrivateKey))
+	x509Encoded := block.Bytes
+	privateKey, err := x509.ParseECPrivateKey(x509Encoded)
+	if err != nil {
+		t.Fatalf("x509.ParseECPrivateKey(%v) error = %v", x509Encoded, err)
+	}
+
+	publicKeyPath := path.Join(wd, "fixtures", "crypto_signer", "P256", "public.pem")
+	pemPublicKey, err := os.ReadFile(publicKeyPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", publicKeyPath, err)
+	}
+
+	blockPub, _ := pem.Decode([]byte(pemPublicKey))
+	x509EncodedPub := blockPub.Bytes
+	genericPublicKey, err := x509.ParsePKIXPublicKey(x509EncodedPub)
+	if err != nil {
+		t.Fatalf("x509.ParsePKIXPublicKey(%v) error = %v", x509EncodedPub, err)
+	}
+
+	publicKey := genericPublicKey.(*ecdsa.PublicKey)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sKey := testECDSASigner{
+				privateKey: privateKey,
+				publickKey: publicKey,
+			}
+
+			sig, err := Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv))
+			if err != nil {
+				t.Fatalf("Sign(ctx, sKey, %v, WithEnv(%v)) error = %v", stepWithInvariants, signEnv, err)
+			}
+
+			if sig.Algorithm != tc.alg.String() {
+				t.Errorf("Signature.Algorithm = %v, want %v", sig.Algorithm, tc.alg)
+			}
+
+			if err := Verify(ctx, sig, sKey, stepWithInvariants, WithEnv(verifyEnv)); err != nil {
+				t.Errorf("Verify(ctx, %v, verifier, %v, WithEnv(%v)) = %v", sig, stepWithInvariants, verifyEnv, err)
+			}
+
 		})
 	}
 }

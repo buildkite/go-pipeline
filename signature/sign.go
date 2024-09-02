@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/sha256"
-	"encoding/hex"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/buildkite/go-pipeline"
 	"github.com/gowebpki/jcs"
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 )
@@ -73,9 +74,14 @@ func configureOptions(opts ...Option) options {
 	return options
 }
 
+type Key interface {
+	Algorithm() jwa.KeyAlgorithm
+}
+
 // Sign computes a new signature for an environment (env) combined with an
-// object containing values (sf) using a given key.
-func Sign(_ context.Context, key jwk.Key, sf SignedFielder, opts ...Option) (*pipeline.Signature, error) {
+// object containing values (sf) using a given key. The key can be a jwk.Key
+// or a crypto.Signer. If it is a jwk.Key, the public key thumbprint is logged.
+func Sign(_ context.Context, key Key, sf SignedFielder, opts ...Option) (*pipeline.Signature, error) {
 	options := configureOptions(opts...)
 
 	values, err := sf.SignedFields()
@@ -113,16 +119,28 @@ func Sign(_ context.Context, key jwk.Key, sf SignedFielder, opts ...Option) (*pi
 		return nil, err
 	}
 
-	if options.logger != nil {
+	switch key := key.(type) {
+	case jwk.Key:
 		pk, err := key.PublicKey()
 		if err != nil {
 			return nil, fmt.Errorf("unable to generate public key: %w", err)
 		}
+
 		fingerprint, err := pk.Thumbprint(crypto.SHA256)
 		if err != nil {
 			return nil, fmt.Errorf("calculating key thumbprint: %w", err)
 		}
-		debug(options.logger, "Public Key Thumbprint (sha256): %s", hex.EncodeToString(fingerprint))
+
+		debug(options.logger, "Public Key Thumbprint (sha256): %x", fingerprint)
+	case crypto.Signer:
+		data, err := x509.MarshalPKIXPublicKey(key.Public())
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal public key: %w", err)
+		}
+
+		debug(options.logger, "Public Key Thumbprint (sha256): %x", sha256.Sum256(data))
+	default:
+		panic(fmt.Sprintf("unsupported key type: %T", key)) // should never happen
 	}
 
 	if options.debugSigning {
@@ -146,8 +164,9 @@ func Sign(_ context.Context, key jwk.Key, sf SignedFielder, opts ...Option) (*pi
 }
 
 // Verify verifies an existing signature against environment (env) combined with
-// an object containing values (sf) using keys from a keySet.
-func Verify(ctx context.Context, s *pipeline.Signature, keySet jwk.Set, sf SignedFielder, opts ...Option) error {
+// the keyset. The keySet can be a jwk.Set or a crypto.Signer. If it is a jwk.Set,
+// the public key thumbprints are logged.
+func Verify(ctx context.Context, s *pipeline.Signature, keySet any, sf SignedFielder, opts ...Option) error {
 	options := configureOptions(opts...)
 
 	if len(s.SignedFields) == 0 {
@@ -187,22 +206,40 @@ func Verify(ctx context.Context, s *pipeline.Signature, keySet jwk.Set, sf Signe
 		return err
 	}
 
-	for it := keySet.Keys(ctx); it.Next(ctx); {
-		pair := it.Pair()
-		publicKey := pair.Value.(jwk.Key)
-		fingerprint, err := publicKey.Thumbprint(crypto.SHA256)
-		if err != nil {
-			return fmt.Errorf("calculating key thumbprint: %w", err)
-		}
-		debug(options.logger, "Public Key Thumbprint (sha256): %s", hex.EncodeToString(fingerprint))
-	}
-
 	if options.debugSigning {
 		debug(options.logger, "Signed Step: %s checksum: %x", payload, sha256.Sum256(payload))
 	}
 
+	var keyOpt jws.VerifyOption
+	switch keySet := keySet.(type) {
+	case jwk.Set:
+		for it := keySet.Keys(ctx); it.Next(ctx); {
+			pair := it.Pair()
+			publicKey := pair.Value.(jwk.Key)
+			fingerprint, err := publicKey.Thumbprint(crypto.SHA256)
+			if err != nil {
+				return fmt.Errorf("calculating key thumbprint: %w", err)
+			}
+
+			debug(options.logger, "Public Key Thumbprint (sha256): %x", fingerprint)
+		}
+
+		keyOpt = jws.WithKeySet(keySet)
+	case crypto.Signer:
+		data, err := x509.MarshalPKIXPublicKey(keySet.Public())
+		if err != nil {
+			return fmt.Errorf("failed to marshal public key: %w", err)
+		}
+
+		debug(options.logger, "Public Key Thumbprint (sha256): %x", sha256.Sum256(data))
+
+		keyOpt = jws.WithKey(jwa.ES256, keySet)
+	default:
+		panic(fmt.Sprintf("unsupported key type: %T", keySet)) // should never happen
+	}
+
 	_, err = jws.Verify([]byte(s.Value),
-		jws.WithKeySet(keySet),
+		keyOpt,
 		jws.WithDetachedPayload(payload),
 	)
 	return err
