@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -87,6 +88,53 @@ func TestPluginFullSource(t *testing.T) {
 	}
 }
 
+func TestPluginMarshalJSON_Canonicalisation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		p    *Plugin
+	}{
+		{
+			name: "nil interface",
+			p:    &Plugin{Source: "docker#v1.2.3", Config: nil},
+		},
+		{
+			name: "nil map",
+			p:    &Plugin{Source: "docker#v1.2.3", Config: map[string]any(nil)},
+		},
+		{
+			name: "empty map",
+			p:    &Plugin{Source: "docker#v1.2.3", Config: map[string]any{}},
+		},
+		{
+			name: "nil slice??",
+			p:    &Plugin{Source: "docker#v1.2.3", Config: []any(nil)},
+		},
+		{
+			name: "empty slice??",
+			p:    &Plugin{Source: "docker#v1.2.3", Config: []any{}},
+		},
+	}
+
+	const want = `{"github.com/buildkite-plugins/docker-buildkite-plugin#v1.2.3":null}`
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := json.Marshal(test.p)
+			if err != nil {
+				t.Errorf("json.Marshal(%+v) error = %v", test.p, err)
+			}
+
+			if diff := cmp.Diff(string(got), want); diff != "" {
+				t.Errorf("JSON marshalled plugin diff (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestPluginMatrixInterpolate(t *testing.T) {
 	t.Parallel()
 
@@ -151,5 +199,4 @@ func TestPluginMatrixInterpolate(t *testing.T) {
 			}
 		})
 	}
-
 }
