@@ -429,6 +429,36 @@ steps:
   ]
 }`,
 		},
+		{
+			desc: "Empty setup list",
+			input: `---
+steps:
+  - command: echo {{matrix}}
+    matrix:
+      setup:
+        arch: []
+`,
+			want: &Pipeline{
+				Steps: Steps{
+					&CommandStep{
+						Command: "echo {{matrix}}",
+						Matrix: &Matrix{
+							Setup: MatrixSetup{
+								"arch": {},
+							},
+						},
+					},
+				},
+			},
+			wantJSON: `{
+  "steps": [
+    {
+      "command": "echo {{matrix}}",
+      "matrix": []
+    }
+  ]
+}`,
+		},
 	}
 
 	for _, test := range tests {
