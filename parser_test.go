@@ -1394,6 +1394,84 @@ func TestParserPreservesFloats(t *testing.T) {
 	}
 }
 
+func TestParserPreservesEmptyLists(t *testing.T) {
+	input := strings.NewReader(`---
+steps:
+  - command: x
+    matrix:
+      setup:
+        a: []
+      adjustments:
+        - with: { a: apple }
+`)
+	got, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse(input) error = %v", err)
+	}
+
+	want := &Pipeline{
+		Steps: Steps{
+			&CommandStep{
+				Command: "x",
+				Matrix: &Matrix{
+					Setup: MatrixSetup{},
+					Adjustments: MatrixAdjustments{
+						&MatrixAdjustment{With: MatrixAdjustmentWith{"a": "apple"}},
+					},
+				},
+			},
+		},
+	}
+	if diff := diffPipeline(got, want); diff != "" {
+		t.Errorf("parsed pipeline diff (-got +want):\n%s", diff)
+	}
+
+	gotJSON, err := json.MarshalIndent(got, "", "  ")
+	if err != nil {
+		t.Errorf(`json.MarshalIndent(got, "", "  ") error = %v`, err)
+	}
+	const wantJSON = `{
+  "steps": [
+    {
+      "command": "x",
+      "matrix": {
+        "adjustments": [
+          {
+            "with": {
+              "a": "apple"
+            }
+          }
+        ],
+        "setup": {
+          "a": []
+        }
+      }
+    }
+  ]
+}`
+	if diff := cmp.Diff(string(gotJSON), wantJSON); diff != "" {
+		t.Errorf("marshalled JSON diff (-got +want):\n%s", diff)
+	}
+
+	gotYAML, err := yaml.Marshal(got)
+	if err != nil {
+		t.Errorf("yaml.Marshal(got) error = %v", err)
+	}
+
+	wantYAML := `steps:
+    - command: x
+      matrix:
+        setup:
+            a: []
+        adjustments:
+            - with:
+                a: apple
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
+	}
+}
+
 func TestParserHandlesDates(t *testing.T) {
 	const timestamp = "2002-08-15T17:18:23.18-06:00"
 	input := strings.NewReader("steps:\n  - trigger: hello\n    llamas: " + timestamp)
