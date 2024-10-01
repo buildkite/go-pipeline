@@ -454,7 +454,11 @@ steps:
   "steps": [
     {
       "command": "echo {{matrix}}",
-      "matrix": []
+      "matrix": {
+        "setup": {
+          "arch": []
+        }
+      }
     }
   ]
 }`,

@@ -1414,7 +1414,7 @@ steps:
 			&CommandStep{
 				Command: "x",
 				Matrix: &Matrix{
-					Setup: MatrixSetup{},
+					Setup: MatrixSetup{"a": {}},
 					Adjustments: MatrixAdjustments{
 						&MatrixAdjustment{With: MatrixAdjustmentWith{"a": "apple"}},
 					},
