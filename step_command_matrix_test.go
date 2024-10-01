@@ -91,6 +91,51 @@ func TestMatrix_ValidatePermutation_Simple(t *testing.T) {
 	}
 }
 
+func TestMatrix_ValidatePermutation_AdjustmentOnly(t *testing.T) {
+	t.Parallel()
+
+	matrix := &Matrix{
+		Setup: MatrixSetup{
+			"arch": {},
+		},
+		Adjustments: MatrixAdjustments{
+			{
+				With: MatrixAdjustmentWith{
+					"arch": "aarch64",
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name string
+		perm MatrixPermutation
+		want error
+	}{
+		{
+			name: "basic match",
+			perm: MatrixPermutation{"arch": "aarch64"},
+			want: nil,
+		},
+		{
+			name: "basic mismatch",
+			perm: MatrixPermutation{"arch": "Arc de Triomphe"},
+			want: errPermutationNoMatch,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := matrix.validatePermutation(test.perm)
+			if !errors.Is(err, test.want) {
+				t.Errorf("matrix.validatePermutation(%v) = %v, want %v", test.perm, err, test.want)
+			}
+		})
+	}
+}
+
 func TestMatrix_ValidatePermutation_Multiple(t *testing.T) {
 	t.Parallel()
 

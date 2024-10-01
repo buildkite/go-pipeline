@@ -700,14 +700,9 @@ func TestUnmarshalIntoNilErrors(t *testing.T) {
 			dst:  (*MapSA)(nil),
 		},
 		{
-			desc: "*MapSA into *map[string]any nil",
+			desc: "non-nil *MapSA into nil *map[string]any",
 			src:  MapFromItems(TupleSA{}),
 			dst:  (*map[string]any)(nil),
-		},
-		{
-			desc: "*MapSA into map[string]any nil",
-			src:  MapFromItems(TupleSA{}),
-			dst:  (map[string]any)(nil),
 		},
 		{
 			desc: "*MapSA into *any nil",
@@ -782,6 +777,35 @@ func TestUnmarshalIntoNilErrors(t *testing.T) {
 
 			if err := Unmarshal(test.src, test.dst); !errors.Is(err, ErrIntoNil) {
 				t.Errorf("Unmarshal(%T, %T) error = %v, want %v", test.src, test.dst, err, ErrIntoNil)
+			}
+		})
+	}
+}
+
+func TestUnmarshalNotSettableErrors(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		desc     string
+		src, dst any
+	}{
+		{
+			desc: "*MapSA into map[string]any nil",
+			src:  MapFromItems(TupleSA{}),
+			dst:  (map[string]any)(nil),
+		},
+		{
+			desc: "*MapSA(nil) to *map[string]any",
+			src:  (*MapSA)(nil),
+			dst:  new(map[string]any), // NB: not make
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			if err := Unmarshal(test.src, test.dst); !errors.Is(err, ErrNotSettable) {
+				t.Errorf("Unmarshal(%T, %T) error = %v, want %v", test.src, test.dst, err, ErrNotSettable)
 			}
 		})
 	}
