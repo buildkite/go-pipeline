@@ -207,6 +207,31 @@ func TestInterpolator(t *testing.T) {
 			},
 		},
 		{
+			name:          "empty_variable_reference",
+			caseSensitive: true,
+			runtimeEnv:    map[string]string{"FOO_BAR": "runtime_baz", "SECOND": "BAR"},
+			input: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "BUILDKITE_MESSAGE", Value: "This $ is literal and should be ignored"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Command: "echo $BUILDKITE_MESSAGE",
+					},
+				},
+			},
+			expected: &Pipeline{
+				Env: ordered.MapFromItems(
+					ordered.TupleSS{Key: "BUILDKITE_MESSAGE", Value: "This $ is literal and should be ignored"},
+				),
+				Steps: Steps{
+					&CommandStep{
+						Command: "echo This $ is literal and should be ignored",
+					},
+				},
+			},
+		},
+		{
 			name:       "runtime_env_precedence_order",
 			runtimeEnv: map[string]string{"FOO": "runtime_foo"},
 			input: &Pipeline{
