@@ -9,7 +9,7 @@ retract (
 
 require (
 	github.com/buildkite/interpolate v0.1.5
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.7.0
 	github.com/gowebpki/jcs v1.0.1
 	github.com/lestrrat-go/jwx/v2 v2.1.3
 	github.com/oleiade/reflections v1.1.0
