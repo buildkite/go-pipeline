@@ -1,6 +1,6 @@
 module github.com/buildkite/go-pipeline
 
-go 1.22.6
+go 1.23
 
 retract (
 	v1.0.1 // Solely to publish the retraction of v1.0.0. We'll skip straight to v1.0.2 when we're ready to publish
