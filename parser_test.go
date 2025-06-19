@@ -70,6 +70,61 @@ func TestParserParsesYAML(t *testing.T) {
 	}
 }
 
+func TestParseAll_ParsesMultipleDocuments(t *testing.T) {
+	input := strings.NewReader(`---
+steps:
+  - command: "hallo"
+---
+steps:
+  - command: "tschüss"
+---
+steps:
+  - command: "bis später"
+`)
+
+	want := []*Pipeline{
+		{Steps: Steps{&CommandStep{Command: "hallo"}}},
+		{Steps: Steps{&CommandStep{Command: "tschüss"}}},
+		{Steps: Steps{&CommandStep{Command: "bis später"}}},
+	}
+
+	var got []*Pipeline
+
+	for gotPipeline, err := range ParseAll(input) {
+		if err != nil {
+			t.Fatalf("Parse(input) error = %v", err)
+		}
+
+		got = append(got, gotPipeline)
+	}
+
+	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA)); diff != "" {
+		t.Errorf("parsed pipelines diff (-got, +want):\n%s", diff)
+	}
+
+	// Multiple objects can be encoded as separate documents with yaml.Encoder.
+	var gotYAML strings.Builder
+	enc := yaml.NewEncoder(&gotYAML)
+	for i, p := range got {
+		if err := enc.Encode(p); err != nil {
+			t.Errorf("yaml.Marshal(got[%d]) error = %v", i, err)
+		}
+	}
+
+	wantYAML := `steps:
+    - command: hallo
+---
+steps:
+    - command: tschüss
+---
+steps:
+    - command: bis später
+`
+	if diff := cmp.Diff(gotYAML.String(), wantYAML); diff != "" {
+		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
+	}
+}
+
 func TestParserParsesYAMLWithInterpolation(t *testing.T) {
 	tests := []struct {
 		desc             string
