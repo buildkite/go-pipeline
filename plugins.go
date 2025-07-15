@@ -28,7 +28,7 @@ func (p *Plugins) UnmarshalOrdered(o any) error {
 	// part remains the same.
 	// Parse each "key: value" as "name: config", then append in order.
 	unmarshalMap := func(m *ordered.MapSA) error {
-		return m.Range(func(k string, v any) error {
+		return m.Range(func(k string, v any, _ *yaml.Node) error {
 			// ToMapRecursive demolishes any ordering within the plugin config.
 			// This is needed because the backend likes to reorder the keys,
 			// and for signing we need the JSON form to be stable.

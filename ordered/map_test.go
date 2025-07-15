@@ -138,7 +138,7 @@ func TestMapSet(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
-			test.input.Set(test.key, test.value)
+			test.input.Set(test.key, test.value, nil)
 			if diff := cmp.Diff(test.input, test.want, cmp.Comparer(EqualSS)); diff != "" {
 				t.Errorf("after Set(%q, %q), map diff (-got +want):\n%s", test.key, test.value, diff)
 			}
@@ -219,7 +219,7 @@ func TestMapReplace(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
-			test.input.Replace(test.oldkey, test.newkey, test.value)
+			test.input.Replace(test.oldkey, test.newkey, test.value, nil)
 			if diff := cmp.Diff(test.input, test.want, cmp.Comparer(EqualSS)); diff != "" {
 				t.Errorf("after Replace(%q, %q, %q), map diff (-got +want):\n%s", test.oldkey, test.newkey, test.value, diff)
 			}

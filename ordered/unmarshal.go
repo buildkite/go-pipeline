@@ -304,13 +304,13 @@ func (m *Map[K, V]) decodeInto(target any) error {
 
 		valueType := mapType.Elem()
 		var warns []error
-		if err := tm.Range(func(k string, v any) error {
+		if err := tm.Range(func(k string, v any, src *yaml.Node) error {
 			nv := reflect.New(valueType)
 			err := Unmarshal(v, nv.Interface())
 			if w := warning.As(err); w != nil {
-				warns = append(warns, w.Wrapf("while unmarshaling value for key %q", k))
+				warns = append(warns, w.Wrapf("%swhile unmarshaling value for key %q", SourcePrefix(src), k))
 			} else if err != nil {
-				return fmt.Errorf("unmarshaling value for key %q: %w", k, err)
+				return fmt.Errorf("%sunmarshaling value for key %q: %w", SourcePrefix(src), k, err)
 			}
 
 			targetValue.SetMapIndex(reflect.ValueOf(k), nv.Elem())
@@ -410,11 +410,11 @@ func (m *Map[K, V]) decodeInto(target any) error {
 	// Copy all values that weren't non-inline fields into a temporary map.
 	// This is just to avoid mutating tm.
 	temp := NewMap[string, any](tm.Len())
-	tm.Range(func(k string, v any) error {
+	tm.Range(func(k string, v any, s *yaml.Node) error {
 		if _, outline := outlineKeys[k]; outline {
 			return nil
 		}
-		temp.Set(k, v)
+		temp.Set(k, v, s)
 		return nil
 	})
 
@@ -453,15 +453,15 @@ func (m *Map[K, V]) UnmarshalOrdered(src any) error {
 	}
 
 	var warns []error
-	if err := tsrc.Range(func(k string, v any) error {
+	if err := tsrc.Range(func(k string, v any, src *yaml.Node) error {
 		var dv V
 		err := Unmarshal(v, &dv)
 		if w := warning.As(err); w != nil {
-			warns = append(warns, w.Wrapf("while unmarshaling the value for key %q", k))
+			warns = append(warns, w.Wrapf("%swhile unmarshaling the value for key %q", SourcePrefix(src), k))
 		} else if err != nil {
-			return fmt.Errorf("unmarshaling value for key %q: %w", k, err)
+			return fmt.Errorf("%sunmarshaling value for key %q: %w", SourcePrefix(src), k, err)
 		}
-		tm.Set(k, dv)
+		tm.Set(k, dv, src)
 		return nil
 	}); err != nil {
 		return err
