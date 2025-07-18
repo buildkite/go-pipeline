@@ -43,9 +43,10 @@ type SignedFielder interface {
 type Logger interface{ Debug(f string, v ...any) }
 
 type options struct {
-	env          map[string]string
-	logger       Logger
-	debugSigning bool
+	env            map[string]string
+	logger         Logger
+	debugSigning   bool
+	ignoredEnvVars []string
 }
 
 type Option interface {
@@ -55,12 +56,15 @@ type Option interface {
 type envOption struct{ env map[string]string }
 type loggerOption struct{ logger Logger }
 type debugSigningOption struct{ debugSigning bool }
+type ignoringEnvVarsOption struct{ varKeys []string }
 
-func (o envOption) apply(opts *options)          { opts.env = o.env }
-func (o loggerOption) apply(opts *options)       { opts.logger = o.logger }
-func (o debugSigningOption) apply(opts *options) { opts.debugSigning = o.debugSigning }
+func (o envOption) apply(opts *options)             { opts.env = o.env }
+func (o loggerOption) apply(opts *options)          { opts.logger = o.logger }
+func (o debugSigningOption) apply(opts *options)    { opts.debugSigning = o.debugSigning }
+func (o ignoringEnvVarsOption) apply(opts *options) { opts.ignoredEnvVars = o.varKeys }
 
 func WithEnv(env map[string]string) Option      { return envOption{env} }
+func IgnoringEnvVars(varKeys ...string) Option  { return ignoringEnvVarsOption{varKeys} }
 func WithLogger(logger Logger) Option           { return loggerOption{logger} }
 func WithDebugSigning(debugSigning bool) Option { return debugSigningOption{debugSigning} }
 
@@ -98,6 +102,15 @@ func Sign(_ context.Context, key Key, sf SignedFielder, opts ...Option) (*pipeli
 	// So if the thing we're signing has an env map, use it to exclude pipeline
 	// vars from signing.
 	objEnv, _ := values["env"].(map[string]string)
+
+	for _, ignored := range options.ignoredEnvVars {
+		delete(objEnv, ignored)
+		delete(options.env, ignored)
+	}
+
+	// We may have deleted the only entry in the env map, and we canonicalise empty maps to nil, so if the map is empty,
+	// set it to nil.
+	values["env"] = EmptyToNilMap(objEnv)
 
 	// Namespace the env values and include them in the values to sign.
 	for k, v := range options.env {
@@ -181,6 +194,15 @@ func Verify(ctx context.Context, s *pipeline.Signature, keySet any, sf SignedFie
 
 	// See Sign above for why we need special handling for step env.
 	objEnv, _ := values["env"].(map[string]string)
+
+	for _, ignored := range options.ignoredEnvVars {
+		delete(objEnv, ignored)
+		delete(options.env, ignored)
+	}
+
+	// We may have deleted the only entry in the env map, and we canonicalise empty maps to nil, so if the map is empty,
+	// set it to nil.
+	values["env"] = EmptyToNilMap(objEnv)
 
 	// Namespace the env values and include them in the values to sign.
 	for k, v := range options.env {
