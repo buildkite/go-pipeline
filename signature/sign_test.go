@@ -516,6 +516,101 @@ func TestSignVerifyEnv(t *testing.T) {
 	}
 }
 
+func TestSignVerify_IgnoredEnvVars(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
+	if err != nil {
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
+	}
+
+	key, ok := signer.Key(0)
+	if !ok {
+		t.Fatalf("signer.Key(0) = _, false, want true")
+	}
+
+	toSign := &CommandStepWithInvariants{
+		CommandStep: pipeline.CommandStep{
+			Command: "llamas",
+			Env: map[string]string{
+				"CONTEXT": "cats",
+				// "DEPLOY":  "0",
+			},
+		},
+		RepositoryURL: fakeRepositoryURL,
+	}
+
+	toVerify := &CommandStepWithInvariants{
+		CommandStep: pipeline.CommandStep{
+			Command: "llamas",
+			Env: map[string]string{
+				"CONTEXT": "dogs", // Changed from "cats"
+				// "DEPLOY":  "0",
+			},
+		},
+		RepositoryURL: fakeRepositoryURL,
+	}
+
+	sig, err := Sign(ctx, key, toSign, IgnoringEnvVars("CONTEXT"))
+	if err != nil {
+		t.Fatalf("Sign(ctx, key, %v) error = %v", toSign, err)
+	}
+
+	if err := Verify(ctx, sig, verifier, toVerify, IgnoringEnvVars("CONTEXT")); err != nil {
+		t.Errorf("Verify(ctx, %v, verifier, %v) = %v", sig, toVerify, err)
+	}
+}
+
+// In this test, we have a step with no env, then sign it with a pipeline env that has an ignored env var.
+// Then, we verify the step having changed the ignored env var in the step env. It should verify successfully,
+// because the ignored env var is not included in the signature.
+func TestSignVerify_IgnoredEnvVars_WithEnv(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
+	if err != nil {
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
+	}
+
+	key, ok := signer.Key(0)
+	if !ok {
+		t.Fatalf("signer.Key(0) = _, false, want true")
+	}
+
+	toSign := &CommandStepWithInvariants{
+		CommandStep:   pipeline.CommandStep{Command: "llamas"},
+		RepositoryURL: fakeRepositoryURL,
+	}
+
+	ignored := "ENV_VAR_TO_CHANGE"
+	pipelineEnv := map[string]string{
+		ignored: "cats",
+	}
+
+	toVerify := &CommandStepWithInvariants{
+		CommandStep: pipeline.CommandStep{
+			Command: "llamas",
+			Env: map[string]string{
+				ignored: "dogs",
+			},
+		},
+		RepositoryURL: fakeRepositoryURL,
+	}
+
+	sig, err := Sign(ctx, key, toSign, WithEnv(pipelineEnv), IgnoringEnvVars(ignored))
+	if err != nil {
+		t.Fatalf("Sign(ctx, key, %v) error = %v", toSign, err)
+	}
+
+	if err := Verify(ctx, sig, verifier, toVerify, WithEnv(pipelineEnv), IgnoringEnvVars(ignored)); err != nil {
+		t.Errorf("Verify(ctx, %v, verifier, %v) = %v", sig, toVerify, err)
+	}
+}
+
 func TestSignVerify_NilVsEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
