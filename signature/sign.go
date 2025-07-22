@@ -17,11 +17,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 )
 
-// EnvNamespacePrefix is the string that prefixes all fields in the "env"
-// namespace. This is used to separate signed data that came from the
-// environment from data that came from an object.
-const EnvNamespacePrefix = "env::"
-
 // SignedFielder describes types that can be signed and have signatures
 // verified.
 // Converting non-string fields into strings (in a stable, canonical way) is an
@@ -43,31 +38,51 @@ type SignedFielder interface {
 type Logger interface{ Debug(f string, v ...any) }
 
 type options struct {
-	env          map[string]string
+	env          map[string]string // not used in Sign or Verify
 	logger       Logger
 	debugSigning bool
 }
 
+// Allow *options to pass through SignOrVerifyOption.
+func (o *options) apply(opts *options) { *opts = *o }
+func (*options) signOrVerifyTag()      {}
+
+// Option implementations provide extra parameters. This type encompasses all
+// options, whether or not they are allowed to be passed to Sign or Verify.
 type Option interface {
 	apply(*options)
 }
 
-type envOption struct{ env map[string]string }
+// SignOrVerifyOption are the subtype of options that can be passed to Sign
+// or to Verify.
+type SignOrVerifyOption interface {
+	Option
+
+	// This tag ensures that options that aren't one of the specifically-tagged
+	// options cannot be passed to Sign or Verify.
+	signOrVerifyTag()
+}
+
 type loggerOption struct{ logger Logger }
+
+func (o loggerOption) apply(opts *options) { opts.logger = o.logger }
+func (loggerOption) signOrVerifyTag()      {}
+
 type debugSigningOption struct{ debugSigning bool }
 
-func (o envOption) apply(opts *options)          { opts.env = o.env }
-func (o loggerOption) apply(opts *options)       { opts.logger = o.logger }
 func (o debugSigningOption) apply(opts *options) { opts.debugSigning = o.debugSigning }
+func (debugSigningOption) signOrVerifyTag()      {}
 
-func WithEnv(env map[string]string) Option      { return envOption{env} }
-func WithLogger(logger Logger) Option           { return loggerOption{logger} }
-func WithDebugSigning(debugSigning bool) Option { return debugSigningOption{debugSigning} }
+// WithLogger provides a logger to use for debug logging.
+func WithLogger(logger Logger) SignOrVerifyOption { return loggerOption{logger} }
 
-func configureOptions(opts ...Option) options {
-	options := options{
-		env: make(map[string]string),
-	}
+// WithDebugSigning enables or disables signing debugging. Aside from logging
+// verbosely, enabling this may risk disclosing information that could break the
+// encryption properties of the signature.
+func WithDebugSigning(debugSigning bool) SignOrVerifyOption { return debugSigningOption{debugSigning} }
+
+func configureOptions[E Option](opts []E) options {
+	options := options{}
 	for _, o := range opts {
 		o.apply(&options)
 	}
@@ -78,11 +93,11 @@ type Key interface {
 	Algorithm() jwa.KeyAlgorithm
 }
 
-// Sign computes a new signature for an environment (env) combined with an
-// object containing values (sf) using a given key. The key can be a jwk.Key
-// or a crypto.Signer. If it is a jwk.Key, the public key thumbprint is logged.
-func Sign(_ context.Context, key Key, sf SignedFielder, opts ...Option) (*pipeline.Signature, error) {
-	options := configureOptions(opts...)
+// Sign computes a new signature for object containing values (sf) using a given
+// key. The key can be a jwk.Key or a crypto.Signer. If it is a jwk.Key, the
+// public key thumbprint is logged.
+func Sign(_ context.Context, key Key, sf SignedFielder, opts ...SignOrVerifyOption) (*pipeline.Signature, error) {
+	options := configureOptions(opts)
 
 	values, err := sf.SignedFields()
 	if err != nil {
@@ -90,21 +105,6 @@ func Sign(_ context.Context, key Key, sf SignedFielder, opts ...Option) (*pipeli
 	}
 	if len(values) == 0 {
 		return nil, errors.New("no fields to sign")
-	}
-
-	// Step env overrides pipeline and build env:
-	// https://buildkite.com/docs/tutorials/pipeline-upgrade#what-is-the-yaml-steps-editor-compatibility-issues
-	// (Beware of inconsistent docs written in the time of legacy steps.)
-	// So if the thing we're signing has an env map, use it to exclude pipeline
-	// vars from signing.
-	objEnv, _ := values["env"].(map[string]string)
-
-	// Namespace the env values and include them in the values to sign.
-	for k, v := range options.env {
-		if _, has := objEnv[k]; has {
-			continue
-		}
-		values[EnvNamespacePrefix+k] = v
 	}
 
 	// Extract the names of the fields.
@@ -166,8 +166,8 @@ func Sign(_ context.Context, key Key, sf SignedFielder, opts ...Option) (*pipeli
 // Verify verifies an existing signature against environment (env) combined with
 // the keyset. The keySet can be a jwk.Set or a crypto.Signer. If it is a jwk.Set,
 // the public key thumbprints are logged.
-func Verify(ctx context.Context, s *pipeline.Signature, keySet any, sf SignedFielder, opts ...Option) error {
-	options := configureOptions(opts...)
+func Verify(ctx context.Context, s *pipeline.Signature, keySet any, sf SignedFielder, opts ...SignOrVerifyOption) error {
+	options := configureOptions(opts)
 
 	if len(s.SignedFields) == 0 {
 		return errors.New("signature covers no fields")
@@ -179,23 +179,6 @@ func Verify(ctx context.Context, s *pipeline.Signature, keySet any, sf SignedFie
 		return fmt.Errorf("obtaining values for fields: %w", err)
 	}
 
-	// See Sign above for why we need special handling for step env.
-	objEnv, _ := values["env"].(map[string]string)
-
-	// Namespace the env values and include them in the values to sign.
-	for k, v := range options.env {
-		if _, has := objEnv[k]; has {
-			continue
-		}
-		values[EnvNamespacePrefix+k] = v
-	}
-
-	// env:: fields that were signed are all required from the env map.
-	// We can't verify other env vars though - they can vary for lots of reasons
-	// (e.g. Buildkite-provided vars added by the backend.)
-	// This is still strong enough for a user to enforce any particular env var
-	// exists and has a particular value - make it a part of the pipeline or
-	// step env.
 	required, err := requireKeys(values, s.SignedFields)
 	if err != nil {
 		return fmt.Errorf("obtaining required keys: %w", err)

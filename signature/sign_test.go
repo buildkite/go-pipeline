@@ -48,20 +48,26 @@ func TestSignVerify(t *testing.T) {
 			"DEPLOY":  "0",
 		},
 	}
-	// The pipeline-level env that the agent uploads:
-	signEnv := map[string]string{
-		"DEPLOY": "1",
-	}
-	// The backend combines the pipeline and step envs, providing a new env:
-	verifyEnv := map[string]string{
-		"CONTEXT": "cats",
-		"DEPLOY":  "0",
-		"MISC":    "llama drama",
-	}
 
-	stepWithInvariants := &CommandStepWithInvariants{
+	stepToSign := &commandStepWithInvariants{
 		CommandStep:   *step,
 		RepositoryURL: "fake-repo",
+		// The pipeline containing all the steps can define some top-level env
+		// vars that work like defaults for all steps.
+		OuterEnv: map[string]string{
+			"DEPLOY": "1",
+		},
+	}
+	stepToVerify := &commandStepWithInvariants{
+		CommandStep:   *step,
+		RepositoryURL: "fake-repo",
+		// The backend combines the pipeline and step envs and adds several new
+		// env vars of its own, and returns that when serving up the job to run.
+		OuterEnv: map[string]string{
+			"CONTEXT": "cats",
+			"DEPLOY":  "0",
+			"MISC":    "llama drama",
+		},
 	}
 
 	cases := []struct {
@@ -106,9 +112,9 @@ func TestSignVerify(t *testing.T) {
 				t.Fatalf("jwkutil.LoadKey(%v, %v) error = %v", privPath, keyName, err)
 			}
 
-			sig, err := Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv))
+			sig, err := Sign(ctx, sKey, stepToSign)
 			if err != nil {
-				t.Fatalf("Sign(ctx, sKey, %v, WithEnv(%v)) error = %v", stepWithInvariants, signEnv, err)
+				t.Fatalf("Sign(ctx, sKey, %v) error = %v", stepToSign, err)
 			}
 
 			if sig.Algorithm != tc.alg.String() {
@@ -132,8 +138,8 @@ func TestSignVerify(t *testing.T) {
 				t.Fatalf("verifier.AddKey(%v) error = %v", vKey, err)
 			}
 
-			if err := Verify(ctx, sig, verifier, stepWithInvariants, WithEnv(verifyEnv)); err != nil {
-				t.Errorf("Verify(ctx, %v, verifier, %v, WithEnv(%v)) = %v", sig, stepWithInvariants, verifyEnv, err)
+			if err := Verify(ctx, sig, verifier, stepToVerify); err != nil {
+				t.Errorf("Verify(ctx, %v, verifier, %v) = %v", sig, stepToVerify, err)
 			}
 		})
 	}
@@ -178,21 +184,26 @@ func TestSignVerifyCryptoSigner(t *testing.T) {
 			"DEPLOY":  "0",
 		},
 	}
-	// The pipeline-level env that the agent uploads:
-	signEnv := map[string]string{
-		"DEPLOY": "1",
-	}
 
-	// The backend combines the pipeline and step envs, providing a new env:
-	verifyEnv := map[string]string{
-		"CONTEXT": "cats",
-		"DEPLOY":  "0",
-		"MISC":    "llama drama",
-	}
-
-	stepWithInvariants := &CommandStepWithInvariants{
+	stepToSign := &commandStepWithInvariants{
 		CommandStep:   *step,
 		RepositoryURL: "fake-repo",
+		// The pipeline containing all the steps can define some top-level env
+		// vars that work like defaults for all steps.
+		OuterEnv: map[string]string{
+			"DEPLOY": "1",
+		},
+	}
+	stepToVerify := &commandStepWithInvariants{
+		CommandStep:   *step,
+		RepositoryURL: "fake-repo",
+		// The backend combines the pipeline and step envs and adds several new
+		// env vars of its own, and returns that when serving up the job to run.
+		OuterEnv: map[string]string{
+			"CONTEXT": "cats",
+			"DEPLOY":  "0",
+			"MISC":    "llama drama",
+		},
 	}
 
 	cases := []struct {
@@ -249,17 +260,17 @@ func TestSignVerifyCryptoSigner(t *testing.T) {
 				publickKey: publicKey,
 			}
 
-			sig, err := Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv))
+			sig, err := Sign(ctx, sKey, stepToSign)
 			if err != nil {
-				t.Fatalf("Sign(ctx, sKey, %v, WithEnv(%v)) error = %v", stepWithInvariants, signEnv, err)
+				t.Fatalf("Sign(ctx, sKey, %v) error = %v", stepToSign, err)
 			}
 
 			if sig.Algorithm != tc.alg.String() {
 				t.Errorf("Signature.Algorithm = %v, want %v", sig.Algorithm, tc.alg)
 			}
 
-			if err := Verify(ctx, sig, sKey, stepWithInvariants, WithEnv(verifyEnv)); err != nil {
-				t.Errorf("Verify(ctx, %v, verifier, %v, WithEnv(%v)) = %v", sig, stepWithInvariants, verifyEnv, err)
+			if err := Verify(ctx, sig, sKey, stepToVerify); err != nil {
+				t.Errorf("Verify(ctx, %v, verifier, %v) = %v", sig, stepToVerify, err)
 			}
 
 		})
@@ -358,7 +369,7 @@ func TestUnknownAlgorithm(t *testing.T) {
 
 	key.Set(jwk.AlgorithmKey, "rot13")
 
-	step := &CommandStepWithInvariants{
+	step := &commandStepWithInvariants{
 		CommandStep: pipeline.CommandStep{
 			Command: "llamas",
 		},
@@ -373,7 +384,7 @@ func TestVerifyBadSignature(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	cs := &CommandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}}
+	cs := &commandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}}
 
 	sig := &pipeline.Signature{
 		Algorithm:    "HS256",
@@ -476,7 +487,6 @@ func TestSignVerifyEnv(t *testing.T) {
 				"DEPLOY":  "1",
 			},
 			verifyEnv: map[string]string{
-				// NB: pipeline env overrides step env.
 				"CONTEXT": "dogs",
 				"DEPLOY":  "1",
 				"MISC":    "apple",
@@ -499,18 +509,24 @@ func TestSignVerifyEnv(t *testing.T) {
 				t.Fatalf("signer.Key(0) = _, false, want true")
 			}
 
-			stepWithInvariants := &CommandStepWithInvariants{
+			stepToSign := &commandStepWithInvariants{
 				CommandStep:   *tc.step,
 				RepositoryURL: tc.repositoryURL,
+				OuterEnv:      tc.pipelineEnv,
+			}
+			stepToVerify := &commandStepWithInvariants{
+				CommandStep:   *tc.step,
+				RepositoryURL: tc.repositoryURL,
+				OuterEnv:      tc.verifyEnv,
 			}
 
-			sig, err := Sign(ctx, key, stepWithInvariants, WithEnv(tc.pipelineEnv))
+			sig, err := Sign(ctx, key, stepToSign)
 			if err != nil {
-				t.Fatalf("Sign(ctx, key, %v, WithEnv(%v)) error = %v", stepWithInvariants, tc.pipelineEnv, err)
+				t.Fatalf("Sign(ctx, key, %v) error = %v", stepToSign, err)
 			}
 
-			if err := Verify(ctx, sig, verifier, stepWithInvariants, WithEnv(tc.verifyEnv)); err != nil {
-				t.Errorf("Verify(ctx, %v, verifier, %v, WithEnv(%v)) = %v", sig, stepWithInvariants, tc.verifyEnv, err)
+			if err := Verify(ctx, sig, verifier, stepToVerify); err != nil {
+				t.Errorf("Verify(ctx, %v, verifier, %v) = %v", sig, stepToVerify, err)
 			}
 		})
 	}
@@ -619,11 +635,11 @@ func TestSignVerify_NilVsEmpty(t *testing.T) {
 				t.Fatalf("signer.Key(0) = _, false, want true")
 			}
 
-			toSign := &CommandStepWithInvariants{
+			toSign := &commandStepWithInvariants{
 				CommandStep:   *tc.stepSign,
 				RepositoryURL: fakeRepositoryURL,
 			}
-			toVerify := &CommandStepWithInvariants{
+			toVerify := &commandStepWithInvariants{
 				CommandStep:   *tc.stepVerify,
 				RepositoryURL: fakeRepositoryURL,
 			}
@@ -659,10 +675,7 @@ func TestSignatureStability(t *testing.T) {
 			Config: pluginCfg,
 		}},
 	}
-	stepWithInvariants := &CommandStepWithInvariants{
-		CommandStep:   *step,
-		RepositoryURL: fakeRepositoryURL,
-	}
+
 	env := make(map[string]string)
 
 	// there are n! permutations of n items, but only one is correct
@@ -685,13 +698,19 @@ func TestSignatureStability(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	sig, err := Sign(ctx, key, stepWithInvariants, WithEnv(env))
-	if err != nil {
-		t.Fatalf("Sign(ctx, key, %v, WithEnv(%v)) error = %v", stepWithInvariants, env, err)
+	stepWithInvariants := &commandStepWithInvariants{
+		CommandStep:   *step,
+		RepositoryURL: fakeRepositoryURL,
+		OuterEnv:      env,
 	}
 
-	if err := Verify(ctx, sig, verifier, stepWithInvariants, WithEnv(env)); err != nil {
-		t.Errorf("Verify(ctx, %v, verifier, %v, WithEnv(%v)) = %v", sig, stepWithInvariants, env, err)
+	sig, err := Sign(ctx, key, stepWithInvariants)
+	if err != nil {
+		t.Fatalf("Sign(ctx, key, %v) error = %v", stepWithInvariants, err)
+	}
+
+	if err := Verify(ctx, sig, verifier, stepWithInvariants); err != nil {
+		t.Errorf("Verify(ctx, %v, verifier, %v) = %v", sig, stepWithInvariants, err)
 	}
 }
 
@@ -721,9 +740,10 @@ func TestDebugSigning(t *testing.T) {
 		"DEPLOY": "1",
 	}
 
-	stepWithInvariants := &CommandStepWithInvariants{
+	stepWithInvariants := &commandStepWithInvariants{
 		CommandStep:   *step,
 		RepositoryURL: "fake-repo",
+		OuterEnv:      signEnv,
 	}
 
 	wd, err := os.Getwd()
@@ -745,7 +765,7 @@ func TestDebugSigning(t *testing.T) {
 
 	// Test that step payload is not logged when debugSigning is false
 	logger := &fakeLogger{}
-	_, err = Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(false), WithLogger(logger))
+	_, err = Sign(ctx, sKey, stepWithInvariants, WithDebugSigning(false), WithLogger(logger))
 	if err != nil {
 		t.Fatalf("Sign(ctx, sKey, %v, WithEnv(%v), WithDebugSigning(false), WithLogger(logger)) error = %v", stepWithInvariants, signEnv, err)
 	}
@@ -760,7 +780,7 @@ func TestDebugSigning(t *testing.T) {
 
 	// Test that step payload is logged when debugSigning is true
 	logger = &fakeLogger{}
-	_, err = Sign(ctx, sKey, stepWithInvariants, WithEnv(signEnv), WithDebugSigning(true), WithLogger(logger))
+	_, err = Sign(ctx, sKey, stepWithInvariants, WithDebugSigning(true), WithLogger(logger))
 	if err != nil {
 		t.Fatalf("Sign(ctx, sKey, %v, WithEnv(%v), WithDebugSigning(true), WithLogger(logger)) error = %v", stepWithInvariants, signEnv, err)
 	}

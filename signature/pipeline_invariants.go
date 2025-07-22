@@ -7,27 +7,53 @@ import (
 	"github.com/buildkite/go-pipeline"
 )
 
-var _ SignedFielder = (*CommandStepWithInvariants)(nil)
+// EnvNamespacePrefix is the string that prefixes all fields in the "env"
+// namespace. This is used to separate signed data that came from the
+// environment from data that came from an object.
+const EnvNamespacePrefix = "env::"
 
-// CommandStepWithInvariants is a CommandStep with PipelineInvariants.
-type CommandStepWithInvariants struct {
+var _ SignedFielder = (*commandStepWithInvariants)(nil)
+
+// commandStepWithInvariants is a CommandStep with pipeline invariants.
+// Pipeline invariants are things like the repository URL (since mutating that
+// could cause the agent to download the wrong code to build) and pipeline-
+// -level env vars (since they can greatly affect how a job is run and provide
+// ample means of side-stepping protections e.g. shell injections).
+type commandStepWithInvariants struct {
 	pipeline.CommandStep
 	RepositoryURL string
+	// For signing, OuterEnv is the pipeline env.
+	// For verifying, OuterEnv is the job env.
+	OuterEnv map[string]string
 }
 
 // SignedFields returns the default fields for signing.
-func (c *CommandStepWithInvariants) SignedFields() (map[string]any, error) {
-	return map[string]any{
+func (c *commandStepWithInvariants) SignedFields() (map[string]any, error) {
+	object := map[string]any{
 		"command":        c.Command,
 		"env":            EmptyToNilMap(c.Env),
 		"plugins":        EmptyToNilSlice(c.Plugins),
 		"matrix":         EmptyToNilPtr(c.Matrix),
 		"repository_url": c.RepositoryURL,
-	}, nil
+	}
+
+	// Step env overrides pipeline and build env:
+	// https://buildkite.com/docs/tutorials/pipeline-upgrade#what-is-the-yaml-steps-editor-compatibility-issues
+	// (Beware of inconsistent docs written in the time of legacy steps.)
+	// So step env vars exclude pipeline vars from signing.
+	// Namespace the env values and include them in the values to sign.
+	for k, v := range c.OuterEnv {
+		if _, has := c.Env[k]; has {
+			continue
+		}
+		object[EnvNamespacePrefix+k] = v
+	}
+
+	return object, nil
 }
 
 // ValuesForFields returns the contents of fields to sign.
-func (c *CommandStepWithInvariants) ValuesForFields(fields []string) (map[string]any, error) {
+func (c *commandStepWithInvariants) ValuesForFields(fields []string) (map[string]any, error) {
 	// Make a set of required fields. As fields is processed, mark them off by
 	// deleting them.
 	required := map[string]struct{}{
@@ -59,8 +85,13 @@ func (c *CommandStepWithInvariants) ValuesForFields(fields []string) (map[string
 			out["repository_url"] = c.RepositoryURL
 
 		default:
-			// All env:: values come from outside the step.
-			if strings.HasPrefix(f, EnvNamespacePrefix) {
+			if name, has := strings.CutPrefix(f, EnvNamespacePrefix); has {
+				// Do we have that env var?
+				if value, has := c.OuterEnv[name]; has {
+					out[f] = value
+				} else {
+					return nil, fmt.Errorf("variable %q missing from environment", name)
+				}
 				break
 			}
 
