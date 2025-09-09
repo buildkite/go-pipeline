@@ -20,7 +20,7 @@ type Secret struct {
 }
 
 // MarshalJSON marshals the secret to JSON.
-func (s *Secret) MarshalJSON() ([]byte, error) {
+func (s Secret) MarshalJSON() ([]byte, error) {
 	return inlineFriendlyMarshalJSON(s)
 }
 

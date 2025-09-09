@@ -73,6 +73,6 @@ func TestSecretInterpolation(t *testing.T) {
 	}
 
 	if diff := cmp.Diff(want, secret); diff != "" {
-		t.Errorf("secret.interpolate(%#v) = %s", tf, diff)
+		t.Errorf("secret.interpolate(%#v) = %q, want: %q", tf, diff, want)
 	}
 }
