@@ -36,7 +36,7 @@ steps:
 		t.Fatalf("len(p.Secrets) = %d, want 2", len(p.Secrets))
 	}
 
-	want := []Secret{
+	want := Secrets{
 		{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
 		{Key: "API_TOKEN", EnvironmentVariable: "API_TOKEN"},
 	}

@@ -12,10 +12,9 @@ import (
 func TestSecretMarshalJSON(t *testing.T) {
 	t.Parallel()
 
-	envVar := "DATABASE_URL"
 	secret := Secret{
 		Key:                 "DATABASE_URL",
-		EnvironmentVariable: envVar,
+		EnvironmentVariable: "DATABASE_URL",
 	}
 
 	want := `{"environment_variable":"DATABASE_URL","key":"DATABASE_URL"}`
