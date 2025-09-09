@@ -18,7 +18,7 @@ func TestSecretsUnmarshalJSON(t *testing.T) {
 	]`
 
 	var secrets Secrets
-	err := json.Unmarshal([]byte(jsonData), secrets)
+	err := json.Unmarshal([]byte(jsonData), &secrets)
 	if err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
