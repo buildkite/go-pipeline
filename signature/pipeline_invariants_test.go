@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/buildkite/go-pipeline"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestCommandStepWithInvariants_SignedFields_WithSecrets(t *testing.T) {
@@ -25,26 +26,15 @@ func TestCommandStepWithInvariants_SignedFields_WithSecrets(t *testing.T) {
 
 	fields, err := step.SignedFields()
 	if err != nil {
-		t.Fatalf("SignedFields() error = %v", err)
+		t.Fatalf("step.SignedFields() error = %v", err)
 	}
 
-	// Check that secrets field is included
-	if _, has := fields["secrets"]; !has {
-		t.Errorf("SignedFields() missing 'secrets' field")
+	want := pipeline.Secrets{
+		{Key: "DATABASE_URL", EnvironmentVariable: &dbUrl},
 	}
 
-	// Check that secrets field contains expected data
-	secrets, ok := fields["secrets"].(pipeline.Secrets)
-	if !ok {
-		t.Errorf("SignedFields() 'secrets' field is not pipeline.Secrets type, got %T", fields["secrets"])
-	}
-
-	if len(secrets) != 1 {
-		t.Errorf("SignedFields() expected 1 secret, got %d", len(secrets))
-	}
-
-	if secrets[0].Key != "DATABASE_URL" {
-		t.Errorf("SignedFields() expected secret key 'DATABASE_URL', got %q", secrets[0].Key)
+	if diff := cmp.Diff(fields["secrets"], want); diff != "" {
+		t.Errorf("step.SignedFields()[\"secrets\"] diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -55,8 +45,8 @@ func TestCommandStepWithInvariants_SignedFields_EmptySecrets(t *testing.T) {
 		CommandStep: pipeline.CommandStep{
 			Command: "echo hello",
 			Env:     map[string]string{"FOO": "bar"},
-			Plugins: nil, // nil plugins - this should become nil
-			Secrets: nil, // nil secrets - this should become nil
+			Plugins: nil,
+			Secrets: nil,
 		},
 		RepositoryURL: "https://github.com/example/repo",
 		OuterEnv:      map[string]string{"PIPELINE_VAR": "value"},
@@ -64,12 +54,12 @@ func TestCommandStepWithInvariants_SignedFields_EmptySecrets(t *testing.T) {
 
 	fields, err := step.SignedFields()
 	if err != nil {
-		t.Fatalf("SignedFields() error = %v", err)
+		t.Fatalf("step.SignedFields() error = %v", err)
 	}
 
 	// Check that secrets field is NOT present when empty (for backward compatibility)
 	if _, has := fields["secrets"]; has {
-		t.Errorf("SignedFields() should not include 'secrets' field when empty for backward compatibility")
+		t.Errorf("step.SignedFields()[\"secrets\"] = %v, want: nil", fields["secrets"])
 	}
 }
 
@@ -93,26 +83,19 @@ func TestCommandStepWithInvariants_ValuesForFields_WithSecrets(t *testing.T) {
 	fields := []string{"command", "env", "plugins", "matrix", "repository_url", "secrets"}
 	values, err := step.ValuesForFields(fields)
 	if err != nil {
-		t.Fatalf("ValuesForFields() error = %v", err)
+		t.Fatalf("step.ValuesForFields() error = %v", err)
 	}
 
-	// Check that secrets value is included
+	want := pipeline.Secrets{
+		{Key: "DATABASE_URL", EnvironmentVariable: &dbUrl},
+	}
+
 	if _, has := values["secrets"]; !has {
-		t.Errorf("ValuesForFields() missing 'secrets' field")
+		t.Errorf("step.ValuesForFields() missing 'secrets' field, got: %v, want: %v", values["secrets"], want)
 	}
 
-	// Check that secrets field contains expected data
-	secrets, ok := values["secrets"].(pipeline.Secrets)
-	if !ok {
-		t.Errorf("ValuesForFields() 'secrets' field is not pipeline.Secrets type, got %T", values["secrets"])
-	}
-
-	if len(secrets) != 1 {
-		t.Errorf("ValuesForFields() expected 1 secret, got %d", len(secrets))
-	}
-
-	if secrets[0].Key != "DATABASE_URL" {
-		t.Errorf("ValuesForFields() expected secret key 'DATABASE_URL', got %q", secrets[0].Key)
+	if diff := cmp.Diff(values["secrets"], want); diff != "" {
+		t.Errorf("step.ValuesForFields(%v)[\"secrets\"] diff (-got +want):\n%s", fields, diff)
 	}
 }
 
@@ -137,12 +120,12 @@ func TestCommandStepWithInvariants_ValuesForFields_MissingSecretsField(t *testin
 	fields := []string{"command", "env", "plugins", "matrix", "repository_url"}
 	_, err := step.ValuesForFields(fields)
 	if err == nil {
-		t.Fatalf("ValuesForFields() expected error when secrets field not requested but step has secrets")
+		t.Fatalf("step.ValuesForFields(%v) expected error when secrets field not requested but step has secrets", fields)
 	}
 
-	expectedError := "one or more required fields are not present: [secrets]"
-	if err.Error() != expectedError {
-		t.Errorf("ValuesForFields() expected error %q, got %q", expectedError, err.Error())
+	wantErr := "one or more required fields are not present: [secrets]"
+	if err.Error() != wantErr {
+		t.Errorf("step.ValuesForFields(%v) = %q, want %q", fields, err.Error(), wantErr)
 	}
 }
 
@@ -164,16 +147,18 @@ func TestCommandStepWithInvariants_ValuesForFields_NoSecretsNoSecretsField(t *te
 	fields := []string{"command", "env", "plugins", "matrix", "repository_url"}
 	values, err := step.ValuesForFields(fields)
 	if err != nil {
-		t.Fatalf("ValuesForFields() unexpected error when step has no secrets and secrets field not requested: %v", err)
+		t.Fatalf("step.ValuesForFields(%v) unexpected error when step has no secrets and secrets field not requested: %v", fields, err)
 	}
 
-	// Should have all the requested fields
-	if len(values) != 5 {
-		t.Errorf("ValuesForFields() returned %d fields, want 5", len(values))
+	wantValues := map[string]any{
+		"command":        "echo hello",
+		"env":            map[string]string{"FOO": "bar"},
+		"plugins":        nil,
+		"matrix":         nil,
+		"repository_url": "https://github.com/example/repo",
 	}
 
-	// Should not have secrets field
-	if _, has := values["secrets"]; has {
-		t.Errorf("ValuesForFields() should not include 'secrets' field when step has no secrets")
+	if diff := cmp.Diff(values, wantValues); diff != "" {
+		t.Errorf("step.ValuesForFields(%v) diff (-got +want):\n%s", fields, diff)
 	}
 }
