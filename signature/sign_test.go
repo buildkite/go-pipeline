@@ -429,6 +429,89 @@ func TestSignUnknownStep(t *testing.T) {
 	}
 }
 
+func TestSignVerifySecrets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	cases := []struct {
+		name            string
+		step            *pipeline.CommandStep
+		repositoryURL   string
+		pipelineSecrets pipeline.Secrets
+	}{
+		{
+			name: "step secrets only",
+			step: &pipeline.CommandStep{
+				Command: "llamas",
+				Secrets: pipeline.Secrets{
+					pipeline.Secret{Key: "SECRET_NAME", EnvironmentVariable: "SECRET_ENV_VAR"},
+				},
+			},
+			repositoryURL:   fakeRepositoryURL,
+			pipelineSecrets: pipeline.Secrets{},
+		},
+		{
+			name: "pipeline and step secrets",
+			step: &pipeline.CommandStep{
+				Command: "llamas",
+				Secrets: pipeline.Secrets{
+					pipeline.Secret{Key: "SECRET_NAME", EnvironmentVariable: "SECRET_ENV_VAR"},
+				},
+			},
+			repositoryURL: fakeRepositoryURL,
+			pipelineSecrets: pipeline.Secrets{
+				pipeline.Secret{Key: "SECRET_NAME", EnvironmentVariable: "SECRET_ENV_VAR"},
+			},
+		},
+		{
+			name: "pipeline only",
+			step: &pipeline.CommandStep{
+				Command: "llamas",
+				Secrets: pipeline.Secrets{},
+			},
+			repositoryURL: fakeRepositoryURL,
+			pipelineSecrets: pipeline.Secrets{
+				pipeline.Secret{Key: "SECRET_NAME", EnvironmentVariable: "SECRET_ENV_VAR"},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			keyStr, keyAlg := "alpacas", jwa.HS256
+			signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
+			if err != nil {
+				t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
+			}
+
+			key, ok := signer.Key(0)
+			if !ok {
+				t.Fatalf("signer.Key(0) = _, false, want true")
+			}
+
+			stepToSign := &commandStepWithInvariants{
+				CommandStep:   *tc.step,
+				RepositoryURL: tc.repositoryURL,
+			}
+			stepToVerify := &commandStepWithInvariants{
+				CommandStep:   *tc.step,
+				RepositoryURL: tc.repositoryURL,
+			}
+
+			sig, err := Sign(ctx, key, stepToSign)
+			if err != nil {
+				t.Fatalf("Sign(ctx, key, %v) error = %v", stepToSign, err)
+			}
+
+			if err := Verify(ctx, sig, verifier, stepToVerify); err != nil {
+				t.Errorf("Verify(ctx, %v, verifier, %v) = %v", sig, stepToVerify, err)
+			}
+		})
+	}
+}
+
 func TestSignVerifyEnv(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
