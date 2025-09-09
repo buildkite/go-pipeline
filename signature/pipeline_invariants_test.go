@@ -71,7 +71,7 @@ func TestCommandStepWithInvariants_ValuesForFields_WithSecrets(t *testing.T) {
 			Env:     map[string]string{"FOO": "bar"},
 			Plugins: pipeline.Plugins{},
 			Secrets: pipeline.Secrets{
-				{Key: "DATABASE_URL", EnvironmentVariable: &dbUrl},
+				{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
 			},
 		},
 		RepositoryURL: "https://github.com/example/repo",
@@ -150,8 +150,8 @@ func TestCommandStepWithInvariants_ValuesForFields_NoSecretsNoSecretsField(t *te
 	wantValues := map[string]any{
 		"command":        "echo hello",
 		"env":            map[string]string{"FOO": "bar"},
-		"plugins":        nil,
-		"matrix":         nil,
+		"plugins":        pipeline.Plugins(nil),
+		"matrix":         (*pipeline.Matrix)(nil),
 		"repository_url": "https://github.com/example/repo",
 	}
 
