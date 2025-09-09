@@ -21,8 +21,7 @@ type Secret struct {
 
 // MarshalJSON marshals the secret to JSON.
 func (s *Secret) MarshalJSON() ([]byte, error) {
-	type secretAlias Secret
-	return json.Marshal((*secretAlias)(s))
+	return inlineFriendlyMarshalJSON(s)
 }
 
 func (s *Secret) interpolate(tf stringTransformer) error {
