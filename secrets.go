@@ -11,6 +11,7 @@ import (
 var _ interface {
 	json.Unmarshaler
 	ordered.Unmarshaler
+	yaml.Marshaler
 } = (*Secrets)(nil)
 
 // Secrets is a sequence of secrets. It is useful for unmarshaling.
