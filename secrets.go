@@ -14,7 +14,7 @@ var _ interface {
 } = (*Secrets)(nil)
 
 // Secrets is a sequence of secrets. It is useful for unmarshaling.
-type Secrets []*Secret
+type Secrets []Secret
 
 // UnmarshalOrdered unmarshals Secrets from []any (sequence of secret names).
 func (s *Secrets) UnmarshalOrdered(o any) error {
@@ -27,21 +27,21 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 		for _, c := range o {
 			switch ct := c.(type) {
 			case string:
-				secret := &Secret{
+				secret := Secret{
 					Key:                 ct,
-					EnvironmentVariable: &ct, // Default EnvironmentVariable to key value for simple string format
+					EnvironmentVariable: ct, // Default EnvironmentVariable to key value for simple string format
 				}
 				*s = append(*s, secret)
 
 			case map[string]any:
-				secret := &Secret{}
+				secret := Secret{}
 
 				if key, ok := ct["key"].(string); ok {
 					secret.Key = key
 				}
 
 				if envVar, ok := ct["environment_variable"].(string); ok {
-					secret.EnvironmentVariable = &envVar
+					secret.EnvironmentVariable = envVar
 				}
 
 				// Validate that we have at least a key
@@ -53,7 +53,7 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 
 			case *ordered.Map[string, interface{}]:
 				// Backend sends ordered.Map format
-				secret := &Secret{}
+				secret := Secret{}
 
 				if keyVal, _ := ct.Get("key"); keyVal != nil {
 					if key, ok := keyVal.(string); ok {
@@ -63,7 +63,7 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 
 				if envVarVal, _ := ct.Get("environment_variable"); envVarVal != nil {
 					if envVar, ok := envVarVal.(string); ok {
-						secret.EnvironmentVariable = &envVar
+						secret.EnvironmentVariable = envVar
 					}
 				}
 
@@ -103,16 +103,16 @@ func (s Secrets) MergeWith(other Secrets) Secrets {
 	var result Secrets
 
 	for _, secret := range other {
-		if secret != nil && secret.EnvironmentVariable != nil && *secret.EnvironmentVariable != "" && !seen[*secret.EnvironmentVariable] {
+		if secret.EnvironmentVariable != "" && !seen[secret.EnvironmentVariable] {
 			result = append(result, secret)
-			seen[*secret.EnvironmentVariable] = true
+			seen[secret.EnvironmentVariable] = true
 		}
 	}
 
 	for _, secret := range s {
-		if secret != nil && secret.EnvironmentVariable != nil && *secret.EnvironmentVariable != "" && !seen[*secret.EnvironmentVariable] {
+		if secret.EnvironmentVariable != "" && !seen[secret.EnvironmentVariable] {
 			result = append(result, secret)
-			seen[*secret.EnvironmentVariable] = true
+			seen[secret.EnvironmentVariable] = true
 		}
 	}
 
@@ -139,7 +139,7 @@ func (s Secrets) MarshalYAML() (interface{}, error) {
 	// (key == environment_variable and no other fields are set)
 	simpleStrings := make([]string, 0, len(s))
 	for _, secret := range s {
-		if secret != nil && secret.EnvironmentVariable != nil && secret.Key == *secret.EnvironmentVariable && secret.Key != "" {
+		if secret.EnvironmentVariable != "" && secret.Key == secret.EnvironmentVariable && secret.Key != "" {
 			simpleStrings = append(simpleStrings, secret.Key)
 		} else {
 			// If any secret can't be represented as a simple string,

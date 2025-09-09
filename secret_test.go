@@ -17,7 +17,7 @@ func TestSecretMarshalJSON(t *testing.T) {
 		EnvironmentVariable: &envVar,
 	}
 
-	want := `{"key":"DATABASE_URL","environment_variable":"DATABASE_URL","RemainingFields":null}`
+	want := `{"environment_variable":"DATABASE_URL","key":"DATABASE_URL"}`
 	got, err := json.Marshal(secret)
 	if err != nil {
 		t.Fatalf("json.Marshal(%#v) error = %v", secret, err)

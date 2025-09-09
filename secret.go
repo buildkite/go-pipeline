@@ -15,7 +15,7 @@ var (
 // Secret represents a pipeline secret configuration.
 type Secret struct {
 	Key                 string         `json:"key" yaml:"key"`
-	EnvironmentVariable *string        `json:"environment_variable,omitempty" yaml:"environment_variable,omitempty"`
+	EnvironmentVariable string         `json:"environment_variable,omitempty" yaml:"environment_variable,omitempty"`
 	RemainingFields     map[string]any `yaml:",inline"`
 }
 
@@ -31,12 +31,12 @@ func (s *Secret) interpolate(tf stringTransformer) error {
 	}
 	s.Key = key
 
-	if s.EnvironmentVariable != nil {
-		envVar, err := tf.Transform(*s.EnvironmentVariable)
+	if s.EnvironmentVariable != "" {
+		envVar, err := tf.Transform(s.EnvironmentVariable)
 		if err != nil {
 			return fmt.Errorf("interpolating environment variable: %w", err)
 		}
-		s.EnvironmentVariable = &envVar
+		s.EnvironmentVariable = envVar
 	}
 
 	return nil
