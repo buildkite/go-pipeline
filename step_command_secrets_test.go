@@ -5,7 +5,7 @@ import (
 
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/google/go-cmp/cmp"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 func TestCommandStepSecretsStringArrayFormat(t *testing.T) {

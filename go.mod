@@ -13,7 +13,7 @@ require (
 	github.com/gowebpki/jcs v1.0.1
 	github.com/lestrrat-go/jwx/v2 v2.1.6
 	github.com/oleiade/reflections v1.1.0
-	gopkg.in/yaml.v3 v3.0.1
+	go.yaml.in/yaml/v3 v3.0.4
 	gotest.tools/v3 v3.5.2
 )
 
