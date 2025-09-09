@@ -32,10 +32,6 @@ steps:
 		t.Fatalf("ordered.Unmarshal() error = %v", err)
 	}
 
-	if len(p.Secrets) != 2 {
-		t.Fatalf("len(p.Secrets) = %d, want 2", len(p.Secrets))
-	}
-
 	want := Secrets{
 		{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
 		{Key: "API_TOKEN", EnvironmentVariable: "API_TOKEN"},
@@ -74,9 +70,13 @@ steps:
 		t.Fatalf("ordered.Unmarshal() error = %v", err)
 	}
 
-	// Check pipeline secrets
-	if len(p.Secrets) != 2 {
-		t.Fatalf("len(p.Secrets) = %d, want 2", len(p.Secrets))
+	want := Secrets{
+		{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
+		{Key: "REDIS_URL", EnvironmentVariable: "REDIS_URL"},
+	}
+
+	if diff := cmp.Diff(want, p.Secrets); diff != "" {
+		t.Errorf("unexpected secrets (-want +got):\n%s", diff)
 	}
 
 	// Check steps
