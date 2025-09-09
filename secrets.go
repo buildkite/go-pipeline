@@ -46,15 +46,11 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 				secret.Key = key
 
 				if envVarVal, _ := ct.Get("environment_variable"); envVarVal != nil {
-					if envVar, ok := envVarVal.(string); ok {
-						secret.EnvironmentVariable = envVar
+					envVar, ok := envVarVal.(string)
+					if !ok {
+						return fmt.Errorf("unmarshaling secret: environment_variable must be a string, but was %T", envVarVal)
 					}
-				}
-
-				// Keep environment_variable empty if not specified - don't auto-fill with key
-				// Validate that we have at least a key
-				if secret.Key == "" {
-					return fmt.Errorf("unmarshaling secrets: secret object missing required 'key' field")
+					secret.EnvironmentVariable = envVar
 				}
 
 				*s = append(*s, secret)
