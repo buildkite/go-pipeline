@@ -38,7 +38,6 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 				secret := Secret{}
 
 				keyVal, _ := ct.Get("key")
-				// Still need two values on the left side to avoid panic
 				key, _ := keyVal.(string)
 				if key == "" {
 					return fmt.Errorf("unmarshaling secret: key must be a non-empty string, but was %[1]T %[1]q", keyVal)
