@@ -10,14 +10,13 @@ import (
 func TestCommandStepWithInvariants_SignedFields_WithSecrets(t *testing.T) {
 	t.Parallel()
 
-	dbUrl := "DATABASE_URL"
 	step := commandStepWithInvariants{
 		CommandStep: pipeline.CommandStep{
 			Command: "echo hello",
 			Env:     map[string]string{"FOO": "bar"},
 			Plugins: pipeline.Plugins{},
 			Secrets: pipeline.Secrets{
-				{Key: "DATABASE_URL", EnvironmentVariable: &dbUrl},
+				{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
 			},
 		},
 		RepositoryURL: "https://github.com/example/repo",
@@ -30,7 +29,7 @@ func TestCommandStepWithInvariants_SignedFields_WithSecrets(t *testing.T) {
 	}
 
 	want := pipeline.Secrets{
-		{Key: "DATABASE_URL", EnvironmentVariable: &dbUrl},
+		{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
 	}
 
 	if diff := cmp.Diff(fields["secrets"], want); diff != "" {
@@ -66,7 +65,6 @@ func TestCommandStepWithInvariants_SignedFields_EmptySecrets(t *testing.T) {
 func TestCommandStepWithInvariants_ValuesForFields_WithSecrets(t *testing.T) {
 	t.Parallel()
 
-	dbUrl := "DATABASE_URL"
 	step := commandStepWithInvariants{
 		CommandStep: pipeline.CommandStep{
 			Command: "echo hello",
@@ -87,7 +85,7 @@ func TestCommandStepWithInvariants_ValuesForFields_WithSecrets(t *testing.T) {
 	}
 
 	want := pipeline.Secrets{
-		{Key: "DATABASE_URL", EnvironmentVariable: &dbUrl},
+		{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
 	}
 
 	if _, has := values["secrets"]; !has {
@@ -102,14 +100,13 @@ func TestCommandStepWithInvariants_ValuesForFields_WithSecrets(t *testing.T) {
 func TestCommandStepWithInvariants_ValuesForFields_MissingSecretsField(t *testing.T) {
 	t.Parallel()
 
-	dbUrl := "DATABASE_URL"
 	step := commandStepWithInvariants{
 		CommandStep: pipeline.CommandStep{
 			Command: "echo hello",
 			Env:     map[string]string{"FOO": "bar"},
 			Plugins: pipeline.Plugins{},
 			Secrets: pipeline.Secrets{
-				{Key: "DATABASE_URL", EnvironmentVariable: &dbUrl},
+				{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
 			},
 		},
 		RepositoryURL: "https://github.com/example/repo",
