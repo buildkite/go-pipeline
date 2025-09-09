@@ -3,14 +3,11 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
-
-	"gopkg.in/yaml.v3"
 )
 
 var (
 	_ interface {
 		json.Marshaler
-		yaml.Marshaler
 		selfInterpolater
 	} = (*Secret)(nil)
 )
@@ -26,12 +23,6 @@ type Secret struct {
 func (s *Secret) MarshalJSON() ([]byte, error) {
 	type secretAlias Secret
 	return json.Marshal((*secretAlias)(s))
-}
-
-// MarshalYAML marshals the secret to YAML.
-func (s *Secret) MarshalYAML() (any, error) {
-	type secretAlias Secret
-	return (*secretAlias)(s), nil
 }
 
 func (s *Secret) interpolate(tf stringTransformer) error {
