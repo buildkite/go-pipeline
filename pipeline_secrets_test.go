@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/buildkite/go-pipeline/ordered"
+	"github.com/google/go-cmp/cmp"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,20 +36,13 @@ steps:
 		t.Fatalf("len(p.Secrets) = %d, want 2", len(p.Secrets))
 	}
 
-	// Check first secret
-	if p.Secrets[0].Key != "DATABASE_URL" {
-		t.Errorf("p.Secrets[0].Key = %q, want %q", p.Secrets[0].Key, "DATABASE_URL")
-	}
-	if *p.Secrets[0].EnvironmentVariable != "DATABASE_URL" {
-		t.Errorf("p.Secrets[0].EnvironmentVariable = %q, want %q", *p.Secrets[0].EnvironmentVariable, "DATABASE_URL")
+	want := []Secret{
+		{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
+		{Key: "API_TOKEN", EnvironmentVariable: "API_TOKEN"},
 	}
 
-	// Check second secret
-	if p.Secrets[1].Key != "API_TOKEN" {
-		t.Errorf("p.Secrets[1].Key = %q, want %q", p.Secrets[1].Key, "API_TOKEN")
-	}
-	if *p.Secrets[1].EnvironmentVariable != "API_TOKEN" {
-		t.Errorf("p.Secrets[1].EnvironmentVariable = %q, want %q", *p.Secrets[1].EnvironmentVariable, "API_TOKEN")
+	if diff := cmp.Diff(p.Secrets, want); diff != "" {
+		t.Errorf("p.Secrets = %v, want %v", p.Secrets, want)
 	}
 }
 

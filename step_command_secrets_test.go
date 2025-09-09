@@ -40,14 +40,9 @@ func TestCommandStepSecretsStringArrayFormat(t *testing.T) {
 		t.Fatalf("len(steps) = %d, want 2", len(steps))
 	}
 
-	databaseURL := "DATABASE_URL"
-	apiToken := "API_TOKEN"
-	sshKey := "SSH_KEY"
-	redisURL := "REDIS_URL"
-
 	want := Secrets{
-		&Secret{Key: "DATABASE_URL", EnvironmentVariable: &databaseURL},
-		&Secret{Key: "API_TOKEN", EnvironmentVariable: &apiToken},
+		Secret{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
+		Secret{Key: "API_TOKEN", EnvironmentVariable: "API_TOKEN"},
 	}
 
 	if diff := cmp.Diff(steps[0].Secrets, want); diff != "" {
@@ -55,8 +50,8 @@ func TestCommandStepSecretsStringArrayFormat(t *testing.T) {
 	}
 
 	want = Secrets{
-		&Secret{Key: "SSH_KEY", EnvironmentVariable: &sshKey},
-		&Secret{Key: "REDIS_URL", EnvironmentVariable: &redisURL},
+		Secret{Key: "SSH_KEY", EnvironmentVariable: "SSH_KEY"},
+		Secret{Key: "REDIS_URL", EnvironmentVariable: "REDIS_URL"},
 	}
 
 	if diff := cmp.Diff(steps[1].Secrets, want); diff != "" {
@@ -94,22 +89,17 @@ secrets: null
 func TestCommandStepMergeSecretsFromPipeline(t *testing.T) {
 	t.Parallel()
 
-	// Test merging pipeline secrets with step secrets
-	apiToken := "API_TOKEN"
-	dbUrl := "DATABASE_URL"
-	redisUrl := "REDIS_URL"
-
-	step := &CommandStep{
+	step := CommandStep{
 		Command: "echo hello",
 		Secrets: Secrets{
-			&Secret{Key: "API_KEY", EnvironmentVariable: &apiToken},
-			&Secret{Key: "DB_OVERRIDE", EnvironmentVariable: &dbUrl}, // Should override pipeline
+			Secret{Key: "API_KEY", EnvironmentVariable: "API_TOKEN"},
+			Secret{Key: "DB_OVERRIDE", EnvironmentVariable: "DATABASE_URL"}, // Should override pipeline
 		},
 	}
 
 	pipelineSecrets := Secrets{
-		&Secret{Key: "DB_KEY", EnvironmentVariable: &dbUrl},       // Will be overridden
-		&Secret{Key: "REDIS_KEY", EnvironmentVariable: &redisUrl}, // Will be added
+		Secret{Key: "DB_KEY", EnvironmentVariable: "DATABASE_URL"}, // Will be overridden
+		Secret{Key: "REDIS_KEY", EnvironmentVariable: "REDIS_URL"}, // Will be added
 	}
 
 	step.MergeSecretsFromPipeline(pipelineSecrets)
@@ -119,9 +109,9 @@ func TestCommandStepMergeSecretsFromPipeline(t *testing.T) {
 	}
 
 	want := Secrets{
-		&Secret{Key: "API_KEY", EnvironmentVariable: &apiToken},
-		&Secret{Key: "DB_OVERRIDE", EnvironmentVariable: &dbUrl},
-		&Secret{Key: "REDIS_KEY", EnvironmentVariable: &redisUrl},
+		Secret{Key: "API_KEY", EnvironmentVariable: "API_TOKEN"},
+		Secret{Key: "DB_OVERRIDE", EnvironmentVariable: "DATABASE_URL"},
+		Secret{Key: "REDIS_KEY", EnvironmentVariable: "REDIS_URL"},
 	}
 
 	if diff := cmp.Diff(step.Secrets, want); diff != "" {
@@ -138,8 +128,6 @@ secrets:
   - DATABASE_URL
   - API_TOKEN
 `
-	apiToken := "API_TOKEN"
-	dbUrl := "DATABASE_URL"
 
 	var step CommandStep
 	var node yaml.Node
@@ -158,8 +146,8 @@ secrets:
 	}
 
 	want := Secrets{
-		&Secret{Key: "DATABASE_URL", EnvironmentVariable: &dbUrl},
-		&Secret{Key: "API_TOKEN", EnvironmentVariable: &apiToken},
+		Secret{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
+		Secret{Key: "API_TOKEN", EnvironmentVariable: "API_TOKEN"},
 	}
 
 	if diff := cmp.Diff(step.Secrets, want); diff != "" {

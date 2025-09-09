@@ -33,24 +33,6 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 				}
 				*s = append(*s, secret)
 
-			case map[string]any:
-				secret := Secret{}
-
-				if key, ok := ct["key"].(string); ok {
-					secret.Key = key
-				}
-
-				if envVar, ok := ct["environment_variable"].(string); ok {
-					secret.EnvironmentVariable = envVar
-				}
-
-				// Validate that we have at least a key
-				if secret.Key == "" {
-					return fmt.Errorf("unmarshaling secrets: secret object missing required 'key' field")
-				}
-
-				*s = append(*s, secret)
-
 			case *ordered.Map[string, interface{}]:
 				// Backend sends ordered.Map format
 				secret := Secret{}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/buildkite/interpolate"
+	"github.com/google/go-cmp/cmp"
 	"gopkg.in/yaml.v3"
 )
 
@@ -12,9 +13,9 @@ func TestSecretMarshalJSON(t *testing.T) {
 	t.Parallel()
 
 	envVar := "DATABASE_URL"
-	secret := &Secret{
+	secret := Secret{
 		Key:                 "DATABASE_URL",
-		EnvironmentVariable: &envVar,
+		EnvironmentVariable: envVar,
 	}
 
 	want := `{"environment_variable":"DATABASE_URL","key":"DATABASE_URL"}`
@@ -31,10 +32,9 @@ func TestSecretMarshalJSON(t *testing.T) {
 func TestSecretMarshalYAML(t *testing.T) {
 	t.Parallel()
 
-	envVar := "DATABASE_URL"
-	secret := &Secret{
+	secret := Secret{
 		Key:                 "DATABASE_URL",
-		EnvironmentVariable: &envVar,
+		EnvironmentVariable: "DATABASE_URL",
 	}
 
 	got, err := yaml.Marshal(secret)
@@ -51,10 +51,9 @@ func TestSecretMarshalYAML(t *testing.T) {
 func TestSecretInterpolation(t *testing.T) {
 	t.Parallel()
 
-	envVar := "${ENV_VAR_NAME}"
-	secret := &Secret{
+	secret := Secret{
 		Key:                 "${SECRET_NAME}",
-		EnvironmentVariable: &envVar,
+		EnvironmentVariable: "${ENV_VAR_NAME}",
 	}
 
 	tf := envInterpolator{
@@ -69,11 +68,12 @@ func TestSecretInterpolation(t *testing.T) {
 		t.Fatalf("secret.interpolate(%#v) error = %v", tf, err)
 	}
 
-	if secret.Key != "DATABASE_URL" {
-		t.Errorf("secret.Key = %q, want %q", secret.Key, "DATABASE_URL")
+	want := Secret{
+		Key:                 "DATABASE_URL",
+		EnvironmentVariable: "DB_CONNECTION",
 	}
 
-	if *secret.EnvironmentVariable != "DB_CONNECTION" {
-		t.Errorf("secret.EnvironmentVariable = %q, want %q", *secret.EnvironmentVariable, "DB_CONNECTION")
+	if diff := cmp.Diff(want, secret); diff != "" {
+		t.Errorf("secret.interpolate(%#v) = %s", tf, diff)
 	}
 }
