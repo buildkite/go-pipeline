@@ -37,11 +37,13 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 				// Backend sends ordered.Map format
 				secret := Secret{}
 
-				if keyVal, _ := ct.Get("key"); keyVal != nil {
-					if key, ok := keyVal.(string); ok {
-						secret.Key = key
-					}
-				}
+				keyVal, _ := ct.Get("key")
+				// Still need two values on the left side to avoid panic
+   			key, _ := keyVal.(string)
+   			if key == "" {
+   				return fmt.Errorf("unmarshaling secret: key must be a non-empty string, but was %[1]T %[1]q", keyVal)
+   			}
+   			secret.Key = key
 
 				if envVarVal, _ := ct.Get("environment_variable"); envVarVal != nil {
 					if envVar, ok := envVarVal.(string); ok {
