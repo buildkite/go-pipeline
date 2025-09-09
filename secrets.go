@@ -39,11 +39,11 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 
 				keyVal, _ := ct.Get("key")
 				// Still need two values on the left side to avoid panic
-   			key, _ := keyVal.(string)
-   			if key == "" {
-   				return fmt.Errorf("unmarshaling secret: key must be a non-empty string, but was %[1]T %[1]q", keyVal)
-   			}
-   			secret.Key = key
+				key, _ := keyVal.(string)
+				if key == "" {
+					return fmt.Errorf("unmarshaling secret: key must be a non-empty string, but was %[1]T %[1]q", keyVal)
+				}
+				secret.Key = key
 
 				if envVarVal, _ := ct.Get("environment_variable"); envVarVal != nil {
 					if envVar, ok := envVarVal.(string); ok {
@@ -52,7 +52,6 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 				}
 
 				// Keep environment_variable empty if not specified - don't auto-fill with key
-
 				// Validate that we have at least a key
 				if secret.Key == "" {
 					return fmt.Errorf("unmarshaling secrets: secret object missing required 'key' field")
