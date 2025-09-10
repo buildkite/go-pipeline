@@ -573,3 +573,53 @@ API_TOKEN: api-secret-key
 		t.Errorf("map format unmarshaling mismatch (-got +want):\n%s", diff)
 	}
 }
+
+func TestSecretsMarshalYAMLUnsupportedConfiguration(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		secrets Secrets
+	}{
+		{
+			name: "secret with RemainingFields",
+			secrets: Secrets{
+				Secret{
+					Key:                 "secret-key",
+					EnvironmentVariable: "ENV_VAR",
+					RemainingFields:     map[string]any{"custom": "field"},
+				},
+			},
+		},
+		{
+			name: "secret with empty EnvironmentVariable",
+			secrets: Secrets{
+				Secret{
+					Key:                 "secret-key",
+					EnvironmentVariable: "",
+				},
+			},
+		},
+		{
+			name: "mixed valid and invalid secrets",
+			secrets: Secrets{
+				Secret{Key: "valid-secret", EnvironmentVariable: "VALID_ENV"},
+				Secret{Key: "invalid-secret", EnvironmentVariable: ""},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tc.secrets.MarshalYAML()
+			if err == nil {
+				t.Fatalf("MarshalYAML() should return error for unsupported configuration, got nil")
+			}
+
+			expectedErr := "cannot marshal secrets to YAML: contains secrets with unsupported fields or empty environment variables"
+			if err.Error() != expectedErr {
+				t.Errorf("MarshalYAML() error = %q, want %q", err.Error(), expectedErr)
+			}
+		})
+	}
+}

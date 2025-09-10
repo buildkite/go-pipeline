@@ -131,7 +131,7 @@ func (s *Secrets) UnmarshalJSON(b []byte) error {
 }
 
 // MarshalYAML returns the most appropriate YAML representation for the secrets.
-// It prioritizes simple string format, then map format, then full object format.
+// It prioritizes simple string format, then map format, then returns an error for invalid configurations.
 func (s Secrets) MarshalYAML() (interface{}, error) {
 	if len(s) == 0 {
 		return nil, nil
@@ -155,10 +155,9 @@ func (s Secrets) MarshalYAML() (interface{}, error) {
 		return result, nil
 	}
 
-	// Fall back to full object format.
-	result := make([]Secret, len(s))
-	copy(result, s)
-	return result, nil
+	// Cannot represent secrets in user-facing YAML format.
+	// This happens when secrets have RemainingFields or empty EnvironmentVariable.
+	return nil, fmt.Errorf("cannot marshal secrets to YAML: contains secrets with unsupported fields or empty environment variables")
 }
 
 func canMarshalAsSimpleStrings(secrets Secrets) bool {
