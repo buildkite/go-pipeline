@@ -161,8 +161,6 @@ func (s Secrets) MarshalYAML() (interface{}, error) {
 	return result, nil
 }
 
-// canMarshalAsSimpleStrings reports whether all secrets can be represented
-// as simple strings (key equals environment variable).
 func canMarshalAsSimpleStrings(secrets Secrets) bool {
 	for _, secret := range secrets {
 		if secret.EnvironmentVariable == "" ||
@@ -174,8 +172,6 @@ func canMarshalAsSimpleStrings(secrets Secrets) bool {
 	return true
 }
 
-// canMarshalAsMap reports whether all secrets can be represented
-// as key-value map format (all have non-empty environment variables and no remaining fields).
 func canMarshalAsMap(secrets Secrets) bool {
 	for _, secret := range secrets {
 		if secret.EnvironmentVariable == "" || len(secret.RemainingFields) > 0 {
