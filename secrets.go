@@ -162,9 +162,7 @@ func (s Secrets) MarshalYAML() (interface{}, error) {
 
 func canMarshalAsSimpleStrings(secrets Secrets) bool {
 	for _, secret := range secrets {
-		if secret.EnvironmentVariable == "" ||
-			secret.Key != secret.EnvironmentVariable ||
-			len(secret.RemainingFields) > 0 {
+		if secret.EnvironmentVariable == "" || secret.Key != secret.EnvironmentVariable || len(secret.RemainingFields) > 0 {
 			return false
 		}
 	}
