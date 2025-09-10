@@ -184,3 +184,254 @@ func TestSecretsMergeWithEmptySlices(t *testing.T) {
 		t.Errorf("merged3 mismatch (-got +want):\n%s", diff)
 	}
 }
+
+func TestSecretsUnmarshalMapSyntax(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+CUSTOM_ENV: SECRET_KEY
+API_TOKEN: api-secret
+DATABASE_URL: db-key
+`
+
+	var secrets Secrets
+	var node yaml.Node
+	err := yaml.Unmarshal([]byte(yamlData), &node)
+	if err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+
+	err = ordered.Unmarshal(&node, &secrets)
+	if err != nil {
+		t.Fatalf("ordered.Unmarshal() error = %v", err)
+	}
+
+	want := Secrets{
+		Secret{Key: "SECRET_KEY", EnvironmentVariable: "CUSTOM_ENV"},
+		Secret{Key: "api-secret", EnvironmentVariable: "API_TOKEN"},
+		Secret{Key: "db-key", EnvironmentVariable: "DATABASE_URL"},
+	}
+
+	if diff := cmp.Diff(secrets, want); diff != "" {
+		t.Errorf("secrets mismatch (-got +want):\n%s", diff)
+	}
+}
+
+func TestSecretsUnmarshalMapSyntaxJSON(t *testing.T) {
+	t.Parallel()
+
+	jsonData := `{
+		"CUSTOM_ENV": "SECRET_KEY",
+		"API_TOKEN": "api-secret"
+	}`
+
+	var secrets Secrets
+	err := json.Unmarshal([]byte(jsonData), &secrets)
+	if err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	want := Secrets{
+		Secret{Key: "SECRET_KEY", EnvironmentVariable: "CUSTOM_ENV"},
+		Secret{Key: "api-secret", EnvironmentVariable: "API_TOKEN"},
+	}
+
+	if diff := cmp.Diff(secrets, want); diff != "" {
+		t.Errorf("secrets mismatch (-got +want):\n%s", diff)
+	}
+}
+
+func TestSecretsUnmarshalMapSyntaxErrors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		yamlData    string
+		expectedErr string
+	}{
+		{
+			name:        "non-string secret key",
+			yamlData:    "ENV_VAR: 123",
+			expectedErr: "unmarshaling secrets: secret key must be a string, but was int",
+		},
+		{
+			name:        "empty secret key",
+			yamlData:    "ENV_VAR: \"\"",
+			expectedErr: "unmarshaling secrets: secret key cannot be empty",
+		},
+		{
+			name:        "empty environment variable name",
+			yamlData:    "\"\": SECRET_KEY",
+			expectedErr: "unmarshaling secrets: environment variable name cannot be empty",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var secrets Secrets
+			var node yaml.Node
+			err := yaml.Unmarshal([]byte(tc.yamlData), &node)
+			if err != nil {
+				t.Fatalf("yaml.Unmarshal() error = %v", err)
+			}
+
+			err = ordered.Unmarshal(&node, &secrets)
+			if err == nil {
+				t.Fatalf("ordered.Unmarshal() should return error, got nil")
+			}
+
+			if err.Error() != tc.expectedErr {
+				t.Errorf("ordered.Unmarshal() error = %q, want %q", err.Error(), tc.expectedErr)
+			}
+		})
+	}
+}
+
+func TestSecretsUnmarshalMixedFormats(t *testing.T) {
+	t.Parallel()
+
+	// Test that array and map formats can't be mixed at the top level
+	// This should use the array format (existing behavior)
+	yamlData := `
+- DATABASE_URL
+- key: API_TOKEN
+  environment_variable: API_KEY
+`
+
+	var secrets Secrets
+	var node yaml.Node
+	err := yaml.Unmarshal([]byte(yamlData), &node)
+	if err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+
+	err = ordered.Unmarshal(&node, &secrets)
+	if err != nil {
+		t.Fatalf("ordered.Unmarshal() error = %v", err)
+	}
+
+	want := Secrets{
+		Secret{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
+		Secret{Key: "API_TOKEN", EnvironmentVariable: "API_KEY"},
+	}
+
+	if diff := cmp.Diff(secrets, want); diff != "" {
+		t.Errorf("secrets mismatch (-got +want):\n%s", diff)
+	}
+}
+
+func TestSecretsUnmarshalEmptyMap(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `{}`
+
+	var secrets Secrets
+	var node yaml.Node
+	err := yaml.Unmarshal([]byte(yamlData), &node)
+	if err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+
+	err = ordered.Unmarshal(&node, &secrets)
+	if err != nil {
+		t.Fatalf("ordered.Unmarshal() error = %v", err)
+	}
+
+	if secrets != nil && len(secrets) != 0 {
+		t.Errorf("Expected empty secrets, got %v", secrets)
+	}
+}
+
+func TestSecretsMapSyntaxPreservesOrder(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+FIRST: first-key
+SECOND: second-key
+THIRD: third-key
+`
+
+	var secrets Secrets
+	var node yaml.Node
+	err := yaml.Unmarshal([]byte(yamlData), &node)
+	if err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+
+	err = ordered.Unmarshal(&node, &secrets)
+	if err != nil {
+		t.Fatalf("ordered.Unmarshal() error = %v", err)
+	}
+
+	// Verify order is preserved
+	want := Secrets{
+		Secret{Key: "first-key", EnvironmentVariable: "FIRST"},
+		Secret{Key: "second-key", EnvironmentVariable: "SECOND"},
+		Secret{Key: "third-key", EnvironmentVariable: "THIRD"},
+	}
+
+	if diff := cmp.Diff(secrets, want); diff != "" {
+		t.Errorf("secrets mismatch (-got +want):\n%s", diff)
+	}
+}
+
+func TestSecretsInvalidFormatErrors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		yamlData    string
+		expectedErr string
+	}{
+		{
+			name:        "invalid array item type",
+			yamlData:    "- 123",
+			expectedErr: "unmarshaling secrets: secret type int, want string, map[string]any, or *ordered.Map",
+		},
+		{
+			name:        "backend format with invalid key type",
+			yamlData:    "- key: 123",
+			expectedErr: "unmarshaling secret: key must be a non-empty string, but was int 123",
+		},
+		{
+			name:        "backend format with empty key",
+			yamlData:    "- key: \"\"",
+			expectedErr: "unmarshaling secret: key must be a non-empty string, but was string ",
+		},
+		{
+			name:        "backend format with invalid environment_variable type",
+			yamlData:    "- key: test\n  environment_variable: 123",
+			expectedErr: "unmarshaling secret: environment_variable must be a string, but was int",
+		},
+		{
+			name:        "invalid top-level type",
+			yamlData:    "\"invalid\"",
+			expectedErr: "unmarshaling secrets: got string, want []any or map[string]any",
+		},
+		{
+			name:        "invalid top-level number",
+			yamlData:    "123",
+			expectedErr: "unmarshaling secrets: got int, want []any or map[string]any",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var secrets Secrets
+			var node yaml.Node
+			err := yaml.Unmarshal([]byte(tc.yamlData), &node)
+			if err != nil {
+				t.Fatalf("yaml.Unmarshal() error = %v", err)
+			}
+
+			err = ordered.Unmarshal(&node, &secrets)
+			if err == nil {
+				t.Fatalf("ordered.Unmarshal() should return error, got nil")
+			}
+
+			if err.Error() != tc.expectedErr {
+				t.Errorf("ordered.Unmarshal() error = %q, want %q", err.Error(), tc.expectedErr)
+			}
+		})
+	}
+}

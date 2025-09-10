@@ -24,6 +24,28 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 		// `secrets: null` is invalid - should be omitted entirely or use valid formats
 		return fmt.Errorf("unmarshaling secrets: secrets cannot be null")
 
+	case *ordered.Map[string, interface{}]:
+		// Handle map syntax: {"ENV_VAR": "SECRET_KEY"}
+		return o.Range(func(envVar string, secretKeyVal interface{}) error {
+			secretKey, ok := secretKeyVal.(string)
+			if !ok {
+				return fmt.Errorf("unmarshaling secrets: secret key must be a string, but was %T", secretKeyVal)
+			}
+			if secretKey == "" {
+				return fmt.Errorf("unmarshaling secrets: secret key cannot be empty")
+			}
+			if envVar == "" {
+				return fmt.Errorf("unmarshaling secrets: environment variable name cannot be empty")
+			}
+
+			secret := Secret{
+				Key:                 secretKey,
+				EnvironmentVariable: envVar,
+			}
+			*s = append(*s, secret)
+			return nil
+		})
+
 	case []any:
 		for _, c := range o {
 			switch ct := c.(type) {
@@ -41,7 +63,7 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 				keyVal, _ := ct.Get("key")
 				key, _ := keyVal.(string)
 				if key == "" {
-					return fmt.Errorf("unmarshaling secret: key must be a non-empty string, but was %[1]T %[1]q", keyVal)
+					return fmt.Errorf("unmarshaling secret: key must be a non-empty string, but was %[1]T %[1]v", keyVal)
 				}
 				secret.Key = key
 
@@ -61,7 +83,7 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 		}
 
 	default:
-		return fmt.Errorf("unmarshaling secrets: got %T, want []any", o)
+		return fmt.Errorf("unmarshaling secrets: got %T, want []any or map[string]any", o)
 	}
 
 	return nil
