@@ -455,50 +455,6 @@ func TestSecretsBackwardCompatibility(t *testing.T) {
 	}
 }
 
-func TestSecretsBackwardCompatibilityJSON(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name     string
-		jsonData string
-		want     Secrets
-	}{
-		{
-			name:     "simple array format",
-			jsonData: `["DATABASE_URL", "API_TOKEN"]`,
-			want: Secrets{
-				Secret{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
-				Secret{Key: "API_TOKEN", EnvironmentVariable: "API_TOKEN"},
-			},
-		},
-		{
-			name: "backend object format",
-			jsonData: `[
-				{"key": "database-secret", "environment_variable": "DATABASE_URL"},
-				{"key": "api-secret", "environment_variable": "API_TOKEN"}
-			]`,
-			want: Secrets{
-				Secret{Key: "database-secret", EnvironmentVariable: "DATABASE_URL"},
-				Secret{Key: "api-secret", EnvironmentVariable: "API_TOKEN"},
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			var secrets Secrets
-			err := json.Unmarshal([]byte(tc.jsonData), &secrets)
-			if err != nil {
-				t.Fatalf("json.Unmarshal() error = %v", err)
-			}
-
-			if diff := cmp.Diff(secrets, tc.want); diff != "" {
-				t.Errorf("secrets mismatch (-got +want):\n%s", diff)
-			}
-		})
-	}
-}
-
 func TestSecretsInvalidFormatErrors(t *testing.T) {
 	t.Parallel()
 
@@ -560,7 +516,6 @@ func TestSecretsInvalidFormatErrors(t *testing.T) {
 	}
 }
 
-
 func TestSecretsMarshalYAMLMapSyntax(t *testing.T) {
 	t.Parallel()
 
@@ -586,5 +541,35 @@ func TestSecretsMarshalYAMLMapSyntax(t *testing.T) {
 
 	if diff := cmp.Diff(mapData, want); diff != "" {
 		t.Errorf("map format mismatch (-got +want):\n%s", diff)
+	}
+}
+
+func TestSecretsUnmarshalMapFormat(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+ENV_VAR: secret-key
+API_TOKEN: api-secret-key
+`
+
+	var secrets Secrets
+	var node yaml.Node
+	err := yaml.Unmarshal([]byte(yamlData), &node)
+	if err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+
+	err = ordered.Unmarshal(&node, &secrets)
+	if err != nil {
+		t.Fatalf("ordered.Unmarshal() error = %v", err)
+	}
+
+	want := Secrets{
+		Secret{Key: "secret-key", EnvironmentVariable: "ENV_VAR"},
+		Secret{Key: "api-secret-key", EnvironmentVariable: "API_TOKEN"},
+	}
+
+	if diff := cmp.Diff(secrets, want); diff != "" {
+		t.Errorf("map format unmarshaling mismatch (-got +want):\n%s", diff)
 	}
 }

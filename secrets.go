@@ -146,7 +146,7 @@ func (s Secrets) MarshalYAML() (interface{}, error) {
 		return result, nil
 	}
 
-	// Use a map if all secrets have different key and environment variable.
+	// Otherwise, use { ENV_VAR:SECRET_NAME } map format if secrets have no other fields
 	if canMarshalAsMap(s) {
 		result := make(map[string]string, len(s))
 		for _, secret := range s {
