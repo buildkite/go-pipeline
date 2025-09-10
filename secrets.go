@@ -130,25 +130,57 @@ func (s *Secrets) UnmarshalJSON(b []byte) error {
 	return ordered.Unmarshal(&n, &s)
 }
 
-// MarshalYAML preserves the simple string format when possible.
+// MarshalYAML returns the most appropriate YAML representation for the secrets.
+// It prioritizes simple string format, then map format, then full object format.
 func (s Secrets) MarshalYAML() (interface{}, error) {
 	if len(s) == 0 {
 		return nil, nil
 	}
 
-	// Check if all secrets can be represented as simple strings
-	// (key == environment_variable and no other fields are set)
-	simpleStrings := make([]string, 0, len(s))
-	for _, secret := range s {
-		if secret.EnvironmentVariable != "" && secret.Key == secret.EnvironmentVariable && secret.Key != "" {
-			simpleStrings = append(simpleStrings, secret.Key)
-		} else {
-			// If any secret can't be represented as a simple string,
-			// fall back to the full object representation
-			type secretAlias Secrets
-			return (secretAlias)(s), nil
+	// Use an array of strings if all secrets can be represented as simple strings (key equals environment variable)
+	if canMarshalAsSimpleStrings(s) {
+		result := make([]string, 0, len(s))
+		for _, secret := range s {
+			result = append(result, secret.Key)
 		}
+		return result, nil
 	}
 
-	return simpleStrings, nil
+	// Use a map if all secrets have different key and environment variable.
+	if canMarshalAsMap(s) {
+		result := make(map[string]string, len(s))
+		for _, secret := range s {
+			result[secret.EnvironmentVariable] = secret.Key
+		}
+		return result, nil
+	}
+
+	// Fall back to full object format.
+	result := make([]Secret, len(s))
+	copy(result, s)
+	return result, nil
+}
+
+// canMarshalAsSimpleStrings reports whether all secrets can be represented
+// as simple strings (key equals environment variable).
+func canMarshalAsSimpleStrings(secrets Secrets) bool {
+	for _, secret := range secrets {
+		if secret.EnvironmentVariable == "" ||
+			secret.Key != secret.EnvironmentVariable ||
+			len(secret.RemainingFields) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// canMarshalAsMap reports whether all secrets can be represented
+// as key-value map format (all have non-empty environment variables and no remaining fields).
+func canMarshalAsMap(secrets Secrets) bool {
+	for _, secret := range secrets {
+		if secret.EnvironmentVariable == "" || len(secret.RemainingFields) > 0 {
+			return false
+		}
+	}
+	return true
 }

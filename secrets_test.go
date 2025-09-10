@@ -375,6 +375,130 @@ THIRD: third-key
 	}
 }
 
+func TestSecretsBackwardCompatibility(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		yamlData string
+		want     Secrets
+	}{
+		{
+			name: "simple array format",
+			yamlData: `
+- DATABASE_URL
+- API_TOKEN
+- REDIS_URL
+`,
+			want: Secrets{
+				Secret{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
+				Secret{Key: "API_TOKEN", EnvironmentVariable: "API_TOKEN"},
+				Secret{Key: "REDIS_URL", EnvironmentVariable: "REDIS_URL"},
+			},
+		},
+		{
+			name: "backend object format",
+			yamlData: `
+- key: database-secret
+  environment_variable: DATABASE_URL
+- key: api-secret
+  environment_variable: API_TOKEN
+`,
+			want: Secrets{
+				Secret{Key: "database-secret", EnvironmentVariable: "DATABASE_URL"},
+				Secret{Key: "api-secret", EnvironmentVariable: "API_TOKEN"},
+			},
+		},
+		{
+			name: "backend object format with missing environment_variable",
+			yamlData: `
+- key: database-secret
+`,
+			want: Secrets{
+				Secret{Key: "database-secret", EnvironmentVariable: ""},
+			},
+		},
+		{
+			name: "mixed array formats",
+			yamlData: `
+- DATABASE_URL
+- key: api-secret
+  environment_variable: API_TOKEN
+- REDIS_URL
+`,
+			want: Secrets{
+				Secret{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
+				Secret{Key: "api-secret", EnvironmentVariable: "API_TOKEN"},
+				Secret{Key: "REDIS_URL", EnvironmentVariable: "REDIS_URL"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var secrets Secrets
+			var node yaml.Node
+			err := yaml.Unmarshal([]byte(tc.yamlData), &node)
+			if err != nil {
+				t.Fatalf("yaml.Unmarshal() error = %v", err)
+			}
+
+			err = ordered.Unmarshal(&node, &secrets)
+			if err != nil {
+				t.Fatalf("ordered.Unmarshal() error = %v", err)
+			}
+
+			if diff := cmp.Diff(secrets, tc.want); diff != "" {
+				t.Errorf("secrets mismatch (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSecretsBackwardCompatibilityJSON(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		jsonData string
+		want     Secrets
+	}{
+		{
+			name:     "simple array format",
+			jsonData: `["DATABASE_URL", "API_TOKEN"]`,
+			want: Secrets{
+				Secret{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
+				Secret{Key: "API_TOKEN", EnvironmentVariable: "API_TOKEN"},
+			},
+		},
+		{
+			name: "backend object format",
+			jsonData: `[
+				{"key": "database-secret", "environment_variable": "DATABASE_URL"},
+				{"key": "api-secret", "environment_variable": "API_TOKEN"}
+			]`,
+			want: Secrets{
+				Secret{Key: "database-secret", EnvironmentVariable: "DATABASE_URL"},
+				Secret{Key: "api-secret", EnvironmentVariable: "API_TOKEN"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var secrets Secrets
+			err := json.Unmarshal([]byte(tc.jsonData), &secrets)
+			if err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+
+			if diff := cmp.Diff(secrets, tc.want); diff != "" {
+				t.Errorf("secrets mismatch (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestSecretsInvalidFormatErrors(t *testing.T) {
 	t.Parallel()
 
@@ -433,5 +557,34 @@ func TestSecretsInvalidFormatErrors(t *testing.T) {
 				t.Errorf("ordered.Unmarshal() error = %q, want %q", err.Error(), tc.expectedErr)
 			}
 		})
+	}
+}
+
+
+func TestSecretsMarshalYAMLMapSyntax(t *testing.T) {
+	t.Parallel()
+
+	secrets := Secrets{
+		Secret{Key: "database-secret-key", EnvironmentVariable: "DATABASE_URL"},
+		Secret{Key: "api-secret-key", EnvironmentVariable: "API_TOKEN"},
+	}
+
+	yamlData, err := secrets.MarshalYAML()
+	if err != nil {
+		t.Fatalf("MarshalYAML() error = %v", err)
+	}
+
+	mapData, ok := yamlData.(map[string]string)
+	if !ok {
+		t.Fatalf("MarshalYAML() returned %T, want map[string]string", yamlData)
+	}
+
+	want := map[string]string{
+		"DATABASE_URL": "database-secret-key",
+		"API_TOKEN":    "api-secret-key",
+	}
+
+	if diff := cmp.Diff(mapData, want); diff != "" {
+		t.Errorf("map format mismatch (-got +want):\n%s", diff)
 	}
 }
