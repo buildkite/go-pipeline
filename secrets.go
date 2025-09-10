@@ -24,9 +24,9 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 		// `secrets: null` is invalid - should be omitted entirely or use valid formats
 		return fmt.Errorf("unmarshaling secrets: secrets cannot be null")
 
-	case *ordered.Map[string, interface{}]:
+	case *ordered.Map[string, any]:
 		// Handle map syntax: {"ENV_VAR": "SECRET_KEY"}
-		return o.Range(func(envVar string, secretKeyVal interface{}) error {
+		return o.Range(func(envVar string, secretKeyVal any) error {
 			secretKey, ok := secretKeyVal.(string)
 			if !ok {
 				return fmt.Errorf("unmarshaling secrets: secret key must be a string, but was %T", secretKeyVal)
