@@ -130,50 +130,12 @@ func (s *Secrets) UnmarshalJSON(b []byte) error {
 	return ordered.Unmarshal(&n, &s)
 }
 
-// MarshalYAML returns the most appropriate YAML representation for the secrets.
-// It prioritizes simple string format, then map format, then returns an error for invalid configurations.
-func (s Secrets) MarshalYAML() (interface{}, error) {
+func (s Secrets) MarshalYAML() (any, error) {
 	if len(s) == 0 {
 		return nil, nil
 	}
 
-	// Use an array of strings if all secrets can be represented as simple strings (key equals environment variable)
-	if canMarshalAsSimpleStrings(s) {
-		result := make([]string, 0, len(s))
-		for _, secret := range s {
-			result = append(result, secret.Key)
-		}
-		return result, nil
-	}
-
-	// Otherwise, use { ENV_VAR:SECRET_NAME } map format if secrets have no other fields
-	if canMarshalAsMap(s) {
-		result := make(map[string]string, len(s))
-		for _, secret := range s {
-			result[secret.EnvironmentVariable] = secret.Key
-		}
-		return result, nil
-	}
-
-	// Cannot represent secrets in user-facing YAML format.
-	// This happens when secrets have RemainingFields or empty EnvironmentVariable.
-	return nil, fmt.Errorf("cannot marshal secrets to YAML: contains secrets with unsupported fields or empty environment variables")
-}
-
-func canMarshalAsSimpleStrings(secrets Secrets) bool {
-	for _, secret := range secrets {
-		if secret.EnvironmentVariable == "" || secret.Key != secret.EnvironmentVariable || len(secret.RemainingFields) > 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func canMarshalAsMap(secrets Secrets) bool {
-	for _, secret := range secrets {
-		if secret.EnvironmentVariable == "" || len(secret.RemainingFields) > 0 {
-			return false
-		}
-	}
-	return true
+	result := make([]Secret, len(s))
+	copy(result, s)
+	return result, nil
 }

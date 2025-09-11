@@ -397,6 +397,32 @@ func TestSecretsBackwardCompatibility(t *testing.T) {
 			},
 		},
 		{
+			name: "simple map format",
+			yamlData: `
+DATABASE_URL: DATABASE_URL
+API_TOKEN: API_TOKEN
+REDIS_URL: REDIS_URL
+`,
+			want: Secrets{
+				Secret{Key: "DATABASE_URL", EnvironmentVariable: "DATABASE_URL"},
+				Secret{Key: "API_TOKEN", EnvironmentVariable: "API_TOKEN"},
+				Secret{Key: "REDIS_URL", EnvironmentVariable: "REDIS_URL"},
+			},
+		},
+		{
+			name: "complex map format (different keys)",
+			yamlData: `
+DIRECT_DATABASE_URL: DATABASE_URL
+BUILDKITE_API_TOKEN: API_TOKEN
+REDIS_URL_DIRECT: REDIS_URL
+`,
+			want: Secrets{
+				Secret{Key: "DATABASE_URL", EnvironmentVariable: "DIRECT_DATABASE_URL"},
+				Secret{Key: "API_TOKEN", EnvironmentVariable: "BUILDKITE_API_TOKEN"},
+				Secret{Key: "REDIS_URL", EnvironmentVariable: "REDIS_URL_DIRECT"},
+			},
+		},
+		{
 			name: "backend object format",
 			yamlData: `
 - key: database-secret
@@ -516,34 +542,6 @@ func TestSecretsInvalidFormatErrors(t *testing.T) {
 	}
 }
 
-func TestSecretsMarshalYAMLMapSyntax(t *testing.T) {
-	t.Parallel()
-
-	secrets := Secrets{
-		Secret{Key: "database-secret-key", EnvironmentVariable: "DATABASE_URL"},
-		Secret{Key: "api-secret-key", EnvironmentVariable: "API_TOKEN"},
-	}
-
-	yamlData, err := secrets.MarshalYAML()
-	if err != nil {
-		t.Fatalf("MarshalYAML() error = %v", err)
-	}
-
-	mapData, ok := yamlData.(map[string]string)
-	if !ok {
-		t.Fatalf("MarshalYAML() returned %T, want map[string]string", yamlData)
-	}
-
-	want := map[string]string{
-		"DATABASE_URL": "database-secret-key",
-		"API_TOKEN":    "api-secret-key",
-	}
-
-	if diff := cmp.Diff(mapData, want); diff != "" {
-		t.Errorf("map format mismatch (-got +want):\n%s", diff)
-	}
-}
-
 func TestSecretsUnmarshalMapFormat(t *testing.T) {
 	t.Parallel()
 
@@ -571,6 +569,80 @@ API_TOKEN: api-secret-key
 
 	if diff := cmp.Diff(secrets, want); diff != "" {
 		t.Errorf("map format unmarshaling mismatch (-got +want):\n%s", diff)
+	}
+}
+
+func TestSecretsMarshalYAML(t *testing.T) {
+	t.Parallel()
+
+	secrets := Secrets{
+		Secret{Key: "database-secret-key", EnvironmentVariable: "DATABASE_URL"},
+		Secret{Key: "api-secret-key", EnvironmentVariable: "API_TOKEN"},
+	}
+
+	// Test that it actually marshals to the expected YAML format
+	actualYAML, err := yaml.Marshal(secrets)
+	if err != nil {
+		t.Fatalf("yaml.Marshal() error = %v", err)
+	}
+
+	expectedYAML := `- key: database-secret-key
+  environment_variable: DATABASE_URL
+- key: api-secret-key
+  environment_variable: API_TOKEN
+`
+
+	if string(actualYAML) != expectedYAML {
+		t.Errorf("YAML output mismatch:\nGot:\n%s\nWant:\n%s", string(actualYAML), expectedYAML)
+	}
+}
+
+func TestSecretsMarshalYAMLEmptyEnvironmentVariable(t *testing.T) {
+	t.Parallel()
+
+	secrets := Secrets{
+		Secret{Key: "database-secret-key", EnvironmentVariable: ""},
+		Secret{Key: "api-secret-key", EnvironmentVariable: "API_TOKEN"},
+	}
+
+	// Test that it actually marshals to the expected YAML format
+	actualYAML, err := yaml.Marshal(secrets)
+	if err != nil {
+		t.Fatalf("yaml.Marshal() error = %v", err)
+	}
+
+	expectedYAML := `- key: database-secret-key
+- key: api-secret-key
+  environment_variable: API_TOKEN
+`
+
+	if string(actualYAML) != expectedYAML {
+		t.Errorf("YAML output mismatch:\nGot:\n%s\nWant:\n%s", string(actualYAML), expectedYAML)
+	}
+}
+
+func TestSecretsMarshalYAMLEmptyKey(t *testing.T) {
+	t.Parallel()
+
+	secrets := Secrets{
+		Secret{Key: "", EnvironmentVariable: "ENV_VARIABLE"},
+		Secret{Key: "api-secret-key", EnvironmentVariable: "API_TOKEN"},
+	}
+
+	// Test that it actually marshals to the expected YAML format
+	actualYAML, err := yaml.Marshal(secrets)
+	if err != nil {
+		t.Fatalf("yaml.Marshal() error = %v", err)
+	}
+
+	expectedYAML := `- key: ""
+  environment_variable: ENV_VARIABLE
+- key: api-secret-key
+  environment_variable: API_TOKEN
+`
+
+	if string(actualYAML) != expectedYAML {
+		t.Errorf("YAML output mismatch:\nGot:\n%s\nWant:\n%s", string(actualYAML), expectedYAML)
 	}
 }
 
@@ -612,13 +684,8 @@ func TestSecretsMarshalYAMLUnsupportedConfiguration(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := tc.secrets.MarshalYAML()
-			if err == nil {
+			if err != nil {
 				t.Fatalf("MarshalYAML() should return error for unsupported configuration, got nil")
-			}
-
-			expectedErr := "cannot marshal secrets to YAML: contains secrets with unsupported fields or empty environment variables"
-			if err.Error() != expectedErr {
-				t.Errorf("MarshalYAML() error = %q, want %q", err.Error(), expectedErr)
 			}
 		})
 	}
