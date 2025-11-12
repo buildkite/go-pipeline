@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/buildkite/go-pipeline/ordered"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 var _ interface {

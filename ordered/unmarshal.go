@@ -8,7 +8,7 @@ import (
 
 	"github.com/buildkite/go-pipeline/warning"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // Errors that can be returned by Unmarshal

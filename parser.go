@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/buildkite/go-pipeline/ordered"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // Options are functional options for creating a new Env.

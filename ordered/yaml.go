@@ -3,7 +3,7 @@ package ordered
 import (
 	"fmt"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // DecodeYAML recursively unmarshals n into a generic type (any, []any, or
@@ -135,7 +135,7 @@ func rangeYAMLMapImpl(merged map[*yaml.Node]bool, n *yaml.Node, f func(key strin
 
 	switch n.Kind {
 	case yaml.MappingNode:
-		// gopkg.in/yaml.v3 parses mapping node contents as a flat list:
+		// go.yaml.in/yaml/v3 parses mapping node contents as a flat list:
 		// key, value, key, value...
 		if len(n.Content)%2 != 0 {
 			return fmt.Errorf("line %d, col %d: mapping node has odd content length %d", n.Line, n.Column, len(n.Content))
