@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/buildkite/go-pipeline/ordered"
@@ -76,6 +77,97 @@ func TestCommandStepUnmarshalJSON(t *testing.T) {
 
 	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
 		t.Errorf("CommandStep diff after UnmarshalJSON (-got +want):\n%s", diff)
+	}
+}
+
+func TestCommandStepUnmarshalJSON_ControlCharacters(t *testing.T) {
+	// JSON allows control characters via escape sequences (e.g. \b, \f, \t)
+	// that yaml.v3 rejects. This test ensures they survive unmarshalling.
+	input := []byte(`{
+  "command": "echo \"hello\tworld\"",
+  "label": "test\b\f"
+}`)
+
+	want := &CommandStep{
+		Command: "echo \"hello\tworld\"",
+		Label:   "test\b\f",
+	}
+
+	got := new(CommandStep)
+	if err := got.UnmarshalJSON(input); err != nil {
+		t.Fatalf("CommandStep.UnmarshalJSON(input) = %v", err)
+	}
+
+	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+		t.Errorf("CommandStep diff after UnmarshalJSON (-got +want):\n%s", diff)
+	}
+}
+
+func TestCommandStepUnmarshalJSON_C1ControlCharacters(t *testing.T) {
+	// Mojibake smart quotes: â\x80\x9c and â\x80\x9d contain C1 control
+	// characters (U+0080, U+009C, U+009D) that yaml.v3 rejects but are
+	// valid in JSON via \uXXXX escapes.
+	input := []byte(`[
+  {
+    "command": "echo foo",
+    "label": "FOO",
+    "agents": {"queue": "default"}
+  },
+  {
+    "command": "echo bar",
+    "label": "BAR",
+    "agents": {"queue": "default"}
+  },
+  {
+    "command": "echo \u00e2\u0080\u009cApplication Agreement.\u00e2\u0080\u009d",
+    "label": "BOOM",
+    "agents": {"queue": "default"}
+  }
+]`)
+
+	agentsMap := ordered.NewMap[string, any](1)
+	agentsMap.Set("queue", "default")
+
+	wantSteps := []*CommandStep{
+		{
+			Command: "echo foo",
+			Label:   "FOO",
+			RemainingFields: map[string]any{
+				"agents": agentsMap,
+			},
+		},
+		{
+			Command: "echo bar",
+			Label:   "BAR",
+			RemainingFields: map[string]any{
+				"agents": agentsMap,
+			},
+		},
+		{
+			Command: "echo \u00e2\u0080\u009cApplication Agreement.\u00e2\u0080\u009d",
+			Label:   "BOOM",
+			RemainingFields: map[string]any{
+				"agents": agentsMap,
+			},
+		},
+	}
+
+	for i, want := range wantSteps {
+		// Each element in the JSON array is a separate step object.
+		// Extract each object individually.
+		var steps []json.RawMessage
+		if err := json.Unmarshal(input, &steps); err != nil {
+			t.Fatalf("json.Unmarshal(input) = %v", err)
+		}
+
+		got := new(CommandStep)
+		if err := got.UnmarshalJSON(steps[i]); err != nil {
+			t.Fatalf("CommandStep[%d].UnmarshalJSON() = %v", i, err)
+		}
+
+		if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+			t.Errorf("CommandStep[%d] diff after UnmarshalJSON (-got +want):\n%s", i, diff)
+		}
 	}
 }
 
