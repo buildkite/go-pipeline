@@ -37,6 +37,7 @@ type CommandStep struct {
 	Signature *Signature        `yaml:"signature,omitempty"`
 	Matrix    *Matrix           `yaml:"matrix,omitempty"`
 	Cache     *Cache            `yaml:"cache,omitempty"`
+	Checkout  *Checkout         `json:"checkout,omitempty" yaml:"checkout,omitempty"`
 
 	// RemainingFields stores any other top-level mapping items so they at least
 	// survive an unmarshal-marshal round-trip.
