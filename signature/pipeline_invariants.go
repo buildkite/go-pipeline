@@ -42,6 +42,11 @@ func (c *commandStepWithInvariants) SignedFields() (map[string]any, error) {
 		object["secrets"] = EmptyToNilSlice(c.Secrets)
 	}
 
+	// Only include checkout if non-empty to maintain backward compatibility
+	if !c.Checkout.IsEmpty() {
+		object["checkout"] = c.Checkout
+	}
+
 	// Step env overrides pipeline and build env:
 	// https://buildkite.com/docs/tutorials/pipeline-upgrade#what-is-the-yaml-steps-editor-compatibility-issues
 	// (Beware of inconsistent docs written in the time of legacy steps.)
@@ -74,6 +79,11 @@ func (c *commandStepWithInvariants) ValuesForFields(fields []string) (map[string
 		required["secrets"] = struct{}{}
 	}
 
+	// Only require checkout field if step has checkout
+	if !c.Checkout.IsEmpty() {
+		required["checkout"] = struct{}{}
+	}
+
 	out := make(map[string]any, len(fields))
 	for _, f := range fields {
 		delete(required, f)
@@ -96,6 +106,9 @@ func (c *commandStepWithInvariants) ValuesForFields(fields []string) (map[string
 
 		case "secrets":
 			out["secrets"] = EmptyToNilSlice(c.Secrets)
+
+		case "checkout":
+			out["checkout"] = EmptyToNilPtr(c.Checkout)
 
 		default:
 			if name, has := strings.CutPrefix(f, EnvNamespacePrefix); has {
