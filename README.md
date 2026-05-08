@@ -125,6 +125,37 @@ would be represented in go as:
 
 This go struct would be marshaled back out to YAML equivalent to the original input.
 
+## Checkout
+
+The `checkout` block configures git checkout behaviour for a pipeline or a command step. The simplest case opts a step out of checkout entirely:
+
+```yaml
+steps:
+  - command: echo "no git checkout for me"
+    checkout:
+      skip: true
+```
+
+`Checkout.Skip` is a `*bool` so the model preserves the difference between `skip: true`, `skip: false`, and an absent `skip`. This matters because `skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout, while an absent `skip` inherits whatever default applies. Round-trips preserve the distinction; `skip: false` does not collapse to an empty mapping.
+
+A pipeline-level `checkout` is inherited by command steps that do not set their own. The step value wins per leaf when both are set:
+
+```yaml
+checkout:
+  skip: true
+
+steps:
+  - command: echo "inherits skip: true from the pipeline"
+
+  - command: echo "explicit override - checkout runs"
+    checkout:
+      skip: false
+```
+
+After calling `step.MergeCheckoutFromPipeline(pipeline.Checkout)` on the second step, the merged result has `skip: false` (step wins). The first step inherits `skip: true` from the pipeline.
+
+`checkout: false` as a shorthand is rejected at unmarshal time; `checkout` is a multi-field namespace, so opt-out is spelled `checkout: { skip: true }`.
+
 ## What's up with the ordered module?
 
 While implementing the pipeline module, we ran into a problem: in some cases, in the buildkite pipeline.yaml, the order of map fields is significant. Because of this, whenever the pipeline gets unmarshaled from YAML or JSON, it needs to be stored in a way that preserves the order of the fields. The `ordered` module is a simple implementation of an ordered map. In most cases, when the pipeline is dealing with user-input maps, it will store them internally as `ordered.Map`s. When the pipeline is marshaled back out to YAML or JSON, the `ordered.Map`s will be marshaled in the correct order.
