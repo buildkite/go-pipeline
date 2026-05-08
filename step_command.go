@@ -37,6 +37,7 @@ type CommandStep struct {
 	Signature *Signature        `yaml:"signature,omitempty"`
 	Matrix    *Matrix           `yaml:"matrix,omitempty"`
 	Cache     *Cache            `yaml:"cache,omitempty"`
+	Checkout  *Checkout         `yaml:"checkout,omitempty"`
 
 	// RemainingFields stores any other top-level mapping items so they at least
 	// survive an unmarshal-marshal round-trip.
@@ -111,6 +112,11 @@ func (c *CommandStep) interpolate(tf stringTransformer) error {
 	if err := interpolateSlice(tf, c.Secrets); err != nil {
 		return fmt.Errorf("interpolating secrets: %w", err)
 	}
+	if c.Checkout != nil {
+		if err := c.Checkout.interpolate(tf); err != nil {
+			return fmt.Errorf("interpolating checkout: %w", err)
+		}
+	}
 
 	switch tf.(type) {
 	case envInterpolator:
@@ -147,6 +153,20 @@ func (c *CommandStep) interpolate(tf stringTransformer) error {
 // Step-level secrets take precedence over pipeline-level secrets for deduplication.
 func (c *CommandStep) MergeSecretsFromPipeline(pipelineSecrets Secrets) {
 	c.Secrets = pipelineSecrets.MergeWith(c.Secrets)
+}
+
+// MergeCheckoutFromPipeline merges pipeline-level checkout config into this
+// step's checkout. Step-level values take precedence per leaf. An empty parent
+// is treated as no-op so callers don't materialise empty `checkout: {}` on
+// steps that didn't have one.
+func (c *CommandStep) MergeCheckoutFromPipeline(pipelineCheckout *Checkout) {
+	if pipelineCheckout.IsEmpty() {
+		return
+	}
+	if c.Checkout == nil {
+		c.Checkout = &Checkout{}
+	}
+	c.Checkout.mergeFrom(pipelineCheckout)
 }
 
 func (CommandStep) stepTag() {}

@@ -13,9 +13,10 @@ import (
 //
 // Standard caveats apply - see the package comment.
 type Pipeline struct {
-	Steps   Steps          `yaml:"steps"`
-	Env     *ordered.MapSS `yaml:"env,omitempty"`
-	Secrets Secrets        `yaml:"secrets,omitempty"`
+	Steps    Steps          `yaml:"steps"`
+	Env      *ordered.MapSS `yaml:"env,omitempty"`
+	Secrets  Secrets        `yaml:"secrets,omitempty"`
+	Checkout *Checkout      `yaml:"checkout,omitempty"`
 
 	// RemainingFields stores any other top-level mapping items so they at least
 	// survive an unmarshal-marshal round-trip.
@@ -102,6 +103,12 @@ func (p *Pipeline) Interpolate(interpolationEnv InterpolationEnv, preferRuntimeE
 	// variable interpolation on strings. Interpolation is performed in-place.
 	if err := interpolateSlice(tf, p.Steps); err != nil {
 		return err
+	}
+
+	if p.Checkout != nil {
+		if err := p.Checkout.interpolate(tf); err != nil {
+			return err
+		}
 	}
 
 	return interpolateMap(tf, p.RemainingFields)
