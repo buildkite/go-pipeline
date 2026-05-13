@@ -163,3 +163,101 @@ func TestCommandStepCheckoutOmittedWhenNil(t *testing.T) {
 		t.Errorf("JSON output contains 'checkout' but Checkout is nil: %s", string(b))
 	}
 }
+
+func TestCommandStepCheckoutParsingShapes(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		yaml string
+		want *Checkout
+	}{
+		{
+			name: "no checkout block",
+			yaml: `steps:
+  - command: build.sh
+`,
+			want: nil,
+		},
+		{
+			name: "checkout block with no flags",
+			yaml: `steps:
+  - command: build.sh
+    checkout: {}
+`,
+			want: &Checkout{},
+		},
+		{
+			name: "subset of flags set",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        fetch: "--prune"
+`,
+			want: &Checkout{Flags: &CheckoutFlags{Fetch: ptr("--prune")}},
+		},
+		{
+			name: "unknown key at checkout level lands in RemainingFields",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      future_field: hello
+`,
+			want: &Checkout{RemainingFields: map[string]any{"future_field": "hello"}},
+		},
+		{
+			name: "unknown key at checkout.flags level lands in flags RemainingFields",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: "--depth 1"
+        future_flag: "value"
+`,
+			want: &Checkout{
+				Flags: &CheckoutFlags{
+					Clone:           ptr("--depth 1"),
+					RemainingFields: map[string]any{"future_flag": "value"},
+				},
+			},
+		},
+		{
+			name: "whitespace-only flag value preserved",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: "   "
+`,
+			want: &Checkout{Flags: &CheckoutFlags{Clone: ptr("   ")}},
+		},
+		{
+			name: "special characters in flag value",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: "--filter=blob:none --no-tags"
+`,
+			want: &Checkout{Flags: &CheckoutFlags{Clone: ptr("--filter=blob:none --no-tags")}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p, err := Parse(strings.NewReader(tc.yaml))
+			if err != nil {
+				t.Fatalf("Parse() error: %v", err)
+			}
+			cs, ok := p.Steps[0].(*CommandStep)
+			if !ok {
+				t.Fatalf("step 0 type = %T, want *CommandStep", p.Steps[0])
+			}
+			if diff := cmp.Diff(cs.Checkout, tc.want); diff != "" {
+				t.Errorf("Checkout diff (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
