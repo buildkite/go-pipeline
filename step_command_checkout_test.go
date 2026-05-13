@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/buildkite/go-pipeline/internal/env"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -259,5 +260,89 @@ func TestCommandStepCheckoutParsingShapes(t *testing.T) {
 				t.Errorf("Checkout diff (-got +want):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestCommandStepCheckoutEnvInterpolation(t *testing.T) {
+	t.Parallel()
+
+	const inputYAML = `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: "--depth $DEPTH"
+        fetch: "--prune"
+        clean: "${CLEAN_FLAGS}"
+`
+
+	p, err := Parse(strings.NewReader(inputYAML))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	runtimeEnv := env.New(env.FromMap(map[string]string{
+		"DEPTH":       "5",
+		"CLEAN_FLAGS": "-fdx --quiet",
+	}))
+	if err := p.Interpolate(runtimeEnv, false); err != nil {
+		t.Fatalf("Pipeline.Interpolate() error: %v", err)
+	}
+
+	cs := p.Steps[0].(*CommandStep)
+	want := &CheckoutFlags{
+		Clone: ptr("--depth 5"),
+		Fetch: ptr("--prune"),
+		Clean: ptr("-fdx --quiet"),
+	}
+	if diff := cmp.Diff(cs.Checkout.Flags, want); diff != "" {
+		t.Errorf("CheckoutFlags after env interpolation diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestCommandStepCheckoutMatrixInterpolation(t *testing.T) {
+	t.Parallel()
+
+	cs := &CommandStep{
+		Command: "build.sh",
+		Matrix: &Matrix{
+			Setup: MatrixSetup{"branch": {"main", "dev"}},
+		},
+		Checkout: &Checkout{
+			Flags: &CheckoutFlags{
+				Clone: ptr("--branch {{matrix.branch}}"),
+				Fetch: ptr("--prune"),
+			},
+		},
+	}
+
+	if err := cs.InterpolateMatrixPermutation(MatrixPermutation{"branch": "main"}); err != nil {
+		t.Fatalf("InterpolateMatrixPermutation() error: %v", err)
+	}
+
+	want := &CheckoutFlags{
+		Clone: ptr("--branch main"),
+		Fetch: ptr("--prune"),
+	}
+	if diff := cmp.Diff(cs.Checkout.Flags, want); diff != "" {
+		t.Errorf("CheckoutFlags after matrix interpolation diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestCommandStepCheckoutInterpolationNilSafety(t *testing.T) {
+	t.Parallel()
+
+	cs := &CommandStep{Command: "build.sh"}
+	if err := cs.InterpolateMatrixPermutation(MatrixPermutation{}); err != nil {
+		t.Fatalf("nil Checkout interpolate error: %v", err)
+	}
+
+	cs2 := &CommandStep{Command: "build.sh", Checkout: &Checkout{}}
+	if err := cs2.InterpolateMatrixPermutation(MatrixPermutation{}); err != nil {
+		t.Fatalf("nil Flags interpolate error: %v", err)
+	}
+
+	cs3 := &CommandStep{Command: "build.sh", Checkout: &Checkout{Flags: &CheckoutFlags{}}}
+	if err := cs3.InterpolateMatrixPermutation(MatrixPermutation{}); err != nil {
+		t.Fatalf("all-nil flag pointers interpolate error: %v", err)
 	}
 }

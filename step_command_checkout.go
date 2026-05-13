@@ -1,11 +1,19 @@
 package pipeline
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
-var _ = []json.Marshaler{
-	(*Checkout)(nil),
-	(*CheckoutFlags)(nil),
-}
+var _ interface {
+	json.Marshaler
+	selfInterpolater
+} = (*Checkout)(nil)
+
+var _ interface {
+	json.Marshaler
+	selfInterpolater
+} = (*CheckoutFlags)(nil)
 
 // Checkout models the checkout settings block on a command step.
 //
@@ -36,4 +44,35 @@ func (c *Checkout) MarshalJSON() ([]byte, error) {
 // MarshalJSON marshals to JSON, honouring the inline RemainingFields tag.
 func (f *CheckoutFlags) MarshalJSON() ([]byte, error) {
 	return inlineFriendlyMarshalJSON(f)
+}
+
+// interpolate substitutes env/matrix tokens into the checkout block in-place.
+func (c *Checkout) interpolate(tf stringTransformer) error {
+	if c == nil {
+		return nil
+	}
+	if err := c.Flags.interpolate(tf); err != nil {
+		return err
+	}
+	return interpolateMap(tf, c.RemainingFields)
+}
+
+// interpolate substitutes env/matrix tokens into each flag value in-place.
+func (f *CheckoutFlags) interpolate(tf stringTransformer) error {
+	if f == nil {
+		return nil
+	}
+	if err := interpolateString(tf, f.Clone); err != nil {
+		return fmt.Errorf("interpolating checkout.flags.clone: %w", err)
+	}
+	if err := interpolateString(tf, f.Fetch); err != nil {
+		return fmt.Errorf("interpolating checkout.flags.fetch: %w", err)
+	}
+	if err := interpolateString(tf, f.Checkout); err != nil {
+		return fmt.Errorf("interpolating checkout.flags.checkout: %w", err)
+	}
+	if err := interpolateString(tf, f.Clean); err != nil {
+		return fmt.Errorf("interpolating checkout.flags.clean: %w", err)
+	}
+	return interpolateMap(tf, f.RemainingFields)
 }
