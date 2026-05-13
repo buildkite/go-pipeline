@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -344,5 +345,76 @@ func TestCommandStepCheckoutInterpolationNilSafety(t *testing.T) {
 	cs3 := &CommandStep{Command: "build.sh", Checkout: &Checkout{Flags: &CheckoutFlags{}}}
 	if err := cs3.InterpolateMatrixPermutation(MatrixPermutation{}); err != nil {
 		t.Fatalf("all-nil flag pointers interpolate error: %v", err)
+	}
+}
+
+func TestCommandStepCheckoutYAMLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	const input = `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: "--depth 1"
+        checkout: ""
+`
+
+	p, err := Parse(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	cs := p.Steps[0].(*CommandStep)
+	if cs.Checkout == nil || cs.Checkout.Flags == nil {
+		t.Fatalf("Checkout or Flags is nil after parse")
+	}
+	if cs.Checkout.Flags.Clone == nil || *cs.Checkout.Flags.Clone != "--depth 1" {
+		t.Errorf("Clone = %v, want pointer to '--depth 1'", cs.Checkout.Flags.Clone)
+	}
+	if cs.Checkout.Flags.Checkout == nil {
+		t.Errorf("Checkout flag is nil, want pointer to empty string")
+	} else if *cs.Checkout.Flags.Checkout != "" {
+		t.Errorf("Checkout flag = %q, want empty string", *cs.Checkout.Flags.Checkout)
+	}
+	if cs.Checkout.Flags.Fetch != nil {
+		t.Errorf("Fetch = %v, want nil", cs.Checkout.Flags.Fetch)
+	}
+	if cs.Checkout.Flags.Clean != nil {
+		t.Errorf("Clean = %v, want nil", cs.Checkout.Flags.Clean)
+	}
+
+	// JSON round-trip preserves nil vs empty distinction.
+	b, err := json.Marshal(cs)
+	if err != nil {
+		t.Fatalf("json.Marshal(CommandStep) error: %v", err)
+	}
+	jsonStr := string(b)
+	if !strings.Contains(jsonStr, `"clone":"--depth 1"`) {
+		t.Errorf("JSON missing clone: %s", jsonStr)
+	}
+	if !strings.Contains(jsonStr, `"checkout":""`) {
+		t.Errorf("JSON missing empty checkout flag: %s", jsonStr)
+	}
+	if strings.Contains(jsonStr, `"fetch"`) {
+		t.Errorf("JSON contains 'fetch' but it should be omitted: %s", jsonStr)
+	}
+	if strings.Contains(jsonStr, `"clean"`) {
+		t.Errorf("JSON contains 'clean' but it should be omitted: %s", jsonStr)
+	}
+}
+
+func TestCommandStepCheckoutLongFlagValue(t *testing.T) {
+	t.Parallel()
+
+	long := strings.Repeat("--very-long-flag=value ", 200)
+	input := "steps:\n  - command: build.sh\n    checkout:\n      flags:\n        clone: " + strconv.Quote(long) + "\n"
+
+	p, err := Parse(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+	cs := p.Steps[0].(*CommandStep)
+	if cs.Checkout.Flags.Clone == nil || *cs.Checkout.Flags.Clone != long {
+		t.Errorf("long Clone value not round-tripped")
 	}
 }
