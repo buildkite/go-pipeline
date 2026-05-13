@@ -2,8 +2,10 @@ package pipeline
 
 import "encoding/json"
 
-var _ json.Marshaler = (*Checkout)(nil)
-var _ json.Marshaler = (*CheckoutFlags)(nil)
+var _ = []json.Marshaler{
+	(*Checkout)(nil),
+	(*CheckoutFlags)(nil),
+}
 
 // Checkout models the checkout settings block on a command step.
 //
