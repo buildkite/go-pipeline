@@ -191,6 +191,23 @@ func TestCommandStepCheckoutParsingShapes(t *testing.T) {
 			want: &Checkout{},
 		},
 		{
+			name: "checkout: null",
+			yaml: `steps:
+  - command: build.sh
+    checkout: null
+`,
+			want: nil,
+		},
+		{
+			name: "flags: null",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags: null
+`,
+			want: &Checkout{},
+		},
+		{
 			name: "empty flags map",
 			yaml: `steps:
   - command: build.sh
