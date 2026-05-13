@@ -8,6 +8,7 @@ import (
 
 	"github.com/buildkite/go-pipeline/internal/env"
 	"github.com/google/go-cmp/cmp"
+	"gopkg.in/yaml.v3"
 )
 
 func TestCheckoutFlagsMarshalJSON(t *testing.T) {
@@ -188,6 +189,15 @@ func TestCommandStepCheckoutParsingShapes(t *testing.T) {
     checkout: {}
 `,
 			want: &Checkout{},
+		},
+		{
+			name: "empty flags map",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags: {}
+`,
+			want: &Checkout{Flags: &CheckoutFlags{}},
 		},
 		{
 			name: "subset of flags set",
@@ -400,6 +410,22 @@ func TestCommandStepCheckoutYAMLRoundTrip(t *testing.T) {
 	}
 	if strings.Contains(jsonStr, `"clean"`) {
 		t.Errorf("JSON contains 'clean' but it should be omitted: %s", jsonStr)
+	}
+
+	// YAML round-trip preserves nil vs empty distinction.
+	gotYAML, err := yaml.Marshal(p)
+	if err != nil {
+		t.Fatalf("yaml.Marshal(Pipeline) error: %v", err)
+	}
+	wantYAML := `steps:
+    - command: build.sh
+      checkout:
+        flags:
+            clone: --depth 1
+            checkout: ""
+`
+	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
+		t.Errorf("YAML round-trip diff (-got +want):\n%s", diff)
 	}
 }
 
