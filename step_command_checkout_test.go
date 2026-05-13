@@ -418,3 +418,63 @@ func TestCommandStepCheckoutLongFlagValue(t *testing.T) {
 		t.Errorf("long Clone value not round-tripped")
 	}
 }
+
+func TestCommandStepCheckoutRemainingFieldsInterpolation(t *testing.T) {
+	t.Parallel()
+
+	const inputYAML = `steps:
+  - command: build.sh
+    checkout:
+      future_field: "checkout-$LEVEL"
+      flags:
+        clone: "--depth 1"
+        future_flag: "flags-$LEVEL"
+`
+
+	p, err := Parse(strings.NewReader(inputYAML))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	runtimeEnv := env.New(env.FromMap(map[string]string{"LEVEL": "test"}))
+	if err := p.Interpolate(runtimeEnv, false); err != nil {
+		t.Fatalf("Pipeline.Interpolate() error: %v", err)
+	}
+
+	cs := p.Steps[0].(*CommandStep)
+	if got := cs.Checkout.RemainingFields["future_field"]; got != "checkout-test" {
+		t.Errorf("Checkout.RemainingFields[future_field] = %q, want %q", got, "checkout-test")
+	}
+	if got := cs.Checkout.Flags.RemainingFields["future_flag"]; got != "flags-test" {
+		t.Errorf("CheckoutFlags.RemainingFields[future_flag] = %q, want %q", got, "flags-test")
+	}
+}
+
+func TestCommandStepCheckoutJSONUnmarshalRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	original := &CommandStep{
+		Command: "build.sh",
+		Checkout: &Checkout{
+			Flags: &CheckoutFlags{
+				Clone:    ptr("--depth 1"),
+				Fetch:    ptr("--prune"),
+				Checkout: ptr(""),
+			},
+		},
+	}
+
+	b, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("json.Marshal() error: %v", err)
+	}
+
+	var got CommandStep
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("json.Unmarshal() error: %v", err)
+	}
+
+	if diff := cmp.Diff(got.Checkout, original.Checkout); diff != "" {
+		t.Errorf("Checkout JSON round-trip diff (-got +want):\n%s", diff)
+	}
+}
