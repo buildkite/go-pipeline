@@ -5,15 +5,13 @@ import (
 	"fmt"
 )
 
-var _ interface {
+var _ = []interface {
 	json.Marshaler
 	selfInterpolater
-} = (*Checkout)(nil)
-
-var _ interface {
-	json.Marshaler
-	selfInterpolater
-} = (*CheckoutFlags)(nil)
+}{
+	(*Checkout)(nil),
+	(*CheckoutFlags)(nil),
+}
 
 // Checkout models the checkout settings block on a command step.
 //
