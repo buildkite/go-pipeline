@@ -5,15 +5,20 @@ import (
 	"fmt"
 )
 
-var _ = []interface {
+var _ interface {
 	json.Marshaler
 	selfInterpolater
-}{
-	(*Checkout)(nil),
-	(*CheckoutFlags)(nil),
-}
+} = (*Checkout)(nil)
 
-// Checkout models the checkout settings block on a command step.
+var _ interface {
+	json.Marshaler
+	selfInterpolater
+} = (*CheckoutFlags)(nil)
+
+// Checkout models the checkout settings block on a command step or pipeline.
+// Only the nested shape is recognized; flag keys must live under "flags:".
+// Keys placed directly under "checkout:" land in RemainingFields and are not
+// treated as git flag overrides.
 type Checkout struct {
 	Flags *CheckoutFlags `yaml:"flags,omitempty"`
 
