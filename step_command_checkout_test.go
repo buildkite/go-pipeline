@@ -521,3 +521,132 @@ func TestCommandStepCheckoutJSONUnmarshalRoundTrip(t *testing.T) {
 		t.Errorf("Checkout JSON round-trip diff (-got +want):\n%s", diff)
 	}
 }
+
+func TestPipelineCheckoutParsing(t *testing.T) {
+	t.Parallel()
+
+	const inputYAML = `checkout:
+  flags:
+    clone: "--depth 1"
+    fetch: "--prune"
+steps:
+  - command: build.sh
+`
+
+	p, err := Parse(strings.NewReader(inputYAML))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	want := &Checkout{
+		Flags: &CheckoutFlags{
+			Clone: ptr("--depth 1"),
+			Fetch: ptr("--prune"),
+		},
+	}
+	if diff := cmp.Diff(p.Checkout, want); diff != "" {
+		t.Errorf("Pipeline.Checkout diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestPipelineCheckoutOmittedWhenNil(t *testing.T) {
+	t.Parallel()
+
+	p, err := Parse(strings.NewReader("steps:\n  - command: build.sh\n"))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+	if p.Checkout != nil {
+		t.Errorf("Pipeline.Checkout = %+v, want nil", p.Checkout)
+	}
+
+	b, err := yaml.Marshal(p)
+	if err != nil {
+		t.Fatalf("yaml.Marshal() error: %v", err)
+	}
+	if strings.Contains(string(b), "checkout") {
+		t.Errorf("yaml.Marshal of Pipeline with nil Checkout contained \"checkout\":\n%s", b)
+	}
+}
+
+func TestPipelineCheckoutEnvInterpolation(t *testing.T) {
+	t.Parallel()
+
+	const inputYAML = `checkout:
+  flags:
+    clone: "--depth $DEPTH"
+    fetch: "--prune"
+    clean: "${CLEAN_FLAGS}"
+steps:
+  - command: build.sh
+`
+
+	p, err := Parse(strings.NewReader(inputYAML))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	runtimeEnv := env.New(env.FromMap(map[string]string{
+		"DEPTH":       "5",
+		"CLEAN_FLAGS": "-fdx --quiet",
+	}))
+	if err := p.Interpolate(runtimeEnv, false); err != nil {
+		t.Fatalf("Pipeline.Interpolate() error: %v", err)
+	}
+
+	want := &CheckoutFlags{
+		Clone: ptr("--depth 5"),
+		Fetch: ptr("--prune"),
+		Clean: ptr("-fdx --quiet"),
+	}
+	if diff := cmp.Diff(p.Checkout.Flags, want); diff != "" {
+		t.Errorf("Pipeline.Checkout.Flags after env interpolation diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestPipelineCheckoutInterpolationNilSafety(t *testing.T) {
+	t.Parallel()
+
+	p := &Pipeline{Steps: Steps{}}
+	if err := p.Interpolate(env.New(), false); err != nil {
+		t.Fatalf("Pipeline.Interpolate() with nil Checkout error: %v", err)
+	}
+
+	p2 := &Pipeline{Steps: Steps{}, Checkout: &Checkout{}}
+	if err := p2.Interpolate(env.New(), false); err != nil {
+		t.Fatalf("Pipeline.Interpolate() with empty Checkout error: %v", err)
+	}
+}
+
+func TestPipelineCheckoutYAMLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	const inputYAML = `checkout:
+  flags:
+    clone: "--depth 1"
+    fetch: "--prune"
+    checkout: ""
+    clean: "-fdx"
+steps:
+  - command: build.sh
+`
+
+	p, err := Parse(strings.NewReader(inputYAML))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	b, err := yaml.Marshal(p)
+	if err != nil {
+		t.Fatalf("yaml.Marshal() error: %v", err)
+	}
+
+	p2, err := Parse(strings.NewReader(string(b)))
+	if err != nil {
+		t.Fatalf("Parse() round-trip error: %v", err)
+	}
+
+	if diff := cmp.Diff(p2.Checkout, p.Checkout); diff != "" {
+		t.Errorf("Pipeline.Checkout YAML round-trip diff (-got +want):\n%s", diff)
+	}
+}
