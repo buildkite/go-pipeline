@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"encoding/json"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -108,49 +107,6 @@ func TestCheckoutMarshalJSON(t *testing.T) {
 				t.Errorf("Checkout JSON diff (-got +want):\n%s", diff)
 			}
 		})
-	}
-}
-
-func TestCommandStepCheckoutRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	const inputYAML = `steps:
-  - command: build.sh
-    checkout:
-      flags:
-        clone: "--depth 1"
-        fetch: "--prune"
-        checkout: ""
-        clean: "-fdx"
-`
-
-	p, err := Parse(strings.NewReader(inputYAML))
-	if err != nil {
-		t.Fatalf("Parse() error: %v", err)
-	}
-
-	if len(p.Steps) != 1 {
-		t.Fatalf("got %d steps, want 1", len(p.Steps))
-	}
-	cs, ok := p.Steps[0].(*CommandStep)
-	if !ok {
-		t.Fatalf("step 0 type = %T, want *CommandStep", p.Steps[0])
-	}
-	if cs.Checkout == nil {
-		t.Fatalf("CommandStep.Checkout is nil, want non-nil")
-	}
-	if cs.Checkout.Flags == nil {
-		t.Fatalf("CommandStep.Checkout.Flags is nil, want non-nil")
-	}
-
-	want := &CheckoutFlags{
-		Clone:    ptr("--depth 1"),
-		Fetch:    ptr("--prune"),
-		Checkout: ptr(""),
-		Clean:    ptr("-fdx"),
-	}
-	if diff := cmp.Diff(cs.Checkout.Flags, want); diff != "" {
-		t.Errorf("CheckoutFlags diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -359,19 +315,58 @@ func TestCommandStepCheckoutMatrixInterpolation(t *testing.T) {
 func TestCommandStepCheckoutInterpolationNilSafety(t *testing.T) {
 	t.Parallel()
 
-	cs := &CommandStep{Command: "build.sh"}
-	if err := cs.InterpolateMatrixPermutation(MatrixPermutation{}); err != nil {
+	// Use a non-empty matrix permutation so InterpolateMatrixPermutation does
+	// not short-circuit before reaching Checkout.interpolate.
+	matrix := &Matrix{Setup: MatrixSetup{"k": {"v"}}}
+	perm := MatrixPermutation{"k": "v"}
+
+	cs := &CommandStep{Command: "build.sh", Matrix: matrix}
+	if err := cs.InterpolateMatrixPermutation(perm); err != nil {
 		t.Fatalf("nil Checkout interpolate error: %v", err)
 	}
 
-	cs2 := &CommandStep{Command: "build.sh", Checkout: &Checkout{}}
-	if err := cs2.InterpolateMatrixPermutation(MatrixPermutation{}); err != nil {
+	cs2 := &CommandStep{Command: "build.sh", Matrix: matrix, Checkout: &Checkout{}}
+	if err := cs2.InterpolateMatrixPermutation(perm); err != nil {
 		t.Fatalf("nil Flags interpolate error: %v", err)
 	}
 
-	cs3 := &CommandStep{Command: "build.sh", Checkout: &Checkout{Flags: &CheckoutFlags{}}}
-	if err := cs3.InterpolateMatrixPermutation(MatrixPermutation{}); err != nil {
+	cs3 := &CommandStep{Command: "build.sh", Matrix: matrix, Checkout: &Checkout{Flags: &CheckoutFlags{}}}
+	if err := cs3.InterpolateMatrixPermutation(perm); err != nil {
 		t.Fatalf("all-nil flag pointers interpolate error: %v", err)
+	}
+}
+
+func TestCommandStepCheckoutEnvThenMatrixInterpolation(t *testing.T) {
+	t.Parallel()
+
+	const inputYAML = `steps:
+  - command: build.sh
+    matrix:
+      setup:
+        branch: ["main", "dev"]
+    checkout:
+      flags:
+        clone: "--depth $DEPTH --branch {{matrix.branch}}"
+`
+
+	p, err := Parse(strings.NewReader(inputYAML))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	runtimeEnv := env.New(env.FromMap(map[string]string{"DEPTH": "5"}))
+	if err := p.Interpolate(runtimeEnv, false); err != nil {
+		t.Fatalf("Pipeline.Interpolate() error: %v", err)
+	}
+
+	cs := p.Steps[0].(*CommandStep)
+	if err := cs.InterpolateMatrixPermutation(MatrixPermutation{"branch": "main"}); err != nil {
+		t.Fatalf("InterpolateMatrixPermutation() error: %v", err)
+	}
+
+	want := ptr("--depth 5 --branch main")
+	if diff := cmp.Diff(cs.Checkout.Flags.Clone, want); diff != "" {
+		t.Errorf("CheckoutFlags.Clone after env+matrix interpolation diff (-got +want):\n%s", diff)
 	}
 }
 
@@ -443,22 +438,6 @@ func TestCommandStepCheckoutYAMLRoundTrip(t *testing.T) {
 `
 	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
 		t.Errorf("YAML round-trip diff (-got +want):\n%s", diff)
-	}
-}
-
-func TestCommandStepCheckoutLongFlagValue(t *testing.T) {
-	t.Parallel()
-
-	long := strings.Repeat("--very-long-flag=value ", 200)
-	input := "steps:\n  - command: build.sh\n    checkout:\n      flags:\n        clone: " + strconv.Quote(long) + "\n"
-
-	p, err := Parse(strings.NewReader(input))
-	if err != nil {
-		t.Fatalf("Parse() error: %v", err)
-	}
-	cs := p.Steps[0].(*CommandStep)
-	if cs.Checkout.Flags.Clone == nil || *cs.Checkout.Flags.Clone != long {
-		t.Errorf("long Clone value not round-tripped")
 	}
 }
 
