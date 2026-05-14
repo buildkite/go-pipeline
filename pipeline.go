@@ -16,7 +16,7 @@ type Pipeline struct {
 	Steps    Steps          `yaml:"steps"`
 	Env      *ordered.MapSS `yaml:"env,omitempty"`
 	Secrets  Secrets        `yaml:"secrets,omitempty"`
-	Checkout *Checkout      `json:"checkout,omitempty" yaml:"checkout,omitempty"`
+	Checkout *Checkout      `yaml:"checkout,omitempty"`
 
 	// RemainingFields stores any other top-level mapping items so they at least
 	// survive an unmarshal-marshal round-trip.

@@ -217,3 +217,28 @@ func TestCommandStepCheckoutJSON(t *testing.T) {
 		t.Errorf("CommandStep JSON missing %q:\n%s", want, string(withCheckoutJSON))
 	}
 }
+
+// Extra fields on a checkout block survive json.Unmarshal when routed via
+// CommandStep.UnmarshalJSON, which decodes through ordered.Unmarshal and
+// honors the inline tag. Direct json.Unmarshal into a Checkout does not
+// preserve them (Checkout has no custom UnmarshalJSON, matching the
+// Cache/Secret pattern), so consumers should always go through the parent
+// step's unmarshaler.
+func TestCommandStepCheckoutJSONUnmarshalExtraFields(t *testing.T) {
+	t.Parallel()
+
+	input := `{"command":"build.sh","checkout":{"submodules":true,"depth":1,"gibberish":"x"}}`
+
+	var cs CommandStep
+	if err := json.Unmarshal([]byte(input), &cs); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	want := &Checkout{
+		Submodules:      ptr(true),
+		RemainingFields: map[string]any{"depth": 1, "gibberish": "x"},
+	}
+	if diff := cmp.Diff(cs.Checkout, want); diff != "" {
+		t.Errorf("CommandStep.Checkout diff (-got +want):\n%s", diff)
+	}
+}
