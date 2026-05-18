@@ -57,20 +57,30 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 			wantParts: []string{"skip: false", "submodules: true"},
 		},
 		{
+			name: "depth set",
+			c:    Checkout{Depth: ptr(10)},
+			want: "depth: 10\n",
+		},
+		{
+			name:      "skip and depth",
+			c:         Checkout{Skip: ptr(true), Depth: ptr(10)},
+			wantParts: []string{"skip: true", "depth: 10"},
+		},
+		{
 			name: "with remaining fields",
 			c: Checkout{
 				Skip:            ptr(true),
-				RemainingFields: map[string]any{"depth": 1},
+				RemainingFields: map[string]any{"ref": "main"},
 			},
-			wantParts: []string{"skip: true", "depth: 1"},
+			wantParts: []string{"skip: true", "ref: main"},
 		},
 		{
 			name: "remaining fields only",
 			c: Checkout{
-				RemainingFields: map[string]any{"depth": 1},
+				RemainingFields: map[string]any{"ref": "main"},
 			},
-			wantParts: []string{"depth: 1"},
-			notWant:   []string{"skip", "submodules"},
+			wantParts: []string{"ref: main"},
+			notWant:   []string{"skip", "submodules", "depth"},
 		},
 	}
 
@@ -139,12 +149,22 @@ func TestCheckoutMarshalJSON(t *testing.T) {
 			want: `{"skip":false,"submodules":true}`,
 		},
 		{
+			name: "depth set",
+			c:    Checkout{Depth: ptr(10)},
+			want: `{"depth":10}`,
+		},
+		{
+			name: "skip and depth",
+			c:    Checkout{Skip: ptr(true), Depth: ptr(10)},
+			want: `{"depth":10,"skip":true}`,
+		},
+		{
 			name: "with remaining fields",
 			c: Checkout{
 				Skip:            ptr(true),
-				RemainingFields: map[string]any{"depth": 1},
+				RemainingFields: map[string]any{"ref": "main"},
 			},
-			want: `{"depth":1,"skip":true}`,
+			want: `{"ref":"main","skip":true}`,
 		},
 	}
 
@@ -208,20 +228,37 @@ submodules: true`,
 			want: Checkout{Skip: ptr(false), Submodules: ptr(true)},
 		},
 		{
+			name: "depth set",
+			in:   `depth: 10`,
+			want: Checkout{Depth: ptr(10)},
+		},
+		{
+			name: "depth null",
+			in:   `depth: null`,
+			want: Checkout{},
+		},
+		{
+			name: "skip and depth",
+			in: `skip: true
+depth: 10`,
+			want: Checkout{Skip: ptr(true), Depth: ptr(10)},
+		},
+		{
 			name: "with extra fields",
 			in: `skip: true
-depth: 1`,
+ref: main`,
 			want: Checkout{
 				Skip:            ptr(true),
-				RemainingFields: map[string]any{"depth": 1},
+				RemainingFields: map[string]any{"ref": "main"},
 			},
 		},
 		{
-			name: "submodules with unknown sibling fields",
+			name: "submodules and depth with unknown sibling fields",
 			in:   `{submodules: true, depth: 1, gibberish: "x"}`,
 			want: Checkout{
 				Submodules:      ptr(true),
-				RemainingFields: map[string]any{"depth": 1, "gibberish": "x"},
+				Depth:           ptr(1),
+				RemainingFields: map[string]any{"gibberish": "x"},
 			},
 		},
 	}
@@ -260,6 +297,8 @@ func TestCheckoutUnmarshalJSON(t *testing.T) {
 		{name: "submodules null", input: `{"submodules":null}`, want: Checkout{}},
 		{name: "submodules true", input: `{"submodules":true}`, want: Checkout{Submodules: ptr(true)}},
 		{name: "submodules false", input: `{"submodules":false}`, want: Checkout{Submodules: ptr(false)}},
+		{name: "depth null", input: `{"depth":null}`, want: Checkout{}},
+		{name: "depth set", input: `{"depth":10}`, want: Checkout{Depth: ptr(10)}},
 	}
 
 	for _, tc := range cases {
@@ -509,9 +548,17 @@ func TestCheckoutRoundTripYAML(t *testing.T) {
 			in:   "{}\n",
 		},
 		{
+			name: "depth survives",
+			in:   "depth: 10\n",
+		},
+		{
+			name: "skip and depth survive together",
+			in:   "skip: true\ndepth: 10\n",
+		},
+		{
 			name: "unknown fields preserved",
-			in: `depth: 1
-submodules: false
+			in: `submodules: false
+sparse_paths: ["a", "b"]
 `,
 		},
 	}
@@ -562,8 +609,11 @@ func TestCheckoutRoundTripJSON(t *testing.T) {
 		{name: "submodules false", in: `{"submodules":false}`},
 		{name: "submodules true", in: `{"submodules":true}`},
 		{name: "skip and submodules", in: `{"skip":false,"submodules":true}`},
+		{name: "depth", in: `{"depth":10}`},
+		{name: "skip and depth", in: `{"depth":10,"skip":true}`},
+		{name: "submodules and depth", in: `{"depth":10,"submodules":true}`},
 		{name: "empty", in: `{}`},
-		{name: "with remaining", in: `{"depth":1,"skip":true}`},
+		{name: "with remaining", in: `{"ref":"main","skip":true}`},
 	}
 
 	for _, tc := range cases {
@@ -707,27 +757,51 @@ func TestCheckoutMergeFrom(t *testing.T) {
 			want:   &Checkout{Skip: ptr(true), Submodules: ptr(false)},
 		},
 		{
+			name:   "parent only depth",
+			child:  &Checkout{},
+			parent: &Checkout{Depth: ptr(10)},
+			want:   &Checkout{Depth: ptr(10)},
+		},
+		{
+			name:   "child only depth",
+			child:  &Checkout{Depth: ptr(5)},
+			parent: &Checkout{},
+			want:   &Checkout{Depth: ptr(5)},
+		},
+		{
+			name:   "child depth beats parent depth",
+			child:  &Checkout{Depth: ptr(5)},
+			parent: &Checkout{Depth: ptr(10)},
+			want:   &Checkout{Depth: ptr(5)},
+		},
+		{
+			name:   "skip from child, depth from parent",
+			child:  &Checkout{Skip: ptr(false)},
+			parent: &Checkout{Depth: ptr(10)},
+			want:   &Checkout{Skip: ptr(false), Depth: ptr(10)},
+		},
+		{
 			name: "remaining fields disjoint",
 			child: &Checkout{
 				RemainingFields: map[string]any{"submodules_extra": true},
 			},
 			parent: &Checkout{
-				RemainingFields: map[string]any{"depth": 1},
+				RemainingFields: map[string]any{"sparse_paths": []any{"a"}},
 			},
 			want: &Checkout{
-				RemainingFields: map[string]any{"submodules_extra": true, "depth": 1},
+				RemainingFields: map[string]any{"submodules_extra": true, "sparse_paths": []any{"a"}},
 			},
 		},
 		{
 			name: "remaining fields scalar collision child wins",
 			child: &Checkout{
-				RemainingFields: map[string]any{"depth": 5},
+				RemainingFields: map[string]any{"ref": "feature"},
 			},
 			parent: &Checkout{
-				RemainingFields: map[string]any{"depth": 1},
+				RemainingFields: map[string]any{"ref": "main"},
 			},
 			want: &Checkout{
-				RemainingFields: map[string]any{"depth": 5},
+				RemainingFields: map[string]any{"ref": "feature"},
 			},
 		},
 	}
@@ -748,9 +822,9 @@ func TestCheckoutMergeFrom(t *testing.T) {
 // CommandStep.UnmarshalJSON, which decodes through ordered.Unmarshal and
 // honors the inline tag. Direct json.Unmarshal into a Checkout drops the
 // inline extras (Checkout has no custom UnmarshalJSON, matching the
-// Cache/Secret pattern); typed Skip and Submodules still unmarshal in either
-// path. Consumers wanting forward-compat for unknown fields should always go
-// through the parent step's unmarshaler.
+// Cache/Secret pattern); typed Skip, Submodules, and Depth still unmarshal
+// in either path. Consumers wanting forward-compat for unknown fields should
+// always go through the parent step's unmarshaler.
 func TestCommandStepCheckoutJSONUnmarshalExtraFields(t *testing.T) {
 	t.Parallel()
 
@@ -763,7 +837,8 @@ func TestCommandStepCheckoutJSONUnmarshalExtraFields(t *testing.T) {
 
 	want := &Checkout{
 		Submodules:      ptr(true),
-		RemainingFields: map[string]any{"depth": 1, "gibberish": "x"},
+		Depth:           ptr(1),
+		RemainingFields: map[string]any{"gibberish": "x"},
 	}
 	if diff := cmp.Diff(cs.Checkout, want); diff != "" {
 		t.Errorf("CommandStep.Checkout diff (-got +want):\n%s", diff)

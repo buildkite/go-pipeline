@@ -30,6 +30,10 @@ type Checkout struct {
 	// the agent default; true/false set the env var explicitly.
 	Submodules *bool `yaml:"submodules,omitempty"`
 
+	// Depth performs a shallow clone of the given depth. nil leaves the agent
+	// default (full clone).
+	Depth *int `yaml:"depth,omitempty"`
+
 	// RemainingFields stores any other top-level mapping items so they
 	// survive an unmarshal-marshal round-trip.
 	RemainingFields map[string]any `yaml:",inline"`
@@ -44,7 +48,7 @@ func (c *Checkout) MarshalJSON() ([]byte, error) {
 // IsEmpty reports whether the checkout is nil or has no fields set.
 // Used by signing to canonicalise empty/nil values.
 func (c *Checkout) IsEmpty() bool {
-	return c == nil || (c.Skip == nil && c.Submodules == nil && len(c.RemainingFields) == 0)
+	return c == nil || (c.Skip == nil && c.Submodules == nil && c.Depth == nil && len(c.RemainingFields) == 0)
 }
 
 // UnmarshalOrdered unmarshals a Checkout from an ordered map. Bool inputs are
@@ -88,6 +92,11 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 	if c.Submodules == nil && parent.Submodules != nil {
 		v := *parent.Submodules
 		c.Submodules = &v
+	}
+
+	if c.Depth == nil && parent.Depth != nil {
+		v := *parent.Depth
+		c.Depth = &v
 	}
 
 	if len(parent.RemainingFields) == 0 {
