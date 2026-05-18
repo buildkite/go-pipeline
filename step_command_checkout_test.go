@@ -159,9 +159,10 @@ func TestMergeCheckoutFromPipelineNilStep(t *testing.T) {
 	t.Parallel()
 
 	pipelineCheckout := &Checkout{
-		Skip: ptr(true),
+		Skip:  ptr(true),
+		Depth: ptr(10),
 		RemainingFields: map[string]any{
-			"depth": 1,
+			"submodules": true,
 		},
 	}
 	step := &CommandStep{}
@@ -173,6 +174,9 @@ func TestMergeCheckoutFromPipelineNilStep(t *testing.T) {
 	if step.Checkout.Skip == nil || *step.Checkout.Skip != true {
 		t.Errorf("step.Checkout.Skip = %v, want ptr(true)", step.Checkout.Skip)
 	}
+	if step.Checkout.Depth == nil || *step.Checkout.Depth != 10 {
+		t.Errorf("step.Checkout.Depth = %v, want ptr(10)", step.Checkout.Depth)
+	}
 
 	// Verify the copy is independent: mutating the step should not affect
 	// the pipeline.
@@ -181,9 +185,14 @@ func TestMergeCheckoutFromPipelineNilStep(t *testing.T) {
 		t.Errorf("mutating step mutated pipeline; pipelineCheckout.Skip = %v", *pipelineCheckout.Skip)
 	}
 
-	step.Checkout.RemainingFields["depth"] = 99
-	if pipelineCheckout.RemainingFields["depth"] != 1 {
-		t.Errorf("mutating step.RemainingFields mutated pipeline; depth = %v", pipelineCheckout.RemainingFields["depth"])
+	*step.Checkout.Depth = 99
+	if *pipelineCheckout.Depth != 10 {
+		t.Errorf("mutating step mutated pipeline; pipelineCheckout.Depth = %v", *pipelineCheckout.Depth)
+	}
+
+	step.Checkout.RemainingFields["submodules"] = false
+	if pipelineCheckout.RemainingFields["submodules"] != true {
+		t.Errorf("mutating step.RemainingFields mutated pipeline; submodules = %v", pipelineCheckout.RemainingFields["submodules"])
 	}
 }
 
@@ -279,8 +288,8 @@ steps:
 	if p.Checkout.Skip == nil || *p.Checkout.Skip != false {
 		t.Errorf("p.Checkout.Skip = %v, want ptr(false)", p.Checkout.Skip)
 	}
-	if got := p.Checkout.RemainingFields["depth"]; got != 1 {
-		t.Errorf("p.Checkout.RemainingFields[depth] = %v, want 1", got)
+	if p.Checkout.Depth == nil || *p.Checkout.Depth != 1 {
+		t.Errorf("p.Checkout.Depth = %v, want ptr(1)", p.Checkout.Depth)
 	}
 
 	if len(p.Steps) != 2 {
@@ -301,8 +310,8 @@ steps:
 	if step2.Checkout == nil || step2.Checkout.Skip == nil || *step2.Checkout.Skip != false {
 		t.Errorf("step2.Checkout.Skip after merge = %v, want ptr(false)", step2.Checkout)
 	}
-	if got := step2.Checkout.RemainingFields["depth"]; got != 1 {
-		t.Errorf("step2.Checkout.RemainingFields[depth] after merge = %v, want 1", got)
+	if step2.Checkout.Depth == nil || *step2.Checkout.Depth != 1 {
+		t.Errorf("step2.Checkout.Depth after merge = %v, want ptr(1)", step2.Checkout.Depth)
 	}
 }
 

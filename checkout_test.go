@@ -36,12 +36,22 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 			want: "skip: false\n",
 		},
 		{
+			name: "depth set",
+			c:    Checkout{Depth: ptr(10)},
+			want: "depth: 10\n",
+		},
+		{
+			name: "skip and depth set",
+			c:    Checkout{Skip: ptr(true), Depth: ptr(10)},
+			want: "skip: true\ndepth: 10\n",
+		},
+		{
 			name: "with remaining fields",
 			c: Checkout{
 				Skip:            ptr(true),
-				RemainingFields: map[string]any{"depth": 1},
+				RemainingFields: map[string]any{"submodules": true},
 			},
-			want: "skip: true\ndepth: 1\n",
+			want: "skip: true\nsubmodules: true\n",
 		},
 	}
 
@@ -84,12 +94,22 @@ func TestCheckoutMarshalJSON(t *testing.T) {
 			want: `{"skip":false}`,
 		},
 		{
+			name: "depth set",
+			c:    Checkout{Depth: ptr(10)},
+			want: `{"depth":10}`,
+		},
+		{
+			name: "skip and depth set",
+			c:    Checkout{Skip: ptr(true), Depth: ptr(10)},
+			want: `{"depth":10,"skip":true}`,
+		},
+		{
 			name: "with remaining fields",
 			c: Checkout{
 				Skip:            ptr(true),
-				RemainingFields: map[string]any{"depth": 1},
+				RemainingFields: map[string]any{"submodules": true},
 			},
-			want: `{"depth":1,"skip":true}`,
+			want: `{"skip":true,"submodules":true}`,
 		},
 	}
 
@@ -132,12 +152,23 @@ func TestCheckoutUnmarshalYAML(t *testing.T) {
 			want: Checkout{Skip: ptr(false)},
 		},
 		{
+			name: "depth only",
+			in:   `depth: 10`,
+			want: Checkout{Depth: ptr(10)},
+		},
+		{
+			name: "skip and depth",
+			in: `skip: true
+depth: 10`,
+			want: Checkout{Skip: ptr(true), Depth: ptr(10)},
+		},
+		{
 			name: "with extra fields",
 			in: `skip: true
-depth: 1`,
+submodules: true`,
 			want: Checkout{
 				Skip:            ptr(true),
-				RemainingFields: map[string]any{"depth": 1},
+				RemainingFields: map[string]any{"submodules": true},
 			},
 		},
 	}
@@ -285,9 +316,17 @@ func TestCheckoutRoundTripYAML(t *testing.T) {
 			in:   "{}\n",
 		},
 		{
+			name: "depth survives",
+			in:   "depth: 10\n",
+		},
+		{
+			name: "skip and depth survive together",
+			in:   "skip: true\ndepth: 10\n",
+		},
+		{
 			name: "unknown fields preserved",
-			in: `depth: 1
-submodules: false
+			in: `submodules: false
+sparse_paths: ["a", "b"]
 `,
 		},
 	}
@@ -336,8 +375,10 @@ func TestCheckoutRoundTripJSON(t *testing.T) {
 	}{
 		{name: "skip false", in: `{"skip":false}`},
 		{name: "skip true", in: `{"skip":true}`},
+		{name: "depth", in: `{"depth":10}`},
+		{name: "skip and depth", in: `{"depth":10,"skip":true}`},
 		{name: "empty", in: `{}`},
-		{name: "with remaining", in: `{"depth":1,"skip":true}`},
+		{name: "with remaining", in: `{"skip":true,"submodules":true}`},
 	}
 
 	for _, tc := range cases {
@@ -442,27 +483,51 @@ func TestCheckoutMergeFrom(t *testing.T) {
 			want:   &Checkout{Skip: ptr(false)},
 		},
 		{
+			name:   "parent only depth",
+			child:  &Checkout{},
+			parent: &Checkout{Depth: ptr(10)},
+			want:   &Checkout{Depth: ptr(10)},
+		},
+		{
+			name:   "child only depth",
+			child:  &Checkout{Depth: ptr(5)},
+			parent: &Checkout{},
+			want:   &Checkout{Depth: ptr(5)},
+		},
+		{
+			name:   "child depth beats parent depth",
+			child:  &Checkout{Depth: ptr(5)},
+			parent: &Checkout{Depth: ptr(10)},
+			want:   &Checkout{Depth: ptr(5)},
+		},
+		{
+			name:   "skip from child, depth from parent",
+			child:  &Checkout{Skip: ptr(false)},
+			parent: &Checkout{Depth: ptr(10)},
+			want:   &Checkout{Skip: ptr(false), Depth: ptr(10)},
+		},
+		{
 			name: "remaining fields disjoint",
 			child: &Checkout{
 				RemainingFields: map[string]any{"submodules": true},
 			},
 			parent: &Checkout{
-				RemainingFields: map[string]any{"depth": 1},
+				RemainingFields: map[string]any{"sparse_paths": []any{"a"}},
 			},
 			want: &Checkout{
-				RemainingFields: map[string]any{"submodules": true, "depth": 1},
+				RemainingFields: map[string]any{"submodules": true, "sparse_paths": []any{"a"}},
 			},
 		},
 		{
 			name: "remaining fields scalar collision child wins",
 			child: &Checkout{
-				RemainingFields: map[string]any{"depth": 5},
+				RemainingFields: map[string]any{"submodules": true},
 			},
 			parent: &Checkout{
-				RemainingFields: map[string]any{"depth": 1},
+				RemainingFields: map[string]any{"submodules": false},
 			},
 			want: &Checkout{
-				RemainingFields: map[string]any{"depth": 5},
+				RemainingFields: map[string]any{"submodules": true},
 			},
 		},
 	}

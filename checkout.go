@@ -22,6 +22,9 @@ type Checkout struct {
 	// field into the same empty output.
 	Skip *bool `yaml:"skip,omitempty"`
 
+	// Depth as *int to allow integers and not set
+	Depth *int `yaml:"depth,omitempty"`
+
 	// RemainingFields stores any other top-level mapping items so they at least
 	// survive an unmarshal-marshal round-trip.
 	RemainingFields map[string]any `yaml:",inline"`
@@ -33,10 +36,9 @@ func (c *Checkout) MarshalJSON() ([]byte, error) {
 	return inlineFriendlyMarshalJSON(c)
 }
 
-// IsEmpty reports whether the checkout is empty (is nil, or has no Skip and
-// no other data within it). Used by signing to canonicalise empty/nil values.
+// IsEmpty reports whether the checkout is empty, used by signing.
 func (c *Checkout) IsEmpty() bool {
-	return c == nil || (c.Skip == nil && len(c.RemainingFields) == 0)
+	return c == nil || (c.Skip == nil && c.Depth == nil && len(c.RemainingFields) == 0)
 }
 
 // UnmarshalOrdered unmarshals a Checkout from an ordered map. Bool inputs are
@@ -74,6 +76,11 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 	if c.Skip == nil && parent.Skip != nil {
 		v := *parent.Skip
 		c.Skip = &v
+	}
+
+	if c.Depth == nil && parent.Depth != nil {
+		v := *parent.Depth
+		c.Depth = &v
 	}
 
 	if len(parent.RemainingFields) == 0 {
