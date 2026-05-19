@@ -47,8 +47,10 @@ type Checkout struct {
 	// agent default (full clone).
 	Depth *int `yaml:"depth,omitempty"`
 	// LFS enables Git LFS when checking out. nil leaves the agent default.
-	LFS   *bool          `yaml:"lfs,omitempty"`
-	Flags *CheckoutFlags `yaml:"flags,omitempty"`
+	LFS *bool `yaml:"lfs,omitempty"`
+	// Sparse configures sparse checkout. nil = unset (full checkout).
+	Sparse *Sparse        `yaml:"sparse,omitempty"`
+	Flags  *CheckoutFlags `yaml:"flags,omitempty"`
 
 	RemainingFields map[string]any `yaml:",inline"`
 }
@@ -80,6 +82,7 @@ func (c *Checkout) IsEmpty() bool {
 			c.SSHSecret == nil &&
 			c.Depth == nil &&
 			c.LFS == nil &&
+			c.Sparse == nil &&
 			c.Flags == nil &&
 			len(c.RemainingFields) == 0)
 }
@@ -205,6 +208,11 @@ func (c *Checkout) mergeFrom(parent *Checkout) *Checkout {
 		c.LFS = &v
 	}
 
+	if c.Sparse == nil && parent.Sparse != nil {
+		v := *parent.Sparse
+		c.Sparse = &v
+	}
+
 	c.Flags = c.Flags.mergeFrom(parent.Flags)
 
 	if len(parent.RemainingFields) == 0 {
@@ -310,5 +318,39 @@ func cloneInlineValue(v any) any {
 
 	default:
 		return v
+	}
+}
+
+var _ interface {
+	json.Marshaler
+	ordered.Unmarshaler
+} = (*Sparse)(nil)
+
+// Sparse models sparse checkout configuration.
+type Sparse struct {
+	// Paths is the list of paths to include in the sparse checkout.
+	Paths []string `json:"paths,omitempty" yaml:"paths,omitempty"`
+	// RemainingFields stores any other mapping items so they at least
+	// survive an unmarshal-marshal round-trip.
+	RemainingFields map[string]any `yaml:",inline"`
+}
+
+// MarshalJSON marshals Sparse to JSON. Special handling is needed because
+// yaml.v3 has "inline" but encoding/json has no concept of it.
+func (s *Sparse) MarshalJSON() ([]byte, error) {
+	return inlineFriendlyMarshalJSON(s)
+}
+
+// UnmarshalOrdered unmarshals a Sparse from an ordered map.
+func (s *Sparse) UnmarshalOrdered(o any) error {
+	switch o.(type) {
+	case *ordered.MapSA:
+		type wrappedSparse Sparse
+		if err := ordered.Unmarshal(o, (*wrappedSparse)(s)); err != nil {
+			return fmt.Errorf("unmarshaling sparse: %w", err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unmarshaling sparse: unsupported type %T, want a mapping", o)
 	}
 }
