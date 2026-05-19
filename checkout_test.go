@@ -35,6 +35,26 @@ func TestCheckoutUnmarshalYAML(t *testing.T) {
 			`{skip: true}`,
 			Checkout{RemainingFields: map[string]any{"skip": true}},
 		},
+		{
+			"sparse with paths multi-line",
+			"sparse:\n  paths:\n    - .buildkite/\n    - src/",
+			Checkout{Sparse: &Sparse{Paths: []string{".buildkite/", "src/"}}},
+		},
+		{
+			"sparse with paths inline",
+			`{sparse: {paths: [".buildkite/", "src/"]}}`,
+			Checkout{Sparse: &Sparse{Paths: []string{".buildkite/", "src/"}}},
+		},
+		{
+			"sparse omitted",
+			`{}`,
+			Checkout{},
+		},
+		{
+			"sparse with empty paths",
+			`{sparse: {paths: []}}`,
+			Checkout{Sparse: &Sparse{Paths: []string{}}},
+		},
 	}
 
 	for _, tc := range cases {
@@ -84,6 +104,16 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 			wantSubstrs: []string{"skip: true"},
 			notWant:     []string{"submodules"},
 		},
+		{
+			name:        "sparse with paths",
+			c:           Checkout{Sparse: &Sparse{Paths: []string{".buildkite/", "src/"}}},
+			wantSubstrs: []string{"sparse:", "paths:", ".buildkite/", "src/"},
+		},
+		{
+			name:    "sparse nil omitted",
+			c:       Checkout{},
+			notWant: []string{"sparse"},
+		},
 	}
 
 	for _, tc := range cases {
@@ -129,6 +159,16 @@ func TestCheckoutMarshalJSON(t *testing.T) {
 			},
 			`{"depth":1,"gibberish":"x","submodules":true}`,
 		},
+		{
+			"sparse with paths",
+			&Checkout{Sparse: &Sparse{Paths: []string{".buildkite/", "src/"}}},
+			`{"sparse":{"paths":[".buildkite/","src/"]}}`,
+		},
+		{
+			"sparse nil omitted",
+			&Checkout{},
+			`{}`,
+		},
 	}
 
 	for _, tc := range cases {
@@ -159,6 +199,16 @@ func TestCheckoutUnmarshalJSON(t *testing.T) {
 		{"submodules null", `{"submodules":null}`, Checkout{}},
 		{"submodules true", `{"submodules":true}`, Checkout{Submodules: ptr(true)}},
 		{"submodules false", `{"submodules":false}`, Checkout{Submodules: ptr(false)}},
+		{
+			"sparse with paths",
+			`{"sparse":{"paths":[".buildkite/","src/"]}}`,
+			Checkout{Sparse: &Sparse{Paths: []string{".buildkite/", "src/"}}},
+		},
+		{
+			"sparse null",
+			`{"sparse":null}`,
+			Checkout{},
+		},
 	}
 
 	for _, tc := range cases {
@@ -172,6 +222,80 @@ func TestCheckoutUnmarshalJSON(t *testing.T) {
 
 			if diff := cmp.Diff(got, tc.want); diff != "" {
 				t.Errorf("Checkout diff (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSparseUnmarshalYAML(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		input string
+		want  Sparse
+	}{
+		{"empty", `{}`, Sparse{}},
+		{
+			"paths set",
+			"paths:\n  - .buildkite/\n  - src/",
+			Sparse{Paths: []string{".buildkite/", "src/"}},
+		},
+		{
+			"empty paths",
+			`{paths: []}`,
+			Sparse{Paths: []string{}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var node yaml.Node
+			if err := yaml.Unmarshal([]byte(tc.input), &node); err != nil {
+				t.Fatalf("yaml.Unmarshal() error = %v", err)
+			}
+
+			var got Sparse
+			if err := ordered.Unmarshal(&node, &got); err != nil {
+				t.Fatalf("ordered.Unmarshal() error = %v", err)
+			}
+
+			if diff := cmp.Diff(got, tc.want); diff != "" {
+				t.Errorf("Sparse diff (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSparseMarshallJSON(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		s    *Sparse
+		want string
+	}{
+		{"empty", &Sparse{}, `{}`},
+		{
+			"paths set",
+			&Sparse{Paths: []string{".buildkite/", "src/"}},
+			`{"paths":[".buildkite/","src/"]}`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			b, err := json.Marshal(tc.s)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+
+			if diff := cmp.Diff(string(b), tc.want); diff != "" {
+				t.Errorf("Sparse.MarshalJSON() diff (-got +want):\n%s", diff)
 			}
 		})
 	}
