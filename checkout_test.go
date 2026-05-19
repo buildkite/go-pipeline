@@ -46,6 +46,21 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 			want: "skip: true\ndepth: 10\n",
 		},
 		{
+			name: "lfs true",
+			c:    Checkout{LFS: true},
+			want: "lfs: true\n",
+		},
+		{
+			name: "lfs false omitted",
+			c:    Checkout{LFS: false},
+			want: "{}\n",
+		},
+		{
+			name: "lfs true with depth",
+			c:    Checkout{Depth: ptr(10), LFS: true},
+			want: "depth: 10\nlfs: true\n",
+		},
+		{
 			name: "with remaining fields",
 			c: Checkout{
 				Skip:            ptr(true),
@@ -102,6 +117,21 @@ func TestCheckoutMarshalJSON(t *testing.T) {
 			name: "skip and depth set",
 			c:    Checkout{Skip: ptr(true), Depth: ptr(10)},
 			want: `{"depth":10,"skip":true}`,
+		},
+		{
+			name: "lfs true",
+			c:    Checkout{LFS: true},
+			want: `{"lfs":true}`,
+		},
+		{
+			name: "lfs false omitted",
+			c:    Checkout{LFS: false},
+			want: `{}`,
+		},
+		{
+			name: "lfs true with depth",
+			c:    Checkout{Depth: ptr(10), LFS: true},
+			want: `{"depth":10,"lfs":true}`,
 		},
 		{
 			name: "with remaining fields",
@@ -161,6 +191,27 @@ func TestCheckoutUnmarshalYAML(t *testing.T) {
 			in: `skip: true
 depth: 10`,
 			want: Checkout{Skip: ptr(true), Depth: ptr(10)},
+		},
+		{
+			name: "lfs true",
+			in:   `lfs: true`,
+			want: Checkout{LFS: true},
+		},
+		{
+			name: "lfs false",
+			in:   `lfs: false`,
+			want: Checkout{LFS: false},
+		},
+		{
+			name: "lfs omitted defaults to false",
+			in:   `{}`,
+			want: Checkout{},
+		},
+		{
+			name: "lfs with depth",
+			in: `depth: 10
+lfs: true`,
+			want: Checkout{Depth: ptr(10), LFS: true},
 		},
 		{
 			name: "with extra fields",
@@ -324,6 +375,14 @@ func TestCheckoutRoundTripYAML(t *testing.T) {
 			in:   "skip: true\ndepth: 10\n",
 		},
 		{
+			name: "lfs true survives",
+			in:   "lfs: true\n",
+		},
+		{
+			name: "lfs with depth survives",
+			in:   "depth: 10\nlfs: true\n",
+		},
+		{
 			name: "unknown fields preserved",
 			in: `submodules: false
 sparse_paths: ["a", "b"]
@@ -378,6 +437,8 @@ func TestCheckoutRoundTripJSON(t *testing.T) {
 		{name: "depth", in: `{"depth":10}`},
 		{name: "skip and depth", in: `{"depth":10,"skip":true}`},
 		{name: "empty", in: `{}`},
+		{name: "lfs true", in: `{"lfs":true}`},
+		{name: "lfs with depth", in: `{"depth":10,"lfs":true}`},
 		{name: "with remaining", in: `{"skip":true,"submodules":true}`},
 	}
 
@@ -505,6 +566,30 @@ func TestCheckoutMergeFrom(t *testing.T) {
 			child:  &Checkout{Skip: ptr(false)},
 			parent: &Checkout{Depth: ptr(10)},
 			want:   &Checkout{Skip: ptr(false), Depth: ptr(10)},
+		},
+		{
+			name:   "parent only lfs",
+			child:  &Checkout{},
+			parent: &Checkout{LFS: true},
+			want:   &Checkout{LFS: true},
+		},
+		{
+			name:   "child only lfs",
+			child:  &Checkout{LFS: true},
+			parent: &Checkout{},
+			want:   &Checkout{LFS: true},
+		},
+		{
+			name:   "child lfs true beats parent lfs false",
+			child:  &Checkout{LFS: true},
+			parent: &Checkout{LFS: false},
+			want:   &Checkout{LFS: true},
+		},
+		{
+			name:   "lfs from parent, depth from child",
+			child:  &Checkout{Depth: ptr(5)},
+			parent: &Checkout{LFS: true},
+			want:   &Checkout{Depth: ptr(5), LFS: true},
 		},
 		{
 			name: "remaining fields disjoint",
