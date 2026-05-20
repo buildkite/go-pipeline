@@ -248,6 +248,35 @@ func TestCommandStepWithInvariants_ValuesForFields_WithCheckout(t *testing.T) {
 	}
 }
 
+func TestCommandStepWithInvariants_SignedFields_WithCommitVerification(t *testing.T) {
+	t.Parallel()
+
+	checkout := &pipeline.Checkout{CommitVerification: "strict"}
+	step := commandStepWithInvariants{
+		CommandStep: pipeline.CommandStep{
+			Command:  "echo hello",
+			Plugins:  pipeline.Plugins{},
+			Checkout: checkout,
+		},
+		RepositoryURL: "https://github.com/example/repo",
+	}
+
+	fields, err := step.SignedFields()
+	if err != nil {
+		t.Fatalf("step.SignedFields() error = %v", err)
+	}
+
+	// checkout should be present since CommitVerification is non-empty.
+	got, has := fields["checkout"]
+	if !has {
+		t.Fatalf("step.SignedFields()[\"checkout\"] absent, want present")
+	}
+
+	if diff := cmp.Diff(got, checkout); diff != "" {
+		t.Errorf("step.SignedFields()[\"checkout\"] diff (-got +want):\n%s", diff)
+	}
+}
+
 func TestCommandStepWithInvariants_ValuesForFields_MissingCheckoutField(t *testing.T) {
 	t.Parallel()
 

@@ -36,6 +36,16 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 			want: "skip: false\n",
 		},
 		{
+			name: "just commit verification",
+			c:    Checkout{CommitVerification: "strict"},
+			want: "commit_verification: strict\n",
+		},
+		{
+			name: "commit verification and skip",
+			c:    Checkout{Skip: ptr(true), CommitVerification: "strict"},
+			want: "skip: true\ncommit_verification: strict\n",
+		},
+		{
 			name: "with remaining fields",
 			c: Checkout{
 				Skip:            ptr(true),
@@ -84,6 +94,16 @@ func TestCheckoutMarshalJSON(t *testing.T) {
 			want: `{"skip":false}`,
 		},
 		{
+			name: "commit verification set",
+			c:    Checkout{CommitVerification: "strict"},
+			want: `{"commit_verification":"strict"}`,
+		},
+		{
+			name: "commit verification and skip set",
+			c:    Checkout{Skip: ptr(true), CommitVerification: "strict"},
+			want: `{"commit_verification":"strict","skip":true}`,
+		},
+		{
 			name: "with remaining fields",
 			c: Checkout{
 				Skip:            ptr(true),
@@ -130,6 +150,17 @@ func TestCheckoutUnmarshalYAML(t *testing.T) {
 			name: "skip false",
 			in:   `skip: false`,
 			want: Checkout{Skip: ptr(false)},
+		},
+		{
+			name: "commit verification set",
+			in:   `commit_verification: strict`,
+			want: Checkout{CommitVerification: "strict"},
+		},
+		{
+			name: "commit verification and skip set",
+			in: `commit_verification: strict
+skip: true`,
+			want: Checkout{CommitVerification: "strict", Skip: ptr(true)},
 		},
 		{
 			name: "with extra fields",
@@ -285,6 +316,18 @@ func TestCheckoutRoundTripYAML(t *testing.T) {
 			in:   "{}\n",
 		},
 		{
+			name: "verify commit survives",
+			in:   "commit_verification: strict\n",
+		},
+		{
+			name: "skip and verify commit survives",
+			in:   "skip: true\ncommit_verification: strict\n",
+		},
+		{
+			name: "arbitrary verification value survives",
+			in:   "commit_verification: bananas\n",
+		},
+		{
 			name: "unknown fields preserved",
 			in: `depth: 1
 submodules: false
@@ -337,6 +380,9 @@ func TestCheckoutRoundTripJSON(t *testing.T) {
 		{name: "skip false", in: `{"skip":false}`},
 		{name: "skip true", in: `{"skip":true}`},
 		{name: "empty", in: `{}`},
+		{name: "commit verification", in: `{"commit_verification":"strict"}`},
+		{name: "commit verification with skip", in: `{"commit_verification":"strict","skip":true}`},
+		{name: "commit verification arbitrary value", in: `{"commit_verification":"bananas"}`},
 		{name: "with remaining", in: `{"depth":1,"skip":true}`},
 	}
 
@@ -390,6 +436,51 @@ func TestCheckoutInterpolationNoOp(t *testing.T) {
 	}
 }
 
+func TestCheckoutIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		c    *Checkout
+		want bool
+	}{
+		{
+			name: "nil",
+			c:    nil,
+			want: true,
+		},
+		{
+			name: "zero value",
+			c:    &Checkout{},
+			want: true,
+		},
+		{
+			name: "only skip set",
+			c:    &Checkout{Skip: ptr(true)},
+			want: false,
+		},
+		{
+			name: "only commit verification set",
+			c:    &Checkout{CommitVerification: "strict"},
+			want: false,
+		},
+		{
+			name: "only remaining fields set",
+			c:    &Checkout{RemainingFields: map[string]any{"depth": 1}},
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tc.c.IsEmpty(); got != tc.want {
+				t.Errorf("Checkout.IsEmpty() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCheckoutMergeFrom(t *testing.T) {
 	t.Parallel()
 
@@ -440,6 +531,30 @@ func TestCheckoutMergeFrom(t *testing.T) {
 			child:  &Checkout{},
 			parent: &Checkout{Skip: ptr(false)},
 			want:   &Checkout{Skip: ptr(false)},
+		},
+		{
+			name:   "parent only verify",
+			child:  &Checkout{},
+			parent: &Checkout{CommitVerification: "strict"},
+			want:   &Checkout{CommitVerification: "strict"},
+		},
+		{
+			name:   "child only verify",
+			child:  &Checkout{CommitVerification: "strict"},
+			parent: &Checkout{},
+			want:   &Checkout{CommitVerification: "strict"},
+		},
+		{
+			name:   "child verify parent empty",
+			child:  &Checkout{CommitVerification: "strict"},
+			parent: &Checkout{CommitVerification: ""},
+			want:   &Checkout{CommitVerification: "strict"},
+		},
+		{
+			name:   "child verify beats parent verify",
+			child:  &Checkout{CommitVerification: "warn"},
+			parent: &Checkout{CommitVerification: "strict"},
+			want:   &Checkout{CommitVerification: "warn"},
 		},
 		{
 			name: "remaining fields disjoint",

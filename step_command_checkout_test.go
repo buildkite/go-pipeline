@@ -37,6 +37,109 @@ checkout:
 	}
 }
 
+func TestCommandStepWithCommitVerificationYAML(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+command: echo "hello"
+checkout:
+  commit_verification: strict
+`
+
+	var step CommandStep
+	var node yaml.Node
+
+	if err := yaml.Unmarshal([]byte(yamlData), &node); err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+	if err := ordered.Unmarshal(&node, &step); err != nil {
+		t.Fatalf("ordered.Unmarshal() error = %v", err)
+	}
+
+	if step.Checkout == nil {
+		t.Fatalf("step.Checkout = nil, want non-nil")
+	}
+	if step.Checkout.CommitVerification != "strict" {
+		t.Errorf("step.Checkout.CommitVerification = %q, want %q", step.Checkout.CommitVerification, "strict")
+	}
+}
+
+func TestCommandStepWithCommitVerificationJSON(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`{"command":"echo hello","checkout":{"commit_verification":"warn"}}`)
+
+	got := new(CommandStep)
+	if err := got.UnmarshalJSON(input); err != nil {
+		t.Fatalf("CommandStep.UnmarshalJSON() = %v", err)
+	}
+
+	if got.Checkout == nil {
+		t.Fatalf("step.Checkout = nil, want non-nil")
+	}
+	if got.Checkout.CommitVerification != "warn" {
+		t.Errorf("step.Checkout.CommitVerification = %q, want %q", got.Checkout.CommitVerification, "warn")
+	}
+}
+
+func TestPipelineCommitVerificationMergeAtBothLevels(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `checkout:
+  commit_verification: strict
+steps:
+  - command: echo hello
+    checkout:
+      commit_verification: warn
+  - command: echo bye
+`
+
+	p, err := Parse(strings.NewReader(yamlData))
+	if err != nil {
+		t.Fatalf("Parse error = %v", err)
+	}
+
+	if p.Checkout == nil {
+		t.Fatalf("p.Checkout = nil, want non-nil")
+	}
+	if p.Checkout.CommitVerification != "strict" {
+		t.Errorf("p.Checkout.CommitVerification = %q, want %q", p.Checkout.CommitVerification, "strict")
+	}
+
+	if len(p.Steps) != 2 {
+		t.Fatalf("len(p.Steps) = %d, want 2", len(p.Steps))
+	}
+
+	// Step 1 has its own commit_verification: warn — should keep it.
+	step1 := p.Steps[0].(*CommandStep)
+	if step1.Checkout == nil {
+		t.Fatalf("step1.Checkout = nil, want non-nil")
+	}
+	if step1.Checkout.CommitVerification != "warn" {
+		t.Errorf("step1.Checkout.CommitVerification = %q, want %q", step1.Checkout.CommitVerification, "warn")
+	}
+
+	// Step 2 has no checkout — should be nil before merge.
+	step2 := p.Steps[1].(*CommandStep)
+	if step2.Checkout != nil {
+		t.Errorf("step2.Checkout = %v, want nil before merge", step2.Checkout)
+	}
+
+	// After merge, step 1 keeps "warn", step 2 inherits "strict".
+	step1.MergeCheckoutFromPipeline(p.Checkout)
+	step2.MergeCheckoutFromPipeline(p.Checkout)
+
+	if step1.Checkout.CommitVerification != "warn" {
+		t.Errorf("step1.Checkout.CommitVerification after merge = %q, want %q", step1.Checkout.CommitVerification, "warn")
+	}
+	if step2.Checkout == nil {
+		t.Fatalf("step2.Checkout = nil after merge, want non-nil")
+	}
+	if step2.Checkout.CommitVerification != "strict" {
+		t.Errorf("step2.Checkout.CommitVerification after merge = %q, want %q", step2.Checkout.CommitVerification, "strict")
+	}
+}
+
 func TestCommandStepWithCheckoutJSON(t *testing.T) {
 	t.Parallel()
 
