@@ -723,3 +723,68 @@ steps:
 		t.Errorf("Pipeline.Checkout YAML round-trip diff (-got +want):\n%s", diff)
 	}
 }
+
+func TestPipelineAndCommandStepCheckoutTogether(t *testing.T) {
+	t.Parallel()
+
+	const inputYAML = `env:
+  FETCH_FLAGS: "--prune"
+checkout:
+  flags:
+    clone: "--depth ${PIPELINE_DEPTH}"
+    fetch: "${FETCH_FLAGS}"
+steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: "--depth ${STEP_DEPTH}"
+        checkout: ""
+`
+
+	p, err := Parse(strings.NewReader(inputYAML))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	runtimeEnv := env.New(env.FromMap(map[string]string{
+		"PIPELINE_DEPTH": "1",
+		"STEP_DEPTH":     "5",
+	}))
+	if err := p.Interpolate(runtimeEnv, false); err != nil {
+		t.Fatalf("Pipeline.Interpolate() error: %v", err)
+	}
+
+	wantPipelineFlags := &CheckoutFlags{
+		Clone: ptr("--depth 1"),
+		Fetch: ptr("--prune"),
+	}
+	if diff := cmp.Diff(p.Checkout.Flags, wantPipelineFlags); diff != "" {
+		t.Errorf("Pipeline.Checkout.Flags diff (-got +want):\n%s", diff)
+	}
+
+	cs := p.Steps[0].(*CommandStep)
+	wantStepFlags := &CheckoutFlags{
+		Clone:    ptr("--depth 5"),
+		Checkout: ptr(""),
+	}
+	if diff := cmp.Diff(cs.Checkout.Flags, wantStepFlags); diff != "" {
+		t.Errorf("CommandStep.Checkout.Flags diff (-got +want):\n%s", diff)
+	}
+
+	// YAML round-trip preserves both blocks and the empty-string distinction.
+	b, err := yaml.Marshal(p)
+	if err != nil {
+		t.Fatalf("yaml.Marshal() error: %v", err)
+	}
+	p2, err := Parse(strings.NewReader(string(b)))
+	if err != nil {
+		t.Fatalf("Parse() round-trip error: %v\nmarshaled YAML:\n%s", err, b)
+	}
+	if diff := cmp.Diff(p2.Checkout, p.Checkout); diff != "" {
+		t.Errorf("Pipeline.Checkout round-trip diff (-got +want):\n%s", diff)
+	}
+	cs2 := p2.Steps[0].(*CommandStep)
+	if diff := cmp.Diff(cs2.Checkout, cs.Checkout); diff != "" {
+		t.Errorf("CommandStep.Checkout round-trip diff (-got +want):\n%s", diff)
+	}
+}
