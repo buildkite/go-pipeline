@@ -201,6 +201,17 @@ func TestCommandStepCheckoutParsingShapes(t *testing.T) {
 			want: &Checkout{Flags: &CheckoutFlags{Fetch: ptr("--prune")}},
 		},
 		{
+			name: "per-flag null leaves the pointer nil",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: null
+        fetch: "--prune"
+`,
+			want: &Checkout{Flags: &CheckoutFlags{Fetch: ptr("--prune")}},
+		},
+		{
 			name: "submodules true",
 			yaml: `steps:
   - command: build.sh
@@ -347,6 +358,23 @@ func TestCommandStepCheckoutRejectedShapes(t *testing.T) {
   - command: build.sh
     checkout:
       - "--depth 1"
+`,
+		},
+		{
+			name: "flags as scalar string",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags: "--depth 1"
+`,
+		},
+		{
+			name: "flags as sequence",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        - "--depth 1"
 `,
 		},
 	}
@@ -678,6 +706,102 @@ steps:
 	}
 	if diff := cmp.Diff(p.Checkout, want); diff != "" {
 		t.Errorf("Pipeline.Checkout diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestPipelineCheckoutSubmodulesParsing(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		yaml string
+		want *Checkout
+	}{
+		{
+			name: "submodules true",
+			yaml: `checkout:
+  submodules: true
+steps:
+  - command: build.sh
+`,
+			want: &Checkout{Submodules: ptr(true)},
+		},
+		{
+			name: "submodules false",
+			yaml: `checkout:
+  submodules: false
+steps:
+  - command: build.sh
+`,
+			want: &Checkout{Submodules: ptr(false)},
+		},
+		{
+			name: "submodules null leaves Submodules nil",
+			yaml: `checkout:
+  submodules: null
+steps:
+  - command: build.sh
+`,
+			want: &Checkout{},
+		},
+		{
+			name: "submodules with flags",
+			yaml: `checkout:
+  submodules: false
+  flags:
+    clone: "--depth 1"
+steps:
+  - command: build.sh
+`,
+			want: &Checkout{
+				Submodules: ptr(false),
+				Flags:      &CheckoutFlags{Clone: ptr("--depth 1")},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p, err := Parse(strings.NewReader(tc.yaml))
+			if err != nil {
+				t.Fatalf("Parse() error: %v", err)
+			}
+			if diff := cmp.Diff(p.Checkout, tc.want); diff != "" {
+				t.Errorf("Pipeline.Checkout diff (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestPipelineCheckoutSubmodulesYAMLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	const inputYAML = `checkout:
+  submodules: false
+  flags:
+    clone: "--depth 1"
+steps:
+  - command: build.sh
+`
+
+	p, err := Parse(strings.NewReader(inputYAML))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	b, err := yaml.Marshal(p)
+	if err != nil {
+		t.Fatalf("yaml.Marshal() error: %v", err)
+	}
+
+	p2, err := Parse(strings.NewReader(string(b)))
+	if err != nil {
+		t.Fatalf("Parse() round-trip error: %v\nmarshaled YAML:\n%s", err, b)
+	}
+
+	if diff := cmp.Diff(p2.Checkout, p.Checkout); diff != "" {
+		t.Errorf("Pipeline.Checkout YAML round-trip diff (-got +want):\n%s", diff)
 	}
 }
 
