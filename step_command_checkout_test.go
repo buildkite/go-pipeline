@@ -525,15 +525,13 @@ func TestCommandStepCheckoutYAMLRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("yaml.Marshal(Pipeline) error: %v", err)
 	}
-	wantYAML := `steps:
-    - command: build.sh
-      checkout:
-        flags:
-            clone: --depth 1
-            checkout: ""
-`
-	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
-		t.Errorf("YAML round-trip diff (-got +want):\n%s", diff)
+	p2, err := Parse(strings.NewReader(string(gotYAML)))
+	if err != nil {
+		t.Fatalf("Parse() round-trip error: %v\nmarshaled YAML:\n%s", err, gotYAML)
+	}
+	cs2 := p2.Steps[0].(*CommandStep)
+	if diff := cmp.Diff(cs2.Checkout, cs.Checkout); diff != "" {
+		t.Errorf("Checkout YAML round-trip diff (-got +want):\n%s", diff)
 	}
 }
 
