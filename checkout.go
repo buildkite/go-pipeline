@@ -15,12 +15,18 @@ var _ interface {
 
 var errUnsupportedCheckoutType = fmt.Errorf("unsupported type for checkout")
 
-// Checkout models the checkout configuration for a pipeline or command step.
+// Checkout models pipeline- or step-level git checkout settings. Step-level
+// values override pipeline-level values per property.
 type Checkout struct {
 	// Skip is *bool to preserve the tristate distinction (true / false / absent).
 	// `bool` plus `omitempty` would collapse `skip: false` and an absent `skip`
 	// field into the same empty output.
 	Skip *bool `yaml:"skip,omitempty"`
+
+	// Submodules maps to BUILDKITE_GIT_SUBMODULES on the agent. nil = unset
+	// (agent uses its default, currently true); true/false set the env var
+	// explicitly.
+	Submodules *bool `yaml:"submodules,omitempty"`
 
 	// RemainingFields stores any other top-level mapping items so they at least
 	// survive an unmarshal-marshal round-trip.
@@ -33,10 +39,11 @@ func (c *Checkout) MarshalJSON() ([]byte, error) {
 	return inlineFriendlyMarshalJSON(c)
 }
 
-// IsEmpty reports whether the checkout is empty (is nil, or has no Skip and
-// no other data within it). Used by signing to canonicalise empty/nil values.
+// IsEmpty reports whether the checkout is empty (is nil, or has no known
+// fields set and no remaining data). Used by signing to canonicalise
+// empty/nil values.
 func (c *Checkout) IsEmpty() bool {
-	return c == nil || (c.Skip == nil && len(c.RemainingFields) == 0)
+	return c == nil || (c.Skip == nil && c.Submodules == nil && len(c.RemainingFields) == 0)
 }
 
 // UnmarshalOrdered unmarshals a Checkout from an ordered map. Bool inputs are
@@ -54,12 +61,12 @@ func (c *Checkout) UnmarshalOrdered(o any) error {
 		return nil
 
 	default:
-		return fmt.Errorf("unmarshaling checkout: %w: got %T, want a mapping with checkout.skip and other fields", errUnsupportedCheckoutType, o)
+		return fmt.Errorf("unmarshaling checkout: %w: got %T, want a mapping with checkout fields", errUnsupportedCheckoutType, o)
 	}
 }
 
-// interpolate is a no-op today: Skip is *bool, and RemainingFields is not
-// traversed.
+// interpolate is a no-op today: Skip and Submodules are *bool, and
+// RemainingFields is not traversed.
 func (c *Checkout) interpolate(stringTransformer) error {
 	return nil
 }
@@ -74,6 +81,11 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 	if c.Skip == nil && parent.Skip != nil {
 		v := *parent.Skip
 		c.Skip = &v
+	}
+
+	if c.Submodules == nil && parent.Submodules != nil {
+		v := *parent.Submodules
+		c.Submodules = &v
 	}
 
 	if len(parent.RemainingFields) == 0 {

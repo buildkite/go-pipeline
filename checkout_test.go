@@ -21,7 +21,7 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 		want string
 	}{
 		{
-			name: "skip nil",
+			name: "empty",
 			c:    Checkout{},
 			want: "{}\n",
 		},
@@ -34,6 +34,21 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 			name: "skip false",
 			c:    Checkout{Skip: ptr(false)},
 			want: "skip: false\n",
+		},
+		{
+			name: "submodules true",
+			c:    Checkout{Submodules: ptr(true)},
+			want: "submodules: true\n",
+		},
+		{
+			name: "submodules false",
+			c:    Checkout{Submodules: ptr(false)},
+			want: "submodules: false\n",
+		},
+		{
+			name: "skip and submodules",
+			c:    Checkout{Skip: ptr(false), Submodules: ptr(true)},
+			want: "skip: false\nsubmodules: true\n",
 		},
 		{
 			name: "with remaining fields",
@@ -69,7 +84,7 @@ func TestCheckoutMarshalJSON(t *testing.T) {
 		want string
 	}{
 		{
-			name: "skip nil",
+			name: "empty",
 			c:    Checkout{},
 			want: `{}`,
 		},
@@ -82,6 +97,21 @@ func TestCheckoutMarshalJSON(t *testing.T) {
 			name: "skip false",
 			c:    Checkout{Skip: ptr(false)},
 			want: `{"skip":false}`,
+		},
+		{
+			name: "submodules true",
+			c:    Checkout{Submodules: ptr(true)},
+			want: `{"submodules":true}`,
+		},
+		{
+			name: "submodules false",
+			c:    Checkout{Submodules: ptr(false)},
+			want: `{"submodules":false}`,
+		},
+		{
+			name: "skip and submodules",
+			c:    Checkout{Skip: ptr(false), Submodules: ptr(true)},
+			want: `{"skip":false,"submodules":true}`,
 		},
 		{
 			name: "with remaining fields",
@@ -132,12 +162,41 @@ func TestCheckoutUnmarshalYAML(t *testing.T) {
 			want: Checkout{Skip: ptr(false)},
 		},
 		{
+			name: "submodules true",
+			in:   `submodules: true`,
+			want: Checkout{Submodules: ptr(true)},
+		},
+		{
+			name: "submodules false",
+			in:   `submodules: false`,
+			want: Checkout{Submodules: ptr(false)},
+		},
+		{
+			name: "submodules null",
+			in:   `submodules: null`,
+			want: Checkout{},
+		},
+		{
+			name: "skip and submodules",
+			in: `skip: false
+submodules: true`,
+			want: Checkout{Skip: ptr(false), Submodules: ptr(true)},
+		},
+		{
 			name: "with extra fields",
 			in: `skip: true
 depth: 1`,
 			want: Checkout{
 				Skip:            ptr(true),
 				RemainingFields: map[string]any{"depth": 1},
+			},
+		},
+		{
+			name: "submodules with unknown sibling fields",
+			in:   `{submodules: true, depth: 1, gibberish: "x"}`,
+			want: Checkout{
+				Submodules:      ptr(true),
+				RemainingFields: map[string]any{"depth": 1, "gibberish": "x"},
 			},
 		},
 	}
@@ -156,6 +215,39 @@ depth: 1`,
 			}
 			if diff := cmp.Diff(tc.want, c, cmp.Comparer(ordered.EqualSA)); diff != "" {
 				t.Errorf("Checkout diff after unmarshal (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestCheckoutUnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		input string
+		want  Checkout
+	}{
+		{name: "empty object", input: `{}`, want: Checkout{}},
+		{name: "skip null", input: `{"skip":null}`, want: Checkout{}},
+		{name: "skip true", input: `{"skip":true}`, want: Checkout{Skip: ptr(true)}},
+		{name: "skip false", input: `{"skip":false}`, want: Checkout{Skip: ptr(false)}},
+		{name: "submodules null", input: `{"submodules":null}`, want: Checkout{}},
+		{name: "submodules true", input: `{"submodules":true}`, want: Checkout{Submodules: ptr(true)}},
+		{name: "submodules false", input: `{"submodules":false}`, want: Checkout{Submodules: ptr(false)}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got Checkout
+			if err := json.Unmarshal([]byte(tc.input), &got); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+
+			if diff := cmp.Diff(got, tc.want); diff != "" {
+				t.Errorf("Checkout diff (-got +want):\n%s", diff)
 			}
 		})
 	}
@@ -281,6 +373,18 @@ func TestCheckoutRoundTripYAML(t *testing.T) {
 			in:   "skip: true\n",
 		},
 		{
+			name: "submodules false survives",
+			in:   "submodules: false\n",
+		},
+		{
+			name: "submodules true survives",
+			in:   "submodules: true\n",
+		},
+		{
+			name: "skip and submodules",
+			in:   "skip: false\nsubmodules: true\n",
+		},
+		{
 			name: "empty mapping",
 			in:   "{}\n",
 		},
@@ -310,7 +414,6 @@ submodules: false
 				t.Fatalf("yaml.Marshal error = %v", err)
 			}
 
-			// Re-unmarshal to compare structurally.
 			var c2 Checkout
 			var node2 yaml.Node
 			if err := yaml.Unmarshal(out, &node2); err != nil {
@@ -336,6 +439,9 @@ func TestCheckoutRoundTripJSON(t *testing.T) {
 	}{
 		{name: "skip false", in: `{"skip":false}`},
 		{name: "skip true", in: `{"skip":true}`},
+		{name: "submodules false", in: `{"submodules":false}`},
+		{name: "submodules true", in: `{"submodules":true}`},
+		{name: "skip and submodules", in: `{"skip":false,"submodules":true}`},
 		{name: "empty", in: `{}`},
 		{name: "with remaining", in: `{"depth":1,"skip":true}`},
 	}
@@ -377,14 +483,14 @@ func TestCheckoutRoundTripJSON(t *testing.T) {
 func TestCheckoutInterpolationNoOp(t *testing.T) {
 	t.Parallel()
 
-	c := Checkout{Skip: ptr(true)}
+	c := Checkout{Skip: ptr(true), Submodules: ptr(false)}
 	tf := envInterpolator{
 		env: interpolate.NewMapEnv(map[string]string{"FOO": "bar"}),
 	}
 	if err := c.interpolate(tf); err != nil {
 		t.Fatalf("Checkout.interpolate error = %v", err)
 	}
-	want := Checkout{Skip: ptr(true)}
+	want := Checkout{Skip: ptr(true), Submodules: ptr(false)}
 	if diff := cmp.Diff(want, c); diff != "" {
 		t.Errorf("Checkout after no-op interpolation (-want +got):\n%s", diff)
 	}
@@ -400,7 +506,7 @@ func TestCheckoutMergeFrom(t *testing.T) {
 		want   *Checkout
 	}{
 		{
-			name:   "both nil skip",
+			name:   "both empty",
 			child:  &Checkout{},
 			parent: &Checkout{},
 			want:   &Checkout{},
@@ -418,7 +524,7 @@ func TestCheckoutMergeFrom(t *testing.T) {
 			want:   &Checkout{Skip: ptr(false)},
 		},
 		{
-			name:   "both same",
+			name:   "both same skip",
 			child:  &Checkout{Skip: ptr(true)},
 			parent: &Checkout{Skip: ptr(true)},
 			want:   &Checkout{Skip: ptr(true)},
@@ -442,15 +548,33 @@ func TestCheckoutMergeFrom(t *testing.T) {
 			want:   &Checkout{Skip: ptr(false)},
 		},
 		{
+			name:   "parent only submodules",
+			child:  &Checkout{},
+			parent: &Checkout{Submodules: ptr(true)},
+			want:   &Checkout{Submodules: ptr(true)},
+		},
+		{
+			name:   "child submodules beats parent",
+			child:  &Checkout{Submodules: ptr(false)},
+			parent: &Checkout{Submodules: ptr(true)},
+			want:   &Checkout{Submodules: ptr(false)},
+		},
+		{
+			name:   "child inherits each field independently",
+			child:  &Checkout{Skip: ptr(true)},
+			parent: &Checkout{Submodules: ptr(false)},
+			want:   &Checkout{Skip: ptr(true), Submodules: ptr(false)},
+		},
+		{
 			name: "remaining fields disjoint",
 			child: &Checkout{
-				RemainingFields: map[string]any{"submodules": true},
+				RemainingFields: map[string]any{"submodules_extra": true},
 			},
 			parent: &Checkout{
 				RemainingFields: map[string]any{"depth": 1},
 			},
 			want: &Checkout{
-				RemainingFields: map[string]any{"submodules": true, "depth": 1},
+				RemainingFields: map[string]any{"submodules_extra": true, "depth": 1},
 			},
 		},
 		{
@@ -476,5 +600,30 @@ func TestCheckoutMergeFrom(t *testing.T) {
 				t.Errorf("mergeFrom result (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+// Extra fields on a checkout block survive json.Unmarshal when routed via
+// CommandStep.UnmarshalJSON, which decodes through ordered.Unmarshal and
+// honors the inline tag. Direct json.Unmarshal into a Checkout does not
+// preserve them (Checkout has no custom UnmarshalJSON, matching the
+// Cache/Secret pattern), so consumers should always go through the parent
+// step's unmarshaler.
+func TestCommandStepCheckoutJSONUnmarshalExtraFields(t *testing.T) {
+	t.Parallel()
+
+	input := `{"command":"build.sh","checkout":{"submodules":true,"depth":1,"gibberish":"x"}}`
+
+	var cs CommandStep
+	if err := json.Unmarshal([]byte(input), &cs); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	want := &Checkout{
+		Submodules:      ptr(true),
+		RemainingFields: map[string]any{"depth": 1, "gibberish": "x"},
+	}
+	if diff := cmp.Diff(cs.Checkout, want); diff != "" {
+		t.Errorf("CommandStep.Checkout diff (-got +want):\n%s", diff)
 	}
 }
