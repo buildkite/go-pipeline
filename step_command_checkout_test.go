@@ -88,6 +88,24 @@ func TestCheckoutMarshalJSON(t *testing.T) {
 			want: `{"flags":{"clone":"--depth 1"}}`,
 		},
 		{
+			name: "submodules true",
+			c:    Checkout{Submodules: ptr(true)},
+			want: `{"submodules":true}`,
+		},
+		{
+			name: "submodules false",
+			c:    Checkout{Submodules: ptr(false)},
+			want: `{"submodules":false}`,
+		},
+		{
+			name: "submodules with flags",
+			c: Checkout{
+				Submodules: ptr(true),
+				Flags:      &CheckoutFlags{Clone: ptr("--depth 1")},
+			},
+			want: `{"flags":{"clone":"--depth 1"},"submodules":true}`,
+		},
+		{
 			name: "with remaining fields",
 			c: Checkout{
 				RemainingFields: map[string]any{"future": "value"},
@@ -181,6 +199,47 @@ func TestCommandStepCheckoutParsingShapes(t *testing.T) {
         fetch: "--prune"
 `,
 			want: &Checkout{Flags: &CheckoutFlags{Fetch: ptr("--prune")}},
+		},
+		{
+			name: "submodules true",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      submodules: true
+`,
+			want: &Checkout{Submodules: ptr(true)},
+		},
+		{
+			name: "submodules false",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      submodules: false
+`,
+			want: &Checkout{Submodules: ptr(false)},
+		},
+		{
+			name: "submodules null leaves Submodules nil",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      submodules: null
+`,
+			want: &Checkout{},
+		},
+		{
+			name: "submodules with flags",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      submodules: true
+      flags:
+        clone: "--depth 1"
+`,
+			want: &Checkout{
+				Submodules: ptr(true),
+				Flags:      &CheckoutFlags{Clone: ptr("--depth 1")},
+			},
 		},
 		{
 			name: "unknown key at checkout level lands in RemainingFields",

@@ -27,7 +27,11 @@ var errUnsupportedCheckoutType = fmt.Errorf("unsupported type for checkout")
 // Keys placed directly under "checkout:" land in RemainingFields and are not
 // treated as git flag overrides.
 type Checkout struct {
-	Flags *CheckoutFlags `yaml:"flags,omitempty"`
+	// Submodules maps to BUILDKITE_GIT_SUBMODULES on the agent.
+	// nil = unset (agent uses its default, currently true); true/false set
+	// the env var explicitly.
+	Submodules *bool          `yaml:"submodules,omitempty"`
+	Flags      *CheckoutFlags `yaml:"flags,omitempty"`
 
 	RemainingFields map[string]any `yaml:",inline"`
 }

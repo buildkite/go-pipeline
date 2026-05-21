@@ -112,6 +112,11 @@ func (c *CommandStep) interpolate(tf stringTransformer) error {
 	if err := interpolateSlice(tf, c.Secrets); err != nil {
 		return fmt.Errorf("interpolating secrets: %w", err)
 	}
+	if c.Cache != nil {
+		if _, err := interpolateAny(tf, c.Cache); err != nil {
+			return fmt.Errorf("interpolating cache: %w", err)
+		}
+	}
 	if err := c.Checkout.interpolate(tf); err != nil {
 		return fmt.Errorf("interpolating checkout: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/buildkite/go-pipeline/internal/env"
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/google/go-cmp/cmp"
 )
@@ -156,6 +157,73 @@ func TestCacheUnmarshalOrdered(t *testing.T) {
 
 			if diff := cmp.Diff(c, tc.want); diff != "" {
 				t.Errorf("Cache diff after UnmarshalOrdered (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestCacheInterpolate(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		env   map[string]string
+		input Cache
+		want  Cache
+	}{
+		{
+			name: "interpolate cache name",
+			env:  map[string]string{"BUILDKITE_CACHE_NAME": "random-named"},
+			input: Cache{
+				Name:  "${BUILDKITE_CACHE_NAME}-cache",
+				Paths: []string{"path/to/cache"},
+				Size:  "25g",
+			},
+			want: Cache{
+				Name:  "random-named-cache",
+				Paths: []string{"path/to/cache"},
+				Size:  "25g",
+			},
+		},
+		{
+			name: "interpolate cache path",
+			env:  map[string]string{"BUILDKITE_CACHE_PATH": "path/to/cache"},
+			input: Cache{
+				Name:  "name",
+				Paths: []string{"${BUILDKITE_CACHE_PATH}"},
+				Size:  "25g",
+			},
+			want: Cache{
+				Name:  "name",
+				Paths: []string{"path/to/cache"},
+				Size:  "25g",
+			},
+		},
+		{
+			name: "interpolate cache size",
+			env:  map[string]string{"BUILDKITE_CACHE_SIZE": "25g"},
+			input: Cache{
+				Name:  "name",
+				Paths: []string{"path/to/cache"},
+				Size:  "${BUILDKITE_CACHE_SIZE}",
+			},
+			want: Cache{
+				Name:  "name",
+				Paths: []string{"path/to/cache"},
+				Size:  "25g",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tf := envInterpolator{env: env.New(env.FromMap(tc.env))}
+			if err := tc.input.interpolate(tf); err != nil {
+				t.Fatalf("Cache.interpolate() error: %v", err)
+			}
+
+			if diff := cmp.Diff(tc.want, tc.input); diff != "" {
+				t.Errorf("Cache.interpolate got and want do not match:\n%s", diff)
 			}
 		})
 	}
