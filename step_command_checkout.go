@@ -34,10 +34,10 @@ type Checkout struct {
 // checkout.flags. Pointer fields distinguish unset (nil, omitted) from
 // explicit empty ("", preserved as flag removal).
 type CheckoutFlags struct {
-	Clone    *string `yaml:"clone,omitempty" json:"clone,omitempty"`
-	Fetch    *string `yaml:"fetch,omitempty" json:"fetch,omitempty"`
-	Checkout *string `yaml:"checkout,omitempty" json:"checkout,omitempty"`
-	Clean    *string `yaml:"clean,omitempty" json:"clean,omitempty"`
+	Clone    *string `yaml:"clone,omitempty"`
+	Fetch    *string `yaml:"fetch,omitempty"`
+	Checkout *string `yaml:"checkout,omitempty"`
+	Clean    *string `yaml:"clean,omitempty"`
 
 	RemainingFields map[string]any `yaml:",inline"`
 }
