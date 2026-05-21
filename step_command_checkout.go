@@ -7,16 +7,18 @@ import (
 	"github.com/buildkite/go-pipeline/ordered"
 )
 
-var _ interface {
-	json.Marshaler
-	ordered.Unmarshaler
-	selfInterpolater
-} = (*Checkout)(nil)
+var (
+	_ interface {
+		json.Marshaler
+		ordered.Unmarshaler
+		selfInterpolater
+	} = (*Checkout)(nil)
 
-var _ interface {
-	json.Marshaler
-	selfInterpolater
-} = (*CheckoutFlags)(nil)
+	_ interface {
+		json.Marshaler
+		selfInterpolater
+	} = (*CheckoutFlags)(nil)
+)
 
 var errUnsupportedCheckoutType = fmt.Errorf("unsupported type for checkout")
 
