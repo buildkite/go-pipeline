@@ -23,9 +23,9 @@ var (
 var errUnsupportedCheckoutType = fmt.Errorf("unsupported type for checkout")
 
 // Checkout models the checkout settings block on a command step or pipeline.
-// Only the nested shape is recognized; flag keys must live under "flags:".
-// Keys placed directly under "checkout:" land in RemainingFields and are not
-// treated as git flag overrides.
+// Submodules sits at the top level; per-flag overrides live under the nested
+// flags: key. Any other keys directly under checkout: land in RemainingFields
+// and survive a round-trip but are not interpreted.
 type Checkout struct {
 	// Submodules maps to BUILDKITE_GIT_SUBMODULES on the agent.
 	// nil = unset (agent uses its default, currently true); true/false set
@@ -48,7 +48,8 @@ type CheckoutFlags struct {
 	RemainingFields map[string]any `yaml:",inline"`
 }
 
-// MarshalJSON is needed to use inlineFriendlyMarshalJSON.
+// MarshalJSON marshals to JSON. Special handling is needed because yaml.v3
+// has "inline" but encoding/json has no concept of it.
 func (c *Checkout) MarshalJSON() ([]byte, error) {
 	return inlineFriendlyMarshalJSON(c)
 }
@@ -65,7 +66,8 @@ func (c *Checkout) UnmarshalOrdered(o any) error {
 	return ordered.Unmarshal(src, (*wrappedCheckout)(c))
 }
 
-// MarshalJSON is needed to use inlineFriendlyMarshalJSON.
+// MarshalJSON marshals to JSON. Special handling is needed because yaml.v3
+// has "inline" but encoding/json has no concept of it.
 func (f *CheckoutFlags) MarshalJSON() ([]byte, error) {
 	return inlineFriendlyMarshalJSON(f)
 }
