@@ -247,6 +247,102 @@ func TestCommandStepCheckoutParsingShapes(t *testing.T) {
 	}
 }
 
+func TestCommandStepCheckoutRejectedShapes(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "scalar bool false",
+			yaml: `steps:
+  - command: build.sh
+    checkout: false
+`,
+		},
+		{
+			name: "scalar bool true",
+			yaml: `steps:
+  - command: build.sh
+    checkout: true
+`,
+		},
+		{
+			name: "scalar string",
+			yaml: `steps:
+  - command: build.sh
+    checkout: "skip"
+`,
+		},
+		{
+			name: "scalar int",
+			yaml: `steps:
+  - command: build.sh
+    checkout: 5
+`,
+		},
+		{
+			name: "sequence",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      - "--depth 1"
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := Parse(strings.NewReader(tc.yaml)); err == nil {
+				t.Fatalf("Parse(%q) = nil, want error", tc.yaml)
+			}
+		})
+	}
+}
+
+func TestPipelineCheckoutRejectedShapes(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "scalar bool",
+			yaml: `checkout: false
+steps:
+  - command: build.sh
+`,
+		},
+		{
+			name: "scalar string",
+			yaml: `checkout: "skip"
+steps:
+  - command: build.sh
+`,
+		},
+		{
+			name: "sequence",
+			yaml: `checkout:
+  - "--depth 1"
+steps:
+  - command: build.sh
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := Parse(strings.NewReader(tc.yaml)); err == nil {
+				t.Fatalf("Parse(%q) = nil, want error", tc.yaml)
+			}
+		})
+	}
+}
+
 func TestCommandStepCheckoutEnvInterpolation(t *testing.T) {
 	t.Parallel()
 

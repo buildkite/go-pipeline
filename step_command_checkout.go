@@ -3,10 +3,13 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/buildkite/go-pipeline/ordered"
 )
 
 var _ interface {
 	json.Marshaler
+	ordered.Unmarshaler
 	selfInterpolater
 } = (*Checkout)(nil)
 
@@ -14,6 +17,8 @@ var _ interface {
 	json.Marshaler
 	selfInterpolater
 } = (*CheckoutFlags)(nil)
+
+var errUnsupportedCheckoutType = fmt.Errorf("unsupported type for checkout")
 
 // Checkout models the checkout settings block on a command step or pipeline.
 // Only the nested shape is recognized; flag keys must live under "flags:".
@@ -40,6 +45,18 @@ type CheckoutFlags struct {
 // MarshalJSON is needed to use inlineFriendlyMarshalJSON.
 func (c *Checkout) MarshalJSON() ([]byte, error) {
 	return inlineFriendlyMarshalJSON(c)
+}
+
+// UnmarshalOrdered rejects scalar and list shapes so misconfigurations fail
+// loudly. Only a mapping is accepted; null is handled before this method is
+// called and leaves Checkout nil.
+func (c *Checkout) UnmarshalOrdered(o any) error {
+	src, ok := o.(*ordered.MapSA)
+	if !ok {
+		return fmt.Errorf("%w: %T, want a mapping", errUnsupportedCheckoutType, o)
+	}
+	type wrappedCheckout Checkout
+	return ordered.Unmarshal(src, (*wrappedCheckout)(c))
 }
 
 // MarshalJSON is needed to use inlineFriendlyMarshalJSON.
