@@ -113,7 +113,7 @@ func (c *CommandStep) interpolate(tf stringTransformer) error {
 		return fmt.Errorf("interpolating secrets: %w", err)
 	}
 	if c.Cache != nil {
-		if err := c.Cache.interpolate(tf); err != nil {
+		if _, err := interpolateAny(tf, c.Cache); err != nil {
 			return fmt.Errorf("interpolating cache: %w", err)
 		}
 	}
