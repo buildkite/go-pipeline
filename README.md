@@ -138,7 +138,7 @@ steps:
       skip: true
 ```
 
-`skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout, while an absent `skip` inherits whatever default applies. Round-trips preserve the distinction; `skip: false` does not collapse to an empty mapping. The agent reads `skip` directly from the job payload (there is no equivalent agent env var override). `submodules` follows the same tristate pattern and maps to `BUILDKITE_GIT_SUBMODULES` on the agent (`true` and `false` set the env var explicitly; absent leaves it to the agent default).
+`skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout, while an absent `skip` inherits whatever default applies. Round-trips preserve the distinction; `skip: false` does not collapse to an empty mapping. `skip` maps to `BUILDKITE_SKIP_CHECKOUT` on the agent (`true` skips the checkout phase; absent leaves it to the agent default). `submodules` follows the same tristate pattern and maps to `BUILDKITE_GIT_SUBMODULES` on the agent (`true` and `false` set the env var explicitly; absent leaves it to the agent default).
 
 A pipeline-level `checkout` provides defaults for command steps. Inheritance is opt-in: the consumer merges pipeline values into each step. After merging the step value wins per leaf, with anything the step didn't set inherited from the pipeline:
 
