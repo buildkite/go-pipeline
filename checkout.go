@@ -104,6 +104,42 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 		if _, ok := c.RemainingFields[k]; ok {
 			continue
 		}
-		c.RemainingFields[k] = pv
+		c.RemainingFields[k] = cloneAny(pv)
+	}
+}
+
+// cloneAny deep-copies the value shapes that appear in inline RemainingFields:
+// nested map[string]any, []any, and *ordered.MapSA. Other types (scalars,
+// concrete typed values) are returned by value, which is safe for the
+// immutable types YAML/JSON decode into.
+func cloneAny(v any) any {
+	switch v := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(v))
+		for k, vv := range v {
+			out[k] = cloneAny(vv)
+		}
+		return out
+
+	case []any:
+		out := make([]any, len(v))
+		for i, vv := range v {
+			out[i] = cloneAny(vv)
+		}
+		return out
+
+	case *ordered.MapSA:
+		if v == nil {
+			return (*ordered.MapSA)(nil)
+		}
+		out := ordered.NewMap[string, any](v.Len())
+		_ = v.Range(func(k string, vv any) error {
+			out.Set(k, cloneAny(vv))
+			return nil
+		})
+		return out
+
+	default:
+		return v
 	}
 }

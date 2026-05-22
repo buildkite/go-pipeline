@@ -194,6 +194,43 @@ func TestMergeCheckoutFromPipelineNilStep(t *testing.T) {
 	}
 }
 
+func TestMergeCheckoutFromPipelineNestedRemainingFieldsAreCopied(t *testing.T) {
+	t.Parallel()
+
+	pipelineCheckout := &Checkout{
+		RemainingFields: map[string]any{
+			"clone_flags": []any{"--depth", "1"},
+			"submodule_paths": map[string]any{
+				"libs": "vendor/libs",
+			},
+		},
+	}
+	step := &CommandStep{}
+	step.MergeCheckoutFromPipeline(pipelineCheckout)
+
+	stepFlags, ok := step.Checkout.RemainingFields["clone_flags"].([]any)
+	if !ok {
+		t.Fatalf("step clone_flags = %T, want []any", step.Checkout.RemainingFields["clone_flags"])
+	}
+	stepFlags[0] = "--no-tags"
+
+	parentFlags, _ := pipelineCheckout.RemainingFields["clone_flags"].([]any)
+	if parentFlags[0] != "--depth" {
+		t.Errorf("mutating step's clone_flags leaked into pipeline; parent[0] = %v", parentFlags[0])
+	}
+
+	stepPaths, ok := step.Checkout.RemainingFields["submodule_paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("step submodule_paths = %T, want map[string]any", step.Checkout.RemainingFields["submodule_paths"])
+	}
+	stepPaths["libs"] = "elsewhere"
+
+	parentPaths, _ := pipelineCheckout.RemainingFields["submodule_paths"].(map[string]any)
+	if parentPaths["libs"] != "vendor/libs" {
+		t.Errorf("mutating step's submodule_paths leaked into pipeline; parent[libs] = %v", parentPaths["libs"])
+	}
+}
+
 func TestPipelineWithCheckoutYAML(t *testing.T) {
 	t.Parallel()
 
