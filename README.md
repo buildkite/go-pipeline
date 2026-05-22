@@ -156,7 +156,7 @@ steps:
 
 After merging, the second step has `skip: false` (step wins) and the first step has `skip: true` (inherited).
 
-Run `Pipeline.Interpolate` first, then merge per step. Merging first then interpolating would re-interpolate pipeline values inside each step's environment scope.
+The conventional ordering is `Pipeline.Interpolate` first, then merge per step before dispatching to the agent.
 
 `checkout: false` (and `checkout: true`) as a shorthand is rejected at unmarshal time; `checkout` is a mapping, so opt-out is spelled `checkout: { skip: true }`.
 
