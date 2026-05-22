@@ -17,18 +17,20 @@ var errUnsupportedCheckoutType = fmt.Errorf("unsupported type for checkout")
 
 // Checkout models pipeline- or step-level git checkout settings. Step-level
 // values override pipeline-level values per property.
+//
+// Direct json.Unmarshal into a Checkout drops inline RemainingFields; route
+// through CommandStep or Pipeline to preserve them.
 type Checkout struct {
-	// Skip is *bool to preserve the tristate distinction (true / false / absent).
-	// `bool` plus `omitempty` would collapse `skip: false` and an absent `skip`
-	// field into the same empty output.
+	// Skip is *bool so the tristate (true / false / absent) survives a
+	// round-trip; `bool` plus `omitempty` would collapse `skip: false` and
+	// an absent `skip` into the same output.
 	Skip *bool `yaml:"skip,omitempty"`
 
-	// Submodules maps to BUILDKITE_GIT_SUBMODULES on the agent. nil = unset
-	// (agent uses its default, currently true); true/false set the env var
-	// explicitly.
+	// Submodules maps to BUILDKITE_GIT_SUBMODULES on the agent. nil leaves
+	// the agent default; true/false set the env var explicitly.
 	Submodules *bool `yaml:"submodules,omitempty"`
 
-	// RemainingFields stores any other top-level mapping items so they at least
+	// RemainingFields stores any other top-level mapping items so they
 	// survive an unmarshal-marshal round-trip.
 	RemainingFields map[string]any `yaml:",inline"`
 }
@@ -39,9 +41,8 @@ func (c *Checkout) MarshalJSON() ([]byte, error) {
 	return inlineFriendlyMarshalJSON(c)
 }
 
-// IsEmpty reports whether the checkout is empty (is nil, or has no known
-// fields set and no remaining data). Used by signing to canonicalise
-// empty/nil values.
+// IsEmpty reports whether the checkout is nil or has no fields set.
+// Used by signing to canonicalise empty/nil values.
 func (c *Checkout) IsEmpty() bool {
 	return c == nil || (c.Skip == nil && c.Submodules == nil && len(c.RemainingFields) == 0)
 }
@@ -68,11 +69,6 @@ func (c *Checkout) UnmarshalOrdered(o any) error {
 	}
 }
 
-// interpolate satisfies selfInterpolater. Skip and Submodules are *bool and
-// have nothing to transform; RemainingFields gets the same treatment as on
-// CommandStep/Pipeline/Matrix so `${VAR}` references inside future or
-// forward-compat checkout fields are interpolated rather than passed through
-// verbatim.
 func (c *Checkout) interpolate(tf stringTransformer) error {
 	return interpolateMap(tf, c.RemainingFields)
 }
@@ -108,10 +104,11 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 	}
 }
 
-// cloneAny deep-copies the value shapes that appear in inline RemainingFields:
-// nested map[string]any, []any, and *ordered.MapSA. Other types (scalars,
-// concrete typed values) are returned by value, which is safe for the
-// immutable types YAML/JSON decode into.
+// cloneAny deep-copies the value shapes YAML/JSON decoding produces in inline
+// RemainingFields: nested map[string]any, []any, and *ordered.MapSA. Other
+// types fall through by value; callers that put typed reference values
+// (e.g. []string, map[string]string) into RemainingFields programmatically
+// are responsible for their own copies before merging.
 func cloneAny(v any) any {
 	switch v := v.(type) {
 	case map[string]any:

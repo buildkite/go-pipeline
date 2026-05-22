@@ -161,9 +161,12 @@ func (c *CommandStep) MergeSecretsFromPipeline(pipelineSecrets Secrets) {
 }
 
 // MergeCheckoutFromPipeline merges pipeline-level checkout config into this
-// step's checkout. Step-level values take precedence per leaf. An empty parent
-// is treated as no-op so callers don't materialise empty `checkout: {}` on
-// steps that didn't have one.
+// step's checkout. Step-level values take precedence per leaf; an empty
+// parent is a no-op.
+//
+// The receiver's Checkout is mutated in place, so callers that share a
+// *Checkout across steps (e.g. via programmatic construction) must copy
+// first. The parse path materialises an independent Checkout per step.
 func (c *CommandStep) MergeCheckoutFromPipeline(pipelineCheckout *Checkout) {
 	if pipelineCheckout.IsEmpty() {
 		return
