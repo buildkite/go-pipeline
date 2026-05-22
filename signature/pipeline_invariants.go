@@ -42,9 +42,11 @@ func (c *commandStepWithInvariants) SignedFields() (map[string]any, error) {
 		object["secrets"] = EmptyToNilSlice(c.Secrets)
 	}
 
-	// Only include checkout if non-empty to maintain backward compatibility
+	// Include checkout only when non-empty, so signatures produced against
+	// steps with no checkout config keep the legacy field set. Note this is
+	// not symmetric with verification: see ValuesForFields below.
 	if !c.Checkout.IsEmpty() {
-		object["checkout"] = c.Checkout
+		object["checkout"] = EmptyToNilPtr(c.Checkout)
 	}
 
 	// Step env overrides pipeline and build env:
@@ -79,7 +81,13 @@ func (c *commandStepWithInvariants) ValuesForFields(fields []string) (map[string
 		required["secrets"] = struct{}{}
 	}
 
-	// Only require checkout field if step has checkout
+	// Require checkout when the step has any checkout config, so an attacker
+	// cannot strip "checkout" from signed_fields and ship modified checkout
+	// settings. The cost is that signatures produced before checkout was
+	// signed will fail to verify if the step now carries any Checkout data
+	// (e.g. a step that only sets `submodules`), even when nothing was
+	// modified. Operators rotating to this verifier should re-sign such
+	// pipelines.
 	if !c.Checkout.IsEmpty() {
 		required["checkout"] = struct{}{}
 	}
