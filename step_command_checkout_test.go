@@ -387,20 +387,25 @@ steps:
 	}
 }
 
-func TestPipelineCheckoutInterpolationDoesNotMutateSkip(t *testing.T) {
+func TestPipelineCheckoutInterpolation(t *testing.T) {
 	t.Parallel()
 
 	src := `checkout:
   skip: true
+  pipeline_flag: "--pipeline=${PIPELINE_VAR}"
 steps:
   - command: echo hello
     checkout:
       skip: false
+      step_flag: "--step=${STEP_VAR}"
 `
 
 	p := parseCheckoutPipeline(t, src)
 
-	runtimeEnv := env.New(env.FromMap(map[string]string{"FOO": "bar"}))
+	runtimeEnv := env.New(env.FromMap(map[string]string{
+		"PIPELINE_VAR": "p",
+		"STEP_VAR":     "s",
+	}))
 	if err := p.Interpolate(runtimeEnv, false); err != nil {
 		t.Fatalf("p.Interpolate error = %v", err)
 	}
@@ -408,9 +413,16 @@ steps:
 	if p.Checkout.Skip == nil || *p.Checkout.Skip != true {
 		t.Errorf("p.Checkout.Skip after interpolate = %v, want ptr(true)", p.Checkout.Skip)
 	}
+	if got := p.Checkout.RemainingFields["pipeline_flag"]; got != "--pipeline=p" {
+		t.Errorf("p.Checkout.RemainingFields[pipeline_flag] = %v, want %q", got, "--pipeline=p")
+	}
+
 	step := p.Steps[0].(*CommandStep)
 	if step.Checkout.Skip == nil || *step.Checkout.Skip != false {
 		t.Errorf("step.Checkout.Skip after interpolate = %v, want ptr(false)", step.Checkout.Skip)
+	}
+	if got := step.Checkout.RemainingFields["step_flag"]; got != "--step=s" {
+		t.Errorf("step.Checkout.RemainingFields[step_flag] = %v, want %q", got, "--step=s")
 	}
 }
 

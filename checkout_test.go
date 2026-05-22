@@ -406,6 +406,36 @@ steps:
 	}
 }
 
+func TestCheckoutUnmarshalAliasesStepVsStep(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `_anchors:
+  base: &base
+    skip: true
+steps:
+  - command: echo a
+    checkout: *base
+  - command: echo b
+    checkout: *base
+`
+
+	p, err := Parse(strings.NewReader(yamlData))
+	if err != nil {
+		t.Fatalf("Parse error = %v", err)
+	}
+
+	stepA := p.Steps[0].(*CommandStep)
+	stepB := p.Steps[1].(*CommandStep)
+	if stepA.Checkout == nil || stepB.Checkout == nil {
+		t.Fatalf("step checkouts = %v, %v, want both non-nil", stepA.Checkout, stepB.Checkout)
+	}
+
+	*stepA.Checkout.Skip = false
+	if *stepB.Checkout.Skip != true {
+		t.Errorf("mutating stepA leaked into stepB.Checkout.Skip = %v", *stepB.Checkout.Skip)
+	}
+}
+
 func TestPipelineCheckoutOmittedWhenNil(t *testing.T) {
 	t.Parallel()
 
