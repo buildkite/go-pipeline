@@ -52,9 +52,9 @@ func (c *Checkout) UnmarshalOrdered(o any) error {
 	switch v := o.(type) {
 	case bool:
 		if v {
-			return fmt.Errorf("unmarshaling checkout: 'checkout: true' is not a valid value; checkout runs by default, so omit the field (or use 'checkout: { skip: false }' to opt in explicitly)")
+			return fmt.Errorf("unmarshaling checkout: 'checkout: true' is not valid; omit the field or use 'checkout: { skip: false }'")
 		}
-		return fmt.Errorf("unmarshaling checkout: 'checkout: false' is not a valid value; use 'checkout: { skip: true }' to opt out of checkout")
+		return fmt.Errorf("unmarshaling checkout: 'checkout: false' is not valid; use 'checkout: { skip: true }' to opt out")
 
 	case *ordered.MapSA:
 		type wrappedCheckout Checkout
@@ -64,7 +64,7 @@ func (c *Checkout) UnmarshalOrdered(o any) error {
 		return nil
 
 	default:
-		return fmt.Errorf("unmarshaling checkout: %w: got %T, want a mapping with checkout fields", errUnsupportedCheckoutType, o)
+		return fmt.Errorf("%w: %T", errUnsupportedCheckoutType, o)
 	}
 }
 
