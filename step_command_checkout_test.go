@@ -387,10 +387,6 @@ steps:
 	}
 }
 
-// TestPipelineCheckoutInterpolationDoesNotMutateSkip exercises the new
-// `if c.Checkout != nil` branches in Pipeline.Interpolate and
-// CommandStep.interpolate. Skip is *bool and never interpolated, but the
-// branches must be reachable without error or surprise.
 func TestPipelineCheckoutInterpolationDoesNotMutateSkip(t *testing.T) {
 	t.Parallel()
 

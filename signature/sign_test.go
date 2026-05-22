@@ -628,13 +628,9 @@ func TestSignVerifyCheckoutTamperDetection(t *testing.T) {
 	}
 }
 
-// TestVerifyLegacySignatureWithCheckoutFails documents the contract that an
-// "old-format" signature (one whose signed_fields list does not contain
-// "checkout") cannot verify a step that now carries any non-empty Checkout
-// data. Pre-PR-#73 signers on feat/git-checkout-features could produce such
-// signatures (PR #74 added Submodules without signing it). The new verifier
-// requires "checkout" to be in signed_fields whenever the step's Checkout is
-// non-empty, so those pipelines must be re-signed.
+// TestVerifyLegacySignatureWithCheckoutFails asserts that a signature whose
+// signed_fields omits "checkout" fails to verify a step that now carries
+// non-empty Checkout data.
 func TestVerifyLegacySignatureWithCheckoutFails(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
