@@ -15,10 +15,16 @@ import (
 func TestCheckoutMarshalYAML(t *testing.T) {
 	t.Parallel()
 
+	// `want` covers single-key outputs where YAML emission is deterministic.
+	// `wantParts` covers multi-key outputs where the inline-map iteration
+	// order isn't guaranteed by yaml.v3; we assert each line is present
+	// rather than baking a specific ordering into the test.
 	cases := []struct {
-		name string
-		c    Checkout
-		want string
+		name      string
+		c         Checkout
+		want      string
+		wantParts []string
+		notWant   []string
 	}{
 		{
 			name: "empty",
@@ -46,9 +52,9 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 			want: "submodules: false\n",
 		},
 		{
-			name: "skip and submodules",
-			c:    Checkout{Skip: ptr(false), Submodules: ptr(true)},
-			want: "skip: false\nsubmodules: true\n",
+			name:      "skip and submodules",
+			c:         Checkout{Skip: ptr(false), Submodules: ptr(true)},
+			wantParts: []string{"skip: false", "submodules: true"},
 		},
 		{
 			name: "with remaining fields",
@@ -56,7 +62,15 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 				Skip:            ptr(true),
 				RemainingFields: map[string]any{"depth": 1},
 			},
-			want: "skip: true\ndepth: 1\n",
+			wantParts: []string{"skip: true", "depth: 1"},
+		},
+		{
+			name: "remaining fields only",
+			c: Checkout{
+				RemainingFields: map[string]any{"depth": 1},
+			},
+			wantParts: []string{"depth: 1"},
+			notWant:   []string{"skip", "submodules"},
 		},
 	}
 
@@ -68,8 +82,19 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 			if err != nil {
 				t.Fatalf("yaml.Marshal(%#v) error = %v", tc.c, err)
 			}
-			if string(got) != tc.want {
-				t.Errorf("yaml.Marshal(%#v) = %q, want %q", tc.c, got, tc.want)
+			out := string(got)
+			if tc.want != "" && out != tc.want {
+				t.Errorf("yaml.Marshal(%#v) = %q, want %q", tc.c, out, tc.want)
+			}
+			for _, part := range tc.wantParts {
+				if !strings.Contains(out, part) {
+					t.Errorf("yaml.Marshal(%#v) missing %q:\n%s", tc.c, part, out)
+				}
+			}
+			for _, no := range tc.notWant {
+				if strings.Contains(out, no) {
+					t.Errorf("yaml.Marshal(%#v) unexpectedly contained %q:\n%s", tc.c, no, out)
+				}
 			}
 		})
 	}
@@ -372,6 +397,54 @@ steps:
 	if step.Checkout.Skip == nil || *step.Checkout.Skip != true {
 		t.Errorf("step.Checkout.Skip = %v, want ptr(true)", step.Checkout.Skip)
 	}
+
+	// Mutating one side must not leak into the other; the unmarshaler should
+	// materialise independent Checkout values per alias expansion.
+	*step.Checkout.Skip = false
+	if *p.Checkout.Skip != true {
+		t.Errorf("mutating step.Checkout.Skip leaked into p.Checkout.Skip = %v", *p.Checkout.Skip)
+	}
+}
+
+func TestPipelineCheckoutOmittedWhenNil(t *testing.T) {
+	t.Parallel()
+
+	p, err := Parse(strings.NewReader("steps:\n  - command: echo hello\n"))
+	if err != nil {
+		t.Fatalf("Parse error = %v", err)
+	}
+	if p.Checkout != nil {
+		t.Errorf("p.Checkout = %+v, want nil", p.Checkout)
+	}
+
+	b, err := yaml.Marshal(&Pipeline{Steps: Steps{}})
+	if err != nil {
+		t.Fatalf("yaml.Marshal error = %v", err)
+	}
+	if strings.Contains(string(b), "checkout") {
+		t.Errorf("yaml.Marshal of Pipeline with nil Checkout emitted \"checkout\":\n%s", b)
+	}
+}
+
+func TestCommandStepCheckoutOmittedWhenNil(t *testing.T) {
+	t.Parallel()
+
+	bareJSON, err := json.Marshal(&CommandStep{})
+	if err != nil {
+		t.Fatalf("json.Marshal bare error = %v", err)
+	}
+	if strings.Contains(string(bareJSON), "checkout") {
+		t.Errorf("bare CommandStep JSON emitted \"checkout\":\n%s", bareJSON)
+	}
+
+	withCheckoutJSON, err := json.Marshal(&CommandStep{Checkout: &Checkout{Skip: ptr(true)}})
+	if err != nil {
+		t.Fatalf("json.Marshal with checkout error = %v", err)
+	}
+	want := `"checkout":{"skip":true}`
+	if !strings.Contains(string(withCheckoutJSON), want) {
+		t.Errorf("CommandStep JSON missing %q:\n%s", want, withCheckoutJSON)
+	}
 }
 
 func TestCheckoutRoundTripYAML(t *testing.T) {
@@ -641,12 +714,13 @@ func TestCheckoutMergeFrom(t *testing.T) {
 	}
 }
 
-// Extra fields on a checkout block survive json.Unmarshal when routed via
+// Unknown fields on a checkout block survive json.Unmarshal when routed via
 // CommandStep.UnmarshalJSON, which decodes through ordered.Unmarshal and
-// honors the inline tag. Direct json.Unmarshal into a Checkout does not
-// preserve them (Checkout has no custom UnmarshalJSON, matching the
-// Cache/Secret pattern), so consumers should always go through the parent
-// step's unmarshaler.
+// honors the inline tag. Direct json.Unmarshal into a Checkout drops the
+// inline extras (Checkout has no custom UnmarshalJSON, matching the
+// Cache/Secret pattern); typed Skip and Submodules still unmarshal in either
+// path. Consumers wanting forward-compat for unknown fields should always go
+// through the parent step's unmarshaler.
 func TestCommandStepCheckoutJSONUnmarshalExtraFields(t *testing.T) {
 	t.Parallel()
 

@@ -350,8 +350,8 @@ steps:
 	}
 }
 
-// parseCheckoutPipeline parses a pipeline at the public API level and asserts
-// the basic structure (one or more *CommandStep) shared by several tests below.
+// parseCheckoutPipeline parses src via the public Parse API and fails the
+// test on error.
 func parseCheckoutPipeline(t *testing.T, src string) *Pipeline {
 	t.Helper()
 	p, err := Parse(strings.NewReader(src))
