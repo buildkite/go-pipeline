@@ -51,7 +51,10 @@ func (c *Checkout) IsEmpty() bool {
 func (c *Checkout) UnmarshalOrdered(o any) error {
 	switch v := o.(type) {
 	case bool:
-		return fmt.Errorf("unmarshaling checkout: bool is not a valid value; use checkout.skip (e.g. checkout: { skip: %t }) instead", v)
+		if v {
+			return fmt.Errorf("unmarshaling checkout: 'checkout: true' is not a valid value; checkout runs by default, so omit the field (or use 'checkout: { skip: false }' to opt in explicitly)")
+		}
+		return fmt.Errorf("unmarshaling checkout: 'checkout: false' is not a valid value; use 'checkout: { skip: true }' to opt out of checkout")
 
 	case *ordered.MapSA:
 		type wrappedCheckout Checkout

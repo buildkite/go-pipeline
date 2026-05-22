@@ -257,11 +257,26 @@ func TestCheckoutUnmarshalRejectsBool(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name  string
-		input any
+		name      string
+		input     bool
+		wantParts []string
 	}{
-		{name: "false", input: false},
-		{name: "true", input: true},
+		{
+			name:  "false suggests opt-out",
+			input: false,
+			// 'checkout: false' was an opt-out attempt; the error must point
+			// at 'skip: true' (not 'skip: false') so the user's intent isn't
+			// inverted.
+			wantParts: []string{"'checkout: false'", "skip: true", "opt out"},
+		},
+		{
+			name:  "true suggests omit-or-opt-in",
+			input: true,
+			// 'checkout: true' was either redundant or an explicit opt-in; the
+			// error must point at omitting the field or 'skip: false', not at
+			// the opt-out form.
+			wantParts: []string{"'checkout: true'", "skip: false", "omit"},
+		},
 	}
 
 	for _, tc := range cases {
@@ -273,8 +288,10 @@ func TestCheckoutUnmarshalRejectsBool(t *testing.T) {
 			if err == nil {
 				t.Fatalf("Checkout.UnmarshalOrdered(%v) error = nil, want error", tc.input)
 			}
-			if !strings.Contains(err.Error(), "checkout.skip") {
-				t.Errorf("Checkout.UnmarshalOrdered(%v) error = %q, want it to mention %q", tc.input, err, "checkout.skip")
+			for _, part := range tc.wantParts {
+				if !strings.Contains(err.Error(), part) {
+					t.Errorf("Checkout.UnmarshalOrdered(%v) error = %q, want it to contain %q", tc.input, err, part)
+				}
 			}
 		})
 	}

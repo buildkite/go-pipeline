@@ -99,10 +99,12 @@ checkout: false
 
 	err := ordered.Unmarshal(&node, &step)
 	if err == nil {
-		t.Fatalf("ordered.Unmarshal() error = nil, want error mentioning checkout.skip")
+		t.Fatalf("ordered.Unmarshal() error = nil, want error suggesting 'skip: true'")
 	}
-	if !strings.Contains(err.Error(), "checkout.skip") {
-		t.Errorf("error %q does not mention checkout.skip", err.Error())
+	// 'checkout: false' is the opt-out the user wanted; the suggestion must
+	// be 'skip: true', not 'skip: false'.
+	if !strings.Contains(err.Error(), "skip: true") {
+		t.Errorf("error %q does not suggest 'skip: true'", err.Error())
 	}
 }
 
@@ -110,8 +112,9 @@ func TestPipelineCheckoutRejectsBool(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name string
-		in   string
+		name      string
+		in        string
+		wantParts []string
 	}{
 		{
 			name: "false",
@@ -119,6 +122,7 @@ func TestPipelineCheckoutRejectsBool(t *testing.T) {
 steps:
   - command: echo hello
 `,
+			wantParts: []string{"'checkout: false'", "skip: true", "opt out"},
 		},
 		{
 			name: "true",
@@ -126,6 +130,7 @@ steps:
 steps:
   - command: echo hello
 `,
+			wantParts: []string{"'checkout: true'", "skip: false", "omit"},
 		},
 	}
 
@@ -135,10 +140,12 @@ steps:
 
 			_, err := Parse(strings.NewReader(tc.in))
 			if err == nil {
-				t.Fatalf("Parse() error = nil, want error mentioning checkout.skip")
+				t.Fatalf("Parse() error = nil, want error rejecting bool checkout")
 			}
-			if !strings.Contains(err.Error(), "checkout.skip") {
-				t.Errorf("error %q does not mention checkout.skip", err.Error())
+			for _, part := range tc.wantParts {
+				if !strings.Contains(err.Error(), part) {
+					t.Errorf("error %q does not contain %q", err.Error(), part)
+				}
 			}
 		})
 	}
