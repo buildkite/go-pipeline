@@ -127,7 +127,9 @@ This go struct would be marshaled back out to YAML equivalent to the original in
 
 ## Checkout
 
-The `checkout` block configures git checkout behaviour for a pipeline or a command step. The simplest case opts a step out of checkout entirely:
+The `checkout` block configures git checkout behavior for a pipeline or a command step. Two fields are supported today: `skip` and `submodules`. Both are `*bool` so the model preserves the difference between `true`, `false`, and an absent value.
+
+The simplest case opts a step out of checkout entirely:
 
 ```yaml
 steps:
@@ -136,9 +138,9 @@ steps:
       skip: true
 ```
 
-`Checkout.Skip` is a `*bool` so the model preserves the difference between `skip: true`, `skip: false`, and an absent `skip`. This matters because `skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout, while an absent `skip` inherits whatever default applies. Round-trips preserve the distinction; `skip: false` does not collapse to an empty mapping.
+`skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout, while an absent `skip` inherits whatever default applies. Round-trips preserve the distinction; `skip: false` does not collapse to an empty mapping. `submodules` follows the same tristate pattern and maps to `BUILDKITE_GIT_SUBMODULES` on the agent (`true` and `false` set the env var explicitly; absent leaves it to the agent default).
 
-A pipeline-level `checkout` is inherited by command steps that do not set their own. The step value wins per leaf when both are set:
+A pipeline-level `checkout` provides defaults for command steps. Inheritance is opt-in: the consumer must call `step.MergeCheckoutFromPipeline(pipeline.Checkout)` per step. After that call the step value wins per leaf, with anything the step didn't set inherited from the pipeline:
 
 ```yaml
 checkout:
@@ -152,9 +154,9 @@ steps:
       skip: false
 ```
 
-After calling `step.MergeCheckoutFromPipeline(pipeline.Checkout)` on the second step, the merged result has `skip: false` (step wins). The first step inherits `skip: true` from the pipeline.
+After merging, the second step has `skip: false` (step wins) and the first step has `skip: true` (inherited).
 
-`checkout: false` as a shorthand is rejected at unmarshal time; `checkout` is a multi-field namespace, so opt-out is spelled `checkout: { skip: true }`.
+`checkout: false` (and `checkout: true`) as a shorthand is rejected at unmarshal time; `checkout` is a mapping, so opt-out is spelled `checkout: { skip: true }`.
 
 ## What's up with the ordered module?
 
