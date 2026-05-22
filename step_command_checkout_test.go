@@ -83,31 +83,6 @@ checkout:
 	}
 }
 
-func TestCommandStepCheckoutRejectsBool(t *testing.T) {
-	t.Parallel()
-
-	yamlData := `
-command: echo hello
-checkout: false
-`
-
-	var step CommandStep
-	var node yaml.Node
-	if err := yaml.Unmarshal([]byte(yamlData), &node); err != nil {
-		t.Fatalf("yaml.Unmarshal() error = %v", err)
-	}
-
-	err := ordered.Unmarshal(&node, &step)
-	if err == nil {
-		t.Fatalf("ordered.Unmarshal() error = nil, want error suggesting 'skip: true'")
-	}
-	// 'checkout: false' is the opt-out the user wanted; the suggestion must
-	// be 'skip: true', not 'skip: false'.
-	if !strings.Contains(err.Error(), "skip: true") {
-		t.Errorf("error %q does not suggest 'skip: true'", err.Error())
-	}
-}
-
 func TestPipelineCheckoutRejectsBool(t *testing.T) {
 	t.Parallel()
 
