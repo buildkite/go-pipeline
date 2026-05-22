@@ -68,10 +68,13 @@ func (c *Checkout) UnmarshalOrdered(o any) error {
 	}
 }
 
-// interpolate is a no-op today: Skip and Submodules are *bool, and
-// RemainingFields is not traversed.
-func (c *Checkout) interpolate(stringTransformer) error {
-	return nil
+// interpolate satisfies selfInterpolater. Skip and Submodules are *bool and
+// have nothing to transform; RemainingFields gets the same treatment as on
+// CommandStep/Pipeline/Matrix so `${VAR}` references inside future or
+// forward-compat checkout fields are interpolated rather than passed through
+// verbatim.
+func (c *Checkout) interpolate(tf stringTransformer) error {
+	return interpolateMap(tf, c.RemainingFields)
 }
 
 // mergeFrom merges parent values into c. Child wins per top-level key;

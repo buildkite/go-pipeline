@@ -497,7 +497,7 @@ func TestCheckoutRoundTripJSON(t *testing.T) {
 	}
 }
 
-func TestCheckoutInterpolationNoOp(t *testing.T) {
+func TestCheckoutInterpolationPreservesTypedFields(t *testing.T) {
 	t.Parallel()
 
 	c := Checkout{Skip: ptr(true), Submodules: ptr(false)}
@@ -509,7 +509,28 @@ func TestCheckoutInterpolationNoOp(t *testing.T) {
 	}
 	want := Checkout{Skip: ptr(true), Submodules: ptr(false)}
 	if diff := cmp.Diff(want, c); diff != "" {
-		t.Errorf("Checkout after no-op interpolation (-want +got):\n%s", diff)
+		t.Errorf("Checkout after interpolation (-want +got):\n%s", diff)
+	}
+}
+
+func TestCheckoutInterpolationOfRemainingFields(t *testing.T) {
+	t.Parallel()
+
+	c := Checkout{
+		Skip: ptr(true),
+		RemainingFields: map[string]any{
+			"depth_flag": "--depth=${DEPTH}",
+		},
+	}
+	tf := envInterpolator{
+		env: interpolate.NewMapEnv(map[string]string{"DEPTH": "5"}),
+	}
+	if err := c.interpolate(tf); err != nil {
+		t.Fatalf("Checkout.interpolate error = %v", err)
+	}
+	want := map[string]any{"depth_flag": "--depth=5"}
+	if diff := cmp.Diff(want, c.RemainingFields); diff != "" {
+		t.Errorf("Checkout.RemainingFields after interpolation (-want +got):\n%s", diff)
 	}
 }
 
