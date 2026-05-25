@@ -216,7 +216,12 @@ func Verify(ctx context.Context, s *pipeline.Signature, keySet any, sf SignedFie
 
 		debug(options.logger, "Public Key Thumbprint (sha256): %x", sha256.Sum256(data))
 
-		keyOpt = jws.WithKey(jwa.ES256, keySet)
+		// Default to ES256, unless keySet has a method to provide the algorithm.
+		alg := jwa.KeyAlgorithmFrom(jwa.ES256)
+		if key, is := keySet.(Key); is {
+			alg = key.Algorithm()
+		}
+		keyOpt = jws.WithKey(alg, keySet)
 	default:
 		panic(fmt.Sprintf("unsupported key type: %T", keySet)) // should never happen
 	}
