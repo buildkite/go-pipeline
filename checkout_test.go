@@ -80,10 +80,13 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 		{
 			// *string + omitempty must NOT collapse an explicit empty
 			// string into an omitted field; the ticket calls this out
-			// alongside the nil-vs-empty distinction.
-			name:      "ssh_secret empty string preserved",
-			c:         Checkout{SSHSecret: ptr("")},
-			wantParts: []string{"ssh_secret:"},
+			// alongside the nil-vs-empty distinction. Pinned to the
+			// exact emitted form (quoted empty scalar) so a future
+			// change to yaml.v3's empty-scalar rendering surfaces here
+			// rather than being silently absorbed by a substring match.
+			name: "ssh_secret empty string preserved",
+			c:    Checkout{SSHSecret: ptr("")},
+			want: "ssh_secret: \"\"\n",
 		},
 	}
 
