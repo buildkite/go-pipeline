@@ -47,17 +47,22 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 		},
 		{
 			name: "lfs true",
-			c:    Checkout{LFS: true},
+			c:    Checkout{LFS: ptr(true)},
 			want: "lfs: true\n",
 		},
 		{
-			name: "lfs false omitted",
-			c:    Checkout{LFS: false},
+			name: "lfs false",
+			c:    Checkout{LFS: ptr(false)},
+			want: "lfs: false\n",
+		},
+		{
+			name: "lfs nil omitted",
+			c:    Checkout{LFS: nil},
 			want: "{}\n",
 		},
 		{
 			name: "lfs true with depth",
-			c:    Checkout{Depth: ptr(10), LFS: true},
+			c:    Checkout{Depth: ptr(10), LFS: ptr(true)},
 			want: "depth: 10\nlfs: true\n",
 		},
 		{
@@ -120,17 +125,22 @@ func TestCheckoutMarshalJSON(t *testing.T) {
 		},
 		{
 			name: "lfs true",
-			c:    Checkout{LFS: true},
+			c:    Checkout{LFS: ptr(true)},
 			want: `{"lfs":true}`,
 		},
 		{
-			name: "lfs false omitted",
-			c:    Checkout{LFS: false},
+			name: "lfs false",
+			c:    Checkout{LFS: ptr(false)},
+			want: `{"lfs":false}`,
+		},
+		{
+			name: "lfs nil omitted",
+			c:    Checkout{LFS: nil},
 			want: `{}`,
 		},
 		{
 			name: "lfs true with depth",
-			c:    Checkout{Depth: ptr(10), LFS: true},
+			c:    Checkout{Depth: ptr(10), LFS: ptr(true)},
 			want: `{"depth":10,"lfs":true}`,
 		},
 		{
@@ -195,15 +205,15 @@ depth: 10`,
 		{
 			name: "lfs true",
 			in:   `lfs: true`,
-			want: Checkout{LFS: true},
+			want: Checkout{LFS: ptr(true)},
 		},
 		{
 			name: "lfs false",
 			in:   `lfs: false`,
-			want: Checkout{LFS: false},
+			want: Checkout{LFS: ptr(false)},
 		},
 		{
-			name: "lfs omitted defaults to false",
+			name: "lfs omitted defaults to nil",
 			in:   `{}`,
 			want: Checkout{},
 		},
@@ -211,7 +221,7 @@ depth: 10`,
 			name: "lfs with depth",
 			in: `depth: 10
 lfs: true`,
-			want: Checkout{Depth: ptr(10), LFS: true},
+			want: Checkout{Depth: ptr(10), LFS: ptr(true)},
 		},
 		{
 			name: "with extra fields",
@@ -379,6 +389,10 @@ func TestCheckoutRoundTripYAML(t *testing.T) {
 			in:   "lfs: true\n",
 		},
 		{
+			name: "lfs false survives",
+			in:   "lfs: false\n",
+		},
+		{
 			name: "lfs with depth survives",
 			in:   "depth: 10\nlfs: true\n",
 		},
@@ -408,7 +422,6 @@ sparse_paths: ["a", "b"]
 				t.Fatalf("yaml.Marshal error = %v", err)
 			}
 
-			// Re-unmarshal to compare structurally.
 			var c2 Checkout
 			var node2 yaml.Node
 			if err := yaml.Unmarshal(out, &node2); err != nil {
@@ -438,6 +451,7 @@ func TestCheckoutRoundTripJSON(t *testing.T) {
 		{name: "skip and depth", in: `{"depth":10,"skip":true}`},
 		{name: "empty", in: `{}`},
 		{name: "lfs true", in: `{"lfs":true}`},
+		{name: "lfs false", in: `{"lfs":false}`},
 		{name: "lfs with depth", in: `{"depth":10,"lfs":true}`},
 		{name: "with remaining", in: `{"skip":true,"submodules":true}`},
 	}
@@ -570,26 +584,32 @@ func TestCheckoutMergeFrom(t *testing.T) {
 		{
 			name:   "parent only lfs",
 			child:  &Checkout{},
-			parent: &Checkout{LFS: true},
-			want:   &Checkout{LFS: true},
+			parent: &Checkout{LFS: ptr(true)},
+			want:   &Checkout{LFS: ptr(true)},
 		},
 		{
 			name:   "child only lfs",
-			child:  &Checkout{LFS: true},
+			child:  &Checkout{LFS: ptr(true)},
 			parent: &Checkout{},
-			want:   &Checkout{LFS: true},
+			want:   &Checkout{LFS: ptr(true)},
 		},
 		{
 			name:   "child lfs true beats parent lfs false",
-			child:  &Checkout{LFS: true},
-			parent: &Checkout{LFS: false},
-			want:   &Checkout{LFS: true},
+			child:  &Checkout{LFS: ptr(true)},
+			parent: &Checkout{LFS: ptr(false)},
+			want:   &Checkout{LFS: ptr(true)},
+		},
+		{
+			name:   "child lfs false beats parent lfs true",
+			child:  &Checkout{LFS: ptr(false)},
+			parent: &Checkout{LFS: ptr(true)},
+			want:   &Checkout{LFS: ptr(false)},
 		},
 		{
 			name:   "lfs from parent, depth from child",
 			child:  &Checkout{Depth: ptr(5)},
-			parent: &Checkout{LFS: true},
-			want:   &Checkout{Depth: ptr(5), LFS: true},
+			parent: &Checkout{LFS: ptr(true)},
+			want:   &Checkout{Depth: ptr(5), LFS: ptr(true)},
 		},
 		{
 			name: "remaining fields disjoint",

@@ -26,7 +26,7 @@ type Checkout struct {
 	Depth *int `yaml:"depth,omitempty"`
 
 	// LFS enables Git LFS when true. Defaults to false (zero value).
-	LFS bool `json:"lfs,omitempty" yaml:"lfs,omitempty"`
+	LFS *bool `json:"lfs,omitempty" yaml:"lfs,omitempty"`
 
 	// RemainingFields stores any other top-level mapping items so they at least
 	// survive an unmarshal-marshal round-trip.
@@ -41,7 +41,7 @@ func (c *Checkout) MarshalJSON() ([]byte, error) {
 
 // IsEmpty reports whether the checkout is empty, used by signing.
 func (c *Checkout) IsEmpty() bool {
-	return c == nil || (c.Skip == nil && c.Depth == nil && !c.LFS && len(c.RemainingFields) == 0)
+	return c == nil || (c.Skip == nil && c.Depth == nil && c.LFS == nil && len(c.RemainingFields) == 0)
 }
 
 // UnmarshalOrdered unmarshals a Checkout from an ordered map. Bool inputs are
@@ -86,8 +86,9 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 		c.Depth = &v
 	}
 
-	if !c.LFS && parent.LFS {
-		c.LFS = parent.LFS
+	if c.LFS == nil && parent.LFS != nil {
+		v := *parent.LFS
+		c.LFS = &v
 	}
 
 	if len(parent.RemainingFields) == 0 {
