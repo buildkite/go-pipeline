@@ -70,7 +70,20 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 				RemainingFields: map[string]any{"depth": 1},
 			},
 			wantParts: []string{"depth: 1"},
-			notWant:   []string{"skip", "submodules"},
+			notWant:   []string{"skip", "submodules", "ssh_secret"},
+		},
+		{
+			name: "ssh_secret set",
+			c:    Checkout{SSHSecret: ptr("deploy-key")},
+			want: "ssh_secret: deploy-key\n",
+		},
+		{
+			// *string + omitempty must NOT collapse an explicit empty
+			// string into an omitted field; the ticket calls this out
+			// alongside the nil-vs-empty distinction.
+			name:      "ssh_secret empty string preserved",
+			c:         Checkout{SSHSecret: ptr("")},
+			wantParts: []string{"ssh_secret:"},
 		},
 	}
 
@@ -145,6 +158,16 @@ func TestCheckoutMarshalJSON(t *testing.T) {
 				RemainingFields: map[string]any{"depth": 1},
 			},
 			want: `{"depth":1,"skip":true}`,
+		},
+		{
+			name: "ssh_secret set",
+			c:    Checkout{SSHSecret: ptr("deploy-key")},
+			want: `{"ssh_secret":"deploy-key"}`,
+		},
+		{
+			name: "ssh_secret empty string preserved",
+			c:    Checkout{SSHSecret: ptr("")},
+			want: `{"ssh_secret":""}`,
 		},
 	}
 
@@ -224,6 +247,21 @@ depth: 1`,
 				RemainingFields: map[string]any{"depth": 1, "gibberish": "x"},
 			},
 		},
+		{
+			name: "ssh_secret string",
+			in:   `ssh_secret: deploy-key`,
+			want: Checkout{SSHSecret: ptr("deploy-key")},
+		},
+		{
+			name: "ssh_secret quoted empty string",
+			in:   `ssh_secret: ""`,
+			want: Checkout{SSHSecret: ptr("")},
+		},
+		{
+			name: "ssh_secret null",
+			in:   `ssh_secret: null`,
+			want: Checkout{},
+		},
 	}
 
 	for _, tc := range cases {
@@ -260,6 +298,9 @@ func TestCheckoutUnmarshalJSON(t *testing.T) {
 		{name: "submodules null", input: `{"submodules":null}`, want: Checkout{}},
 		{name: "submodules true", input: `{"submodules":true}`, want: Checkout{Submodules: ptr(true)}},
 		{name: "submodules false", input: `{"submodules":false}`, want: Checkout{Submodules: ptr(false)}},
+		{name: "ssh_secret null", input: `{"ssh_secret":null}`, want: Checkout{}},
+		{name: "ssh_secret set", input: `{"ssh_secret":"deploy-key"}`, want: Checkout{SSHSecret: ptr("deploy-key")}},
+		{name: "ssh_secret empty string", input: `{"ssh_secret":""}`, want: Checkout{SSHSecret: ptr("")}},
 	}
 
 	for _, tc := range cases {
@@ -514,6 +555,14 @@ func TestCheckoutRoundTripYAML(t *testing.T) {
 submodules: false
 `,
 		},
+		{
+			name: "ssh_secret set survives",
+			in:   "ssh_secret: deploy-key\n",
+		},
+		{
+			name: "ssh_secret empty string survives",
+			in:   "ssh_secret: \"\"\n",
+		},
 	}
 
 	for _, tc := range cases {
@@ -564,6 +613,8 @@ func TestCheckoutRoundTripJSON(t *testing.T) {
 		{name: "skip and submodules", in: `{"skip":false,"submodules":true}`},
 		{name: "empty", in: `{}`},
 		{name: "with remaining", in: `{"depth":1,"skip":true}`},
+		{name: "ssh_secret set", in: `{"ssh_secret":"deploy-key"}`},
+		{name: "ssh_secret empty string", in: `{"ssh_secret":""}`},
 	}
 
 	for _, tc := range cases {
@@ -637,6 +688,36 @@ func TestCheckoutInterpolationOfRemainingFields(t *testing.T) {
 	}
 }
 
+// IsEmpty gates checkout inclusion in signing (signature/pipeline_invariants.go)
+// and in step materialisation during MergeCheckoutFromPipeline. If SSHSecret
+// did not participate, a Checkout carrying only an ssh_secret could be
+// stripped from a signed payload without detection. The nil/zero baselines
+// anchor the assertion that the new field doesn't inadvertently change
+// "empty" semantics for callers.
+func TestCheckoutIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		c    *Checkout
+		want bool
+	}{
+		{name: "nil receiver", c: nil, want: true},
+		{name: "zero value", c: &Checkout{}, want: true},
+		{name: "ssh_secret set", c: &Checkout{SSHSecret: ptr("deploy-key")}, want: false},
+		{name: "ssh_secret explicit empty string", c: &Checkout{SSHSecret: ptr("")}, want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tc.c.IsEmpty(); got != tc.want {
+				t.Errorf("Checkout.IsEmpty() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCheckoutMergeFrom(t *testing.T) {
 	t.Parallel()
 
@@ -705,6 +786,34 @@ func TestCheckoutMergeFrom(t *testing.T) {
 			child:  &Checkout{Skip: ptr(true)},
 			parent: &Checkout{Submodules: ptr(false)},
 			want:   &Checkout{Skip: ptr(true), Submodules: ptr(false)},
+		},
+		{
+			name:   "parent only ssh_secret",
+			child:  &Checkout{},
+			parent: &Checkout{SSHSecret: ptr("pipeline-key")},
+			want:   &Checkout{SSHSecret: ptr("pipeline-key")},
+		},
+		{
+			name:   "child ssh_secret beats parent",
+			child:  &Checkout{SSHSecret: ptr("step-key")},
+			parent: &Checkout{SSHSecret: ptr("pipeline-key")},
+			want:   &Checkout{SSHSecret: ptr("step-key")},
+		},
+		{
+			// Explicit empty string at the child level must override the
+			// parent: that's the whole reason SSHSecret is *string rather
+			// than string. If the child wanted to inherit the parent value
+			// it would leave the field unset.
+			name:   "child empty ssh_secret beats parent set",
+			child:  &Checkout{SSHSecret: ptr("")},
+			parent: &Checkout{SSHSecret: ptr("pipeline-key")},
+			want:   &Checkout{SSHSecret: ptr("")},
+		},
+		{
+			name:   "child inherits parent empty ssh_secret",
+			child:  &Checkout{},
+			parent: &Checkout{SSHSecret: ptr("")},
+			want:   &Checkout{SSHSecret: ptr("")},
 		},
 		{
 			name: "remaining fields disjoint",
