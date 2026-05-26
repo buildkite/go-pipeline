@@ -269,7 +269,7 @@ func TestSparseUnmarshalYAML(t *testing.T) {
 	}
 }
 
-func TestSparseMarshallJSON(t *testing.T) {
+func TestSparseMarshalJSON(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
