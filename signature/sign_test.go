@@ -694,7 +694,10 @@ func TestSignVerifyCheckoutFlagsTamperDetection(t *testing.T) {
 
 // TestVerifyLegacySignatureWithCheckoutFails asserts that a signature whose
 // signed_fields omits "checkout" fails to verify a step that now carries
-// non-empty Checkout data.
+// non-empty Checkout data. This pins the operator-facing promise from the
+// README "Checkout" section ("Pipelines signed before checkout was a signed
+// field will fail to verify if the step now carries any non-empty Checkout
+// data"); re-signing is the documented remediation.
 func TestVerifyLegacySignatureWithCheckoutFails(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

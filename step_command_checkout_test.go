@@ -795,6 +795,39 @@ func TestCommandStepCheckoutYAMLRoundTrip(t *testing.T) {
 	}
 }
 
+// TestCheckoutEmptyMappingsRoundTrip pins YAML round-trip behavior for the
+// two empty-mapping shapes parsed by TestCommandStepCheckoutParsingShapes
+// ("checkout block with no flags" and "empty flags map"): the omitempty
+// configuration on Flags must preserve nil vs non-nil-but-empty.
+func TestCheckoutEmptyMappingsRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   *Checkout
+	}{
+		{name: "empty checkout block", in: &Checkout{}},
+		{name: "non-nil empty Flags", in: &Checkout{Flags: &CheckoutFlags{}}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			b, err := yaml.Marshal(tc.in)
+			if err != nil {
+				t.Fatalf("yaml.Marshal() error = %v", err)
+			}
+			got := new(Checkout)
+			if err := yaml.Unmarshal(b, got); err != nil {
+				t.Fatalf("yaml.Unmarshal() error = %v\nmarshaled YAML:\n%s", err, b)
+			}
+			if diff := cmp.Diff(got, tc.in); diff != "" {
+				t.Errorf("Checkout YAML round-trip diff (-got +want):\n%s\nmarshaled YAML:\n%s", diff, b)
+			}
+		})
+	}
+}
+
 func TestCommandStepCheckoutRemainingFieldsInterpolation(t *testing.T) {
 	t.Parallel()
 
@@ -1213,6 +1246,7 @@ steps:
 		t.Errorf("CommandStep.Checkout round-trip diff (-got +want):\n%s", diff)
 	}
 }
+
 func TestPipelineCheckoutRejectsBool(t *testing.T) {
 	t.Parallel()
 
@@ -1256,7 +1290,7 @@ steps:
 	}
 }
 
-func TestMergeCheckoutFromPipelineNilPipeline(t *testing.T) {
+func TestCommandStepMergeCheckoutNilPipeline(t *testing.T) {
 	t.Parallel()
 
 	step := &CommandStep{Checkout: &Checkout{Skip: ptr(true)}}
@@ -1267,7 +1301,7 @@ func TestMergeCheckoutFromPipelineNilPipeline(t *testing.T) {
 	}
 }
 
-func TestMergeCheckoutFromPipelineNilStep(t *testing.T) {
+func TestCommandStepMergeCheckoutNilStep(t *testing.T) {
 	t.Parallel()
 
 	pipelineCheckout := &Checkout{
@@ -1343,7 +1377,7 @@ func TestCommandStepMergeCheckoutFlagsAreIndependent(t *testing.T) {
 	}
 }
 
-func TestMergeCheckoutFromPipelineNestedRemainingFieldsAreCopied(t *testing.T) {
+func TestCommandStepMergeCheckoutNestedRemainingFieldsAreCopied(t *testing.T) {
 	t.Parallel()
 
 	pipelineCheckout := &Checkout{
@@ -1571,7 +1605,7 @@ steps:
 	}
 }
 
-func TestMergeCheckoutFromPipelineIdempotent(t *testing.T) {
+func TestCommandStepMergeCheckoutIdempotent(t *testing.T) {
 	t.Parallel()
 
 	pipelineCheckout := &Checkout{Skip: ptr(true)}
@@ -1590,7 +1624,7 @@ func TestMergeCheckoutFromPipelineIdempotent(t *testing.T) {
 	}
 }
 
-func TestMergeCheckoutFromPipelineEmptyParentNoMaterialise(t *testing.T) {
+func TestCommandStepMergeCheckoutEmptyParentNoMaterialise(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -1612,10 +1646,10 @@ func TestMergeCheckoutFromPipelineEmptyParentNoMaterialise(t *testing.T) {
 	}
 }
 
-// TestCommandStepMergeCheckoutSubmodules covers Submodules inheritance through
-// the Checkout.mergeFrom path. Skip is exercised by the broader Skip merge
-// tests above; this test mirrors that coverage for Submodules so the second
-// tristate axis is pinned independently.
+// TestCommandStepMergeCheckoutSubmodules covers Submodules inheritance through the
+// Checkout.mergeFrom path. Skip is exercised by the broader Skip merge tests
+// above; this test mirrors that coverage for Submodules so the second tristate
+// axis is pinned independently.
 func TestCommandStepMergeCheckoutSubmodules(t *testing.T) {
 	t.Parallel()
 
@@ -1654,9 +1688,9 @@ func TestCommandStepMergeCheckoutSubmodules(t *testing.T) {
 	})
 }
 
-// TestCommandStepMergeCheckoutFlagsPerLeaf covers the both-non-nil branch of
-// the Flags merge: child wins per leaf, parent fills the remaining leaves.
-// The child==nil + parent!=nil branch is exercised by
+// TestCommandStepMergeCheckoutFlagsPerLeaf covers the both-non-nil branch of the Flags
+// merge: child wins per leaf, parent fills the remaining leaves. The
+// child==nil + parent!=nil branch is exercised by
 // TestCommandStepMergeCheckoutFlagsAreIndependent.
 func TestCommandStepMergeCheckoutFlagsPerLeaf(t *testing.T) {
 	t.Parallel()

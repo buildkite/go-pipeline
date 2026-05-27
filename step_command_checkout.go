@@ -30,14 +30,9 @@ var errUnsupportedCheckoutType = fmt.Errorf("unsupported type for checkout")
 // Direct json.Unmarshal into a Checkout drops inline RemainingFields; route
 // through CommandStep or Pipeline to preserve them.
 type Checkout struct {
-	// Skip is *bool so the tristate (true / false / absent) survives a
-	// round-trip; `bool` plus `omitempty` would collapse `skip: false` and
-	// an absent `skip` into the same output.
+	// Skip maps to BUILDKITE_SKIP_CHECKOUT on the agent.
 	Skip *bool `yaml:"skip,omitempty"`
-
 	// Submodules maps to BUILDKITE_GIT_SUBMODULES on the agent.
-	// nil = unset (agent uses its default, currently true); true/false set
-	// the env var explicitly.
 	Submodules *bool          `yaml:"submodules,omitempty"`
 	Flags      *CheckoutFlags `yaml:"flags,omitempty"`
 
@@ -96,8 +91,7 @@ func (c *Checkout) UnmarshalOrdered(o any) error {
 	}
 }
 
-// MarshalJSON marshals to JSON. Special handling is needed because yaml.v3
-// has "inline" but encoding/json has no concept of it.
+// MarshalJSON: see Checkout.MarshalJSON.
 func (f *CheckoutFlags) MarshalJSON() ([]byte, error) {
 	return inlineFriendlyMarshalJSON(f)
 }
