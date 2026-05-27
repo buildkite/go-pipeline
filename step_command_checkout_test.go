@@ -213,6 +213,24 @@ func TestCommandStepCheckoutParsingShapes(t *testing.T) {
 			want: &Checkout{Flags: &CheckoutFlags{Fetch: ptr("--prune")}},
 		},
 		{
+			name: "skip true",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      skip: true
+`,
+			want: &Checkout{Skip: ptr(true)},
+		},
+		{
+			name: "skip false",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      skip: false
+`,
+			want: &Checkout{Skip: ptr(false)},
+		},
+		{
 			name: "submodules true",
 			yaml: `steps:
   - command: build.sh
@@ -710,6 +728,7 @@ func TestCommandStepCheckoutYAMLRoundTrip(t *testing.T) {
 	const input = `steps:
   - command: build.sh
     checkout:
+      skip: false
       flags:
         clone: "--depth 1"
         checkout: ""
@@ -723,6 +742,9 @@ func TestCommandStepCheckoutYAMLRoundTrip(t *testing.T) {
 	cs := p.Steps[0].(*CommandStep)
 	if cs.Checkout == nil || cs.Checkout.Flags == nil {
 		t.Fatalf("Checkout or Flags is nil after parse")
+	}
+	if cs.Checkout.Skip == nil || *cs.Checkout.Skip != false {
+		t.Errorf("Skip = %v, want ptr(false)", cs.Checkout.Skip)
 	}
 	if cs.Checkout.Flags.Clone == nil || *cs.Checkout.Flags.Clone != "--depth 1" {
 		t.Errorf("Clone = %v, want pointer to '--depth 1'", cs.Checkout.Flags.Clone)
@@ -810,6 +832,7 @@ func TestCommandStepCheckoutJSONUnmarshalRoundTrip(t *testing.T) {
 	original := &CommandStep{
 		Command: "build.sh",
 		Checkout: &Checkout{
+			Skip: ptr(false),
 			Flags: &CheckoutFlags{
 				Clone:    ptr("--depth 1"),
 				Fetch:    ptr("--prune"),
@@ -857,6 +880,73 @@ steps:
 	}
 	if diff := cmp.Diff(p.Checkout, want); diff != "" {
 		t.Errorf("Pipeline.Checkout diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestPipelineCheckoutSkipParsing(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		yaml string
+		want *Checkout
+	}{
+		{
+			name: "skip true",
+			yaml: `checkout:
+  skip: true
+steps:
+  - command: build.sh
+`,
+			want: &Checkout{Skip: ptr(true)},
+		},
+		{
+			name: "skip false",
+			yaml: `checkout:
+  skip: false
+steps:
+  - command: build.sh
+`,
+			want: &Checkout{Skip: ptr(false)},
+		},
+		{
+			name: "skip null leaves Skip nil",
+			yaml: `checkout:
+  skip: null
+steps:
+  - command: build.sh
+`,
+			want: &Checkout{},
+		},
+		{
+			name: "skip with flags and step-level override",
+			yaml: `checkout:
+  skip: false
+  flags:
+    clone: "--depth 1"
+steps:
+  - command: build.sh
+    checkout:
+      skip: true
+`,
+			want: &Checkout{
+				Skip:  ptr(false),
+				Flags: &CheckoutFlags{Clone: ptr("--depth 1")},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p, err := Parse(strings.NewReader(tc.yaml))
+			if err != nil {
+				t.Fatalf("Parse() error: %v", err)
+			}
+			if diff := cmp.Diff(p.Checkout, tc.want); diff != "" {
+				t.Errorf("Pipeline.Checkout diff (-got +want):\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -1029,6 +1119,7 @@ func TestPipelineCheckoutYAMLRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	const inputYAML = `checkout:
+  skip: false
   flags:
     clone: "--depth 1"
     fetch: "--prune"
@@ -1122,78 +1213,6 @@ steps:
 		t.Errorf("CommandStep.Checkout round-trip diff (-got +want):\n%s", diff)
 	}
 }
-func TestCommandStepWithCheckoutYAML(t *testing.T) {
-	t.Parallel()
-
-	yamlData := `
-command: echo "hello"
-checkout:
-  skip: false
-`
-
-	var step CommandStep
-	var node yaml.Node
-	if err := yaml.Unmarshal([]byte(yamlData), &node); err != nil {
-		t.Fatalf("yaml.Unmarshal() error = %v", err)
-	}
-	if err := ordered.Unmarshal(&node, &step); err != nil {
-		t.Fatalf("ordered.Unmarshal() error = %v", err)
-	}
-
-	if step.Checkout == nil {
-		t.Fatalf("step.Checkout = nil, want non-nil")
-	}
-	if step.Checkout.Skip == nil || *step.Checkout.Skip != false {
-		t.Errorf("step.Checkout.Skip = %v, want ptr(false)", step.Checkout.Skip)
-	}
-}
-
-func TestCommandStepWithCheckoutJSON(t *testing.T) {
-	t.Parallel()
-
-	input := []byte(`{"command":"echo hello","checkout":{"skip":true}}`)
-
-	got := new(CommandStep)
-	if err := got.UnmarshalJSON(input); err != nil {
-		t.Fatalf("CommandStep.UnmarshalJSON() = %v", err)
-	}
-
-	if got.Checkout == nil {
-		t.Fatalf("step.Checkout = nil, want non-nil")
-	}
-	if got.Checkout.Skip == nil || *got.Checkout.Skip != true {
-		t.Errorf("step.Checkout.Skip = %v, want ptr(true)", got.Checkout.Skip)
-	}
-}
-
-func TestCommandStepCheckoutFalseSurvivesRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	yamlData := `
-command: echo hello
-checkout:
-  skip: false
-`
-
-	var step CommandStep
-	var node yaml.Node
-	if err := yaml.Unmarshal([]byte(yamlData), &node); err != nil {
-		t.Fatalf("yaml.Unmarshal() error = %v", err)
-	}
-	if err := ordered.Unmarshal(&node, &step); err != nil {
-		t.Fatalf("ordered.Unmarshal() error = %v", err)
-	}
-
-	out, err := yaml.Marshal(step)
-	if err != nil {
-		t.Fatalf("yaml.Marshal error = %v", err)
-	}
-
-	if !strings.Contains(string(out), "skip: false") {
-		t.Errorf("YAML output missing 'skip: false':\n%s", out)
-	}
-}
-
 func TestPipelineCheckoutRejectsBool(t *testing.T) {
 	t.Parallel()
 
@@ -1358,74 +1377,6 @@ func TestMergeCheckoutFromPipelineNestedRemainingFieldsAreCopied(t *testing.T) {
 	parentPaths, _ := pipelineCheckout.RemainingFields["submodule_paths"].(map[string]any)
 	if parentPaths["libs"] != "vendor/libs" {
 		t.Errorf("mutating step's submodule_paths leaked into pipeline; parent[libs] = %v", parentPaths["libs"])
-	}
-}
-
-func TestPipelineWithCheckoutYAML(t *testing.T) {
-	t.Parallel()
-
-	yamlData := `
-checkout:
-  skip: false
-steps:
-  - command: echo hello
-    checkout:
-      skip: true
-`
-
-	var p Pipeline
-	var node yaml.Node
-	if err := yaml.Unmarshal([]byte(yamlData), &node); err != nil {
-		t.Fatalf("yaml.Unmarshal() error = %v", err)
-	}
-	if err := ordered.Unmarshal(&node, &p); err != nil {
-		t.Fatalf("ordered.Unmarshal() error = %v", err)
-	}
-
-	if p.Checkout == nil {
-		t.Fatalf("p.Checkout = nil, want non-nil")
-	}
-	if p.Checkout.Skip == nil || *p.Checkout.Skip != false {
-		t.Errorf("p.Checkout.Skip = %v, want ptr(false)", p.Checkout.Skip)
-	}
-
-	if len(p.Steps) != 1 {
-		t.Fatalf("len(p.Steps) = %d, want 1", len(p.Steps))
-	}
-	step, ok := p.Steps[0].(*CommandStep)
-	if !ok {
-		t.Fatalf("p.Steps[0] = %T, want *CommandStep", p.Steps[0])
-	}
-	if step.Checkout == nil || step.Checkout.Skip == nil || *step.Checkout.Skip != true {
-		t.Errorf("step.Checkout.Skip = %v, want ptr(true)", step.Checkout)
-	}
-}
-
-func TestPipelineCheckoutSkipFalseRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	yamlData := `checkout:
-    skip: false
-steps:
-    - command: echo hello
-`
-
-	var p Pipeline
-	var node yaml.Node
-	if err := yaml.Unmarshal([]byte(yamlData), &node); err != nil {
-		t.Fatalf("yaml.Unmarshal() error = %v", err)
-	}
-	if err := ordered.Unmarshal(&node, &p); err != nil {
-		t.Fatalf("ordered.Unmarshal() error = %v", err)
-	}
-
-	out, err := yaml.Marshal(&p)
-	if err != nil {
-		t.Fatalf("yaml.Marshal error = %v", err)
-	}
-
-	if !strings.Contains(string(out), "skip: false") {
-		t.Errorf("Pipeline YAML round-trip lost 'skip: false':\n%s", out)
 	}
 }
 
