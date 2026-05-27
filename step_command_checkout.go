@@ -149,7 +149,7 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 		c.Submodules = &v
 	}
 
-	c.Flags = mergeCheckoutFlags(c.Flags, parent.Flags)
+	c.Flags = c.Flags.mergeFrom(parent.Flags)
 
 	if len(parent.RemainingFields) == 0 {
 		return
@@ -165,48 +165,48 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 	}
 }
 
-// mergeCheckoutFlags returns the merge of child and parent flag blocks.
-// Per-leaf semantics: child wins where set, parent fills the remaining
-// leaves. nil child + nil parent returns nil. Each leaf is deep-copied so
-// callers can mutate the result without affecting the parent block.
-func mergeCheckoutFlags(child, parent *CheckoutFlags) *CheckoutFlags {
+// mergeFrom returns the per-leaf merge of c and parent: c wins where set,
+// parent fills the remaining leaves. A nil receiver is safe; if c is nil
+// and parent is non-nil, a fresh CheckoutFlags is allocated. Each leaf is
+// deep-copied so callers can mutate the result without affecting parent.
+func (c *CheckoutFlags) mergeFrom(parent *CheckoutFlags) *CheckoutFlags {
 	if parent == nil {
-		return child
+		return c
 	}
-	if child == nil {
-		child = &CheckoutFlags{}
+	if c == nil {
+		c = &CheckoutFlags{}
 	}
 
-	if child.Clone == nil && parent.Clone != nil {
+	if c.Clone == nil && parent.Clone != nil {
 		v := *parent.Clone
-		child.Clone = &v
+		c.Clone = &v
 	}
-	if child.Fetch == nil && parent.Fetch != nil {
+	if c.Fetch == nil && parent.Fetch != nil {
 		v := *parent.Fetch
-		child.Fetch = &v
+		c.Fetch = &v
 	}
-	if child.Checkout == nil && parent.Checkout != nil {
+	if c.Checkout == nil && parent.Checkout != nil {
 		v := *parent.Checkout
-		child.Checkout = &v
+		c.Checkout = &v
 	}
-	if child.Clean == nil && parent.Clean != nil {
+	if c.Clean == nil && parent.Clean != nil {
 		v := *parent.Clean
-		child.Clean = &v
+		c.Clean = &v
 	}
 
 	if len(parent.RemainingFields) == 0 {
-		return child
+		return c
 	}
-	if child.RemainingFields == nil {
-		child.RemainingFields = make(map[string]any, len(parent.RemainingFields))
+	if c.RemainingFields == nil {
+		c.RemainingFields = make(map[string]any, len(parent.RemainingFields))
 	}
 	for k, pv := range parent.RemainingFields {
-		if _, ok := child.RemainingFields[k]; ok {
+		if _, ok := c.RemainingFields[k]; ok {
 			continue
 		}
-		child.RemainingFields[k] = cloneAny(pv)
+		c.RemainingFields[k] = cloneAny(pv)
 	}
-	return child
+	return c
 }
 
 // cloneAny deep-copies the value shapes YAML/JSON decoding produces in inline
