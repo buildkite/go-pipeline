@@ -1510,3 +1510,117 @@ func TestMergeCheckoutFromPipelineEmptyParentNoMaterialise(t *testing.T) {
 		})
 	}
 }
+
+// TestCommandStepMergeCheckoutSubmodules covers Submodules inheritance through
+// the Checkout.mergeFrom path. Skip is exercised by the broader Skip merge
+// tests above; this test mirrors that coverage for Submodules so the second
+// tristate axis is pinned independently.
+func TestCommandStepMergeCheckoutSubmodules(t *testing.T) {
+	t.Parallel()
+
+	t.Run("inherits when child Checkout has no Submodules", func(t *testing.T) {
+		t.Parallel()
+		parent := &Checkout{Submodules: ptr(true)}
+		step := &CommandStep{Checkout: &Checkout{Skip: ptr(true)}}
+		step.MergeCheckoutFromPipeline(parent)
+
+		if step.Checkout.Submodules == nil || *step.Checkout.Submodules != true {
+			t.Errorf("step.Checkout.Submodules = %v, want ptr(true)", step.Checkout.Submodules)
+		}
+	})
+
+	t.Run("child Submodules wins over parent", func(t *testing.T) {
+		t.Parallel()
+		parent := &Checkout{Submodules: ptr(true)}
+		step := &CommandStep{Checkout: &Checkout{Submodules: ptr(false)}}
+		step.MergeCheckoutFromPipeline(parent)
+
+		if step.Checkout.Submodules == nil || *step.Checkout.Submodules != false {
+			t.Errorf("step.Checkout.Submodules = %v, want ptr(false)", step.Checkout.Submodules)
+		}
+	})
+
+	t.Run("pointer is independently copied", func(t *testing.T) {
+		t.Parallel()
+		parent := &Checkout{Submodules: ptr(true)}
+		step := &CommandStep{}
+		step.MergeCheckoutFromPipeline(parent)
+
+		*step.Checkout.Submodules = false
+		if *parent.Submodules != true {
+			t.Errorf("mutating step leaked to parent.Submodules = %v", *parent.Submodules)
+		}
+	})
+}
+
+// TestCommandStepMergeCheckoutFlagsPerLeaf covers the both-non-nil branch of
+// the Flags merge: child wins per leaf, parent fills the remaining leaves.
+// The child==nil + parent!=nil branch is exercised by
+// TestCommandStepMergeCheckoutFlagsAreIndependent.
+func TestCommandStepMergeCheckoutFlagsPerLeaf(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		parent *CheckoutFlags
+		child  *CheckoutFlags
+		want   *CheckoutFlags
+	}{
+		{
+			name:   "disjoint leaves union",
+			parent: &CheckoutFlags{Fetch: ptr("--prune"), Clean: ptr("-fdx")},
+			child:  &CheckoutFlags{Clone: ptr("--depth 1"), Checkout: ptr("--force")},
+			want: &CheckoutFlags{
+				Clone:    ptr("--depth 1"),
+				Fetch:    ptr("--prune"),
+				Checkout: ptr("--force"),
+				Clean:    ptr("-fdx"),
+			},
+		},
+		{
+			name:   "overlapping leaves: child wins",
+			parent: &CheckoutFlags{Clone: ptr("parent")},
+			child:  &CheckoutFlags{Clone: ptr("child")},
+			want:   &CheckoutFlags{Clone: ptr("child")},
+		},
+		{
+			name:   "child empty string wins over parent value",
+			parent: &CheckoutFlags{Clone: ptr("--depth 1")},
+			child:  &CheckoutFlags{Clone: ptr("")},
+			want:   &CheckoutFlags{Clone: ptr("")},
+		},
+		{
+			name:   "mixed overlap and inheritance",
+			parent: &CheckoutFlags{Clone: ptr("parent-clone"), Fetch: ptr("parent-fetch")},
+			child:  &CheckoutFlags{Clone: ptr("child-clone"), Checkout: ptr("child-checkout")},
+			want: &CheckoutFlags{
+				Clone:    ptr("child-clone"),
+				Fetch:    ptr("parent-fetch"),
+				Checkout: ptr("child-checkout"),
+			},
+		},
+		{
+			name:   "RemainingFields union",
+			parent: &CheckoutFlags{RemainingFields: map[string]any{"a": 1}},
+			child:  &CheckoutFlags{RemainingFields: map[string]any{"b": 2}},
+			want:   &CheckoutFlags{RemainingFields: map[string]any{"a": 1, "b": 2}},
+		},
+		{
+			name:   "RemainingFields overlap: child wins",
+			parent: &CheckoutFlags{RemainingFields: map[string]any{"a": 1, "b": 2}},
+			child:  &CheckoutFlags{RemainingFields: map[string]any{"a": 99}},
+			want:   &CheckoutFlags{RemainingFields: map[string]any{"a": 99, "b": 2}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			step := &CommandStep{Checkout: &Checkout{Flags: tc.child}}
+			step.MergeCheckoutFromPipeline(&Checkout{Flags: tc.parent})
+			if diff := cmp.Diff(step.Checkout.Flags, tc.want); diff != "" {
+				t.Errorf("step.Checkout.Flags after merge diff (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
