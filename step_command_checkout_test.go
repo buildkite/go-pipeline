@@ -1130,6 +1130,50 @@ func TestMergeCheckoutFromPipelineNilStep(t *testing.T) {
 	}
 }
 
+func TestCommandStepMergeCheckoutFlagsAreIndependent(t *testing.T) {
+	t.Parallel()
+
+	pipelineCheckout := &Checkout{
+		Flags: &CheckoutFlags{
+			Clone:    ptr("--depth 1"),
+			Fetch:    ptr("--prune"),
+			Checkout: ptr("--force"),
+			Clean:    ptr("-fdx"),
+			RemainingFields: map[string]any{
+				"future_flag": "--foo",
+			},
+		},
+	}
+	step := &CommandStep{}
+	step.MergeCheckoutFromPipeline(pipelineCheckout)
+
+	if step.Checkout == nil || step.Checkout.Flags == nil {
+		t.Fatalf("step.Checkout.Flags = nil, want copy of pipeline flags")
+	}
+
+	*step.Checkout.Flags.Clone = "mutated-clone"
+	*step.Checkout.Flags.Fetch = "mutated-fetch"
+	*step.Checkout.Flags.Checkout = "mutated-checkout"
+	*step.Checkout.Flags.Clean = "mutated-clean"
+	step.Checkout.Flags.RemainingFields["future_flag"] = "mutated-future"
+
+	if *pipelineCheckout.Flags.Clone != "--depth 1" {
+		t.Errorf("mutating step leaked to pipeline.Flags.Clone = %q", *pipelineCheckout.Flags.Clone)
+	}
+	if *pipelineCheckout.Flags.Fetch != "--prune" {
+		t.Errorf("mutating step leaked to pipeline.Flags.Fetch = %q", *pipelineCheckout.Flags.Fetch)
+	}
+	if *pipelineCheckout.Flags.Checkout != "--force" {
+		t.Errorf("mutating step leaked to pipeline.Flags.Checkout = %q", *pipelineCheckout.Flags.Checkout)
+	}
+	if *pipelineCheckout.Flags.Clean != "-fdx" {
+		t.Errorf("mutating step leaked to pipeline.Flags.Clean = %q", *pipelineCheckout.Flags.Clean)
+	}
+	if pipelineCheckout.Flags.RemainingFields["future_flag"] != "--foo" {
+		t.Errorf("mutating step leaked to pipeline.Flags.RemainingFields[future_flag] = %v", pipelineCheckout.Flags.RemainingFields["future_flag"])
+	}
+}
+
 func TestMergeCheckoutFromPipelineNestedRemainingFieldsAreCopied(t *testing.T) {
 	t.Parallel()
 

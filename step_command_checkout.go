@@ -167,22 +167,14 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 
 // mergeCheckoutFlags returns the merge of child and parent flag blocks.
 // Per-leaf semantics: child wins where set, parent fills the remaining
-// leaves. nil child + nil parent returns nil. A clone of parent is used
-// so callers can mutate the result without affecting the parent block.
+// leaves. nil child + nil parent returns nil. Each leaf is deep-copied so
+// callers can mutate the result without affecting the parent block.
 func mergeCheckoutFlags(child, parent *CheckoutFlags) *CheckoutFlags {
 	if parent == nil {
 		return child
 	}
 	if child == nil {
-		// Deep-copy the parent so mutating the result can't leak back.
-		out := *parent
-		if parent.RemainingFields != nil {
-			out.RemainingFields = make(map[string]any, len(parent.RemainingFields))
-			for k, v := range parent.RemainingFields {
-				out.RemainingFields[k] = cloneAny(v)
-			}
-		}
-		return &out
+		child = &CheckoutFlags{}
 	}
 
 	if child.Clone == nil && parent.Clone != nil {
