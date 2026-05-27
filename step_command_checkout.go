@@ -16,6 +16,7 @@ var (
 
 	_ interface {
 		json.Marshaler
+		ordered.Unmarshaler
 		selfInterpolater
 	} = (*CheckoutFlags)(nil)
 )
@@ -94,6 +95,31 @@ func (c *Checkout) UnmarshalOrdered(o any) error {
 // MarshalJSON: see Checkout.MarshalJSON.
 func (f *CheckoutFlags) MarshalJSON() ([]byte, error) {
 	return inlineFriendlyMarshalJSON(f)
+}
+
+// UnmarshalOrdered unmarshals a CheckoutFlags from an ordered map and rejects
+// non-string scalar values under any typed leaf (clone, fetch, checkout,
+// clean). The default for *string targets in ordered.Unmarshal is fmt.Sprint
+// coercion, which would silently turn 'clone: true' into Clone = ptr("true")
+// and produce a broken git invocation downstream. Strict typing fails loudly
+// instead. Unknown keys still land in RemainingFields with any type.
+func (f *CheckoutFlags) UnmarshalOrdered(o any) error {
+	m, ok := o.(*ordered.MapSA)
+	if !ok {
+		return fmt.Errorf("unmarshaling checkout.flags: unsupported type %T, want a mapping", o)
+	}
+	// Keep this list in sync with the typed fields above.
+	for _, leaf := range []string{"clone", "fetch", "checkout", "clean"} {
+		v, present := m.Get(leaf)
+		if !present || v == nil {
+			continue
+		}
+		if _, isString := v.(string); !isString {
+			return fmt.Errorf("unmarshaling checkout.flags.%s: expected a string, got %T", leaf, v)
+		}
+	}
+	type wrappedFlags CheckoutFlags
+	return ordered.Unmarshal(m, (*wrappedFlags)(f))
 }
 
 func (c *Checkout) interpolate(tf stringTransformer) error {

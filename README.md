@@ -153,7 +153,7 @@ steps:
         clean: "-fdx"
 ```
 
-Each leaf is `*string`. Omitting a flag leaves whatever default the consumer applies; an explicit empty string (`clone: ""`) is preserved through round-trips and signals "no flags for this phase". Unknown keys under `flags:` land in `RemainingFields`, so a pipeline using a flag name this library doesn't yet recognize still parses and round-trips cleanly.
+Each leaf is `*string`. Omitting a flag leaves whatever default the consumer applies; an explicit empty string (`clone: ""`) is preserved through round-trips and signals "no flags for this phase". Non-string scalars (`clone: 42`, `clone: true`) are rejected at parse time, since the value passes through to git as flag text and coercion would silently produce broken invocations. Unknown keys under `flags:` land in `RemainingFields`, so a pipeline using a flag name this library doesn't yet recognize still parses and round-trips cleanly.
 
 A pipeline-level `checkout` provides defaults for command steps. Inheritance is opt-in: the consumer merges pipeline values into each step. After merging the step value wins per leaf, with anything the step didn't set inherited from the pipeline, at both the top level and inside `flags`:
 

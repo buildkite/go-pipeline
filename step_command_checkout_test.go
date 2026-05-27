@@ -482,19 +482,17 @@ steps:
 	}
 }
 
-// TestCheckoutFlagsPerLeafScalarCoercion pins the current behavior that
-// non-string scalar values under a flag key (int, bool, float) are coerced
-// to their canonical string form by yaml.v3 + ordered.Unmarshal. This is
-// neither documented nor obviously desirable, but pinning it here means a
-// future yaml.v3 upgrade that changes the behavior (e.g. starts rejecting)
-// fails loudly rather than silently changing wire format.
-func TestCheckoutFlagsPerLeafScalarCoercion(t *testing.T) {
+// TestCheckoutFlagsPerLeafScalarRejection asserts that non-string scalar
+// values under a typed flag leaf are rejected at parse time. The framework
+// default for *string targets is fmt.Sprint coercion, which would silently
+// produce broken git invocations like 'git clone --depth true';
+// CheckoutFlags.UnmarshalOrdered pre-checks each typed leaf and fails loudly.
+func TestCheckoutFlagsPerLeafScalarRejection(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name string
 		yaml string
-		want string
 	}{
 		{
 			name: "int",
@@ -504,7 +502,6 @@ func TestCheckoutFlagsPerLeafScalarCoercion(t *testing.T) {
       flags:
         clone: 42
 `,
-			want: "42",
 		},
 		{
 			name: "bool true",
@@ -514,7 +511,6 @@ func TestCheckoutFlagsPerLeafScalarCoercion(t *testing.T) {
       flags:
         clone: true
 `,
-			want: "true",
 		},
 		{
 			name: "bool false",
@@ -524,7 +520,6 @@ func TestCheckoutFlagsPerLeafScalarCoercion(t *testing.T) {
       flags:
         clone: false
 `,
-			want: "false",
 		},
 		{
 			name: "float",
@@ -534,23 +529,18 @@ func TestCheckoutFlagsPerLeafScalarCoercion(t *testing.T) {
       flags:
         clone: 3.14
 `,
-			want: "3.14",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p, err := Parse(strings.NewReader(tc.yaml))
-			if err != nil {
-				t.Fatalf("Parse() error = %v", err)
+			_, err := Parse(strings.NewReader(tc.yaml))
+			if err == nil {
+				t.Fatalf("Parse(%q) = nil, want rejection", tc.yaml)
 			}
-			cs := p.Steps[0].(*CommandStep)
-			if cs.Checkout == nil || cs.Checkout.Flags == nil || cs.Checkout.Flags.Clone == nil {
-				t.Fatalf("cs.Checkout.Flags.Clone = nil, want ptr(%q)", tc.want)
-			}
-			if got := *cs.Checkout.Flags.Clone; got != tc.want {
-				t.Errorf("cs.Checkout.Flags.Clone = %q, want %q", got, tc.want)
+			if !strings.Contains(err.Error(), "checkout.flags.clone") {
+				t.Errorf("error = %q, want it to identify the offending leaf 'checkout.flags.clone'", err.Error())
 			}
 		})
 	}
