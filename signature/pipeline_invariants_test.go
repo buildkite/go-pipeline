@@ -1,6 +1,7 @@
 package signature
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/buildkite/go-pipeline"
@@ -157,5 +158,115 @@ func TestCommandStepWithInvariants_ValuesForFields_NoSecretsNoSecretsField(t *te
 
 	if diff := cmp.Diff(values, wantValues); diff != "" {
 		t.Errorf("step.ValuesForFields(%v) diff (-got +want):\n%s", fields, diff)
+	}
+}
+
+func ptr[T any](x T) *T { return &x }
+
+func TestCommandStepWithInvariants_SignedFields_WithCheckout(t *testing.T) {
+	t.Parallel()
+
+	checkout := &pipeline.Checkout{Skip: ptr(true)}
+	step := commandStepWithInvariants{
+		CommandStep: pipeline.CommandStep{
+			Command:  "echo hello",
+			Env:      map[string]string{"FOO": "bar"},
+			Plugins:  pipeline.Plugins{},
+			Checkout: checkout,
+		},
+		RepositoryURL: "https://github.com/example/repo",
+	}
+
+	fields, err := step.SignedFields()
+	if err != nil {
+		t.Fatalf("step.SignedFields() error = %v", err)
+	}
+
+	if diff := cmp.Diff(fields["checkout"], checkout); diff != "" {
+		t.Errorf("step.SignedFields()[\"checkout\"] diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestCommandStepWithInvariants_SignedFields_EmptyCheckout(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		checkout *pipeline.Checkout
+	}{
+		{name: "nil", checkout: nil},
+		{name: "zero value", checkout: &pipeline.Checkout{}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			step := commandStepWithInvariants{
+				CommandStep: pipeline.CommandStep{
+					Command:  "echo hello",
+					Checkout: tc.checkout,
+				},
+				RepositoryURL: "https://github.com/example/repo",
+			}
+
+			fields, err := step.SignedFields()
+			if err != nil {
+				t.Fatalf("step.SignedFields() error = %v", err)
+			}
+
+			// checkout must be absent when empty, for backward compatibility
+			// with signatures produced before checkout was signed.
+			if _, has := fields["checkout"]; has {
+				t.Errorf("step.SignedFields()[\"checkout\"] = %v, want absent", fields["checkout"])
+			}
+		})
+	}
+}
+
+func TestCommandStepWithInvariants_ValuesForFields_WithCheckout(t *testing.T) {
+	t.Parallel()
+
+	checkout := &pipeline.Checkout{Skip: ptr(true)}
+	step := commandStepWithInvariants{
+		CommandStep: pipeline.CommandStep{
+			Command:  "echo hello",
+			Plugins:  pipeline.Plugins{},
+			Checkout: checkout,
+		},
+		RepositoryURL: "https://github.com/example/repo",
+	}
+
+	fields := []string{"command", "env", "plugins", "matrix", "repository_url", "checkout"}
+	values, err := step.ValuesForFields(fields)
+	if err != nil {
+		t.Fatalf("step.ValuesForFields() error = %v", err)
+	}
+
+	if diff := cmp.Diff(values["checkout"], checkout); diff != "" {
+		t.Errorf("step.ValuesForFields()[\"checkout\"] diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestCommandStepWithInvariants_ValuesForFields_MissingCheckoutField(t *testing.T) {
+	t.Parallel()
+
+	step := commandStepWithInvariants{
+		CommandStep: pipeline.CommandStep{
+			Command:  "echo hello",
+			Plugins:  pipeline.Plugins{},
+			Checkout: &pipeline.Checkout{Skip: ptr(true)},
+		},
+		RepositoryURL: "https://github.com/example/repo",
+	}
+
+	// Step has checkout but verifier didn't ask for it - should fail.
+	fields := []string{"command", "env", "plugins", "matrix", "repository_url"}
+	_, err := step.ValuesForFields(fields)
+	if err == nil {
+		t.Fatalf("step.ValuesForFields(%v) error = nil, want error mentioning checkout", fields)
+	}
+	if !strings.Contains(err.Error(), "checkout") {
+		t.Errorf("error %q does not mention checkout", err.Error())
 	}
 }

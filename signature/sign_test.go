@@ -512,6 +512,168 @@ func TestSignVerifySecrets(t *testing.T) {
 	}
 }
 
+func TestSignVerifyCheckout(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	cases := []struct {
+		name string
+		step *pipeline.CommandStep
+	}{
+		{
+			name: "skip true",
+			step: &pipeline.CommandStep{
+				Command:  "llamas",
+				Checkout: &pipeline.Checkout{Skip: ptr(true)},
+			},
+		},
+		{
+			name: "skip false",
+			step: &pipeline.CommandStep{
+				Command:  "llamas",
+				Checkout: &pipeline.Checkout{Skip: ptr(false)},
+			},
+		},
+		{
+			name: "submodules only",
+			step: &pipeline.CommandStep{
+				Command:  "llamas",
+				Checkout: &pipeline.Checkout{Submodules: ptr(true)},
+			},
+		},
+		{
+			name: "skip and submodules",
+			step: &pipeline.CommandStep{
+				Command:  "llamas",
+				Checkout: &pipeline.Checkout{Skip: ptr(false), Submodules: ptr(true)},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			keyStr, keyAlg := "alpacas", jwa.HS256
+			signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
+			if err != nil {
+				t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
+			}
+
+			key, ok := signer.Key(0)
+			if !ok {
+				t.Fatalf("signer.Key(0) = _, false, want true")
+			}
+
+			toSign := &commandStepWithInvariants{
+				CommandStep:   *tc.step,
+				RepositoryURL: fakeRepositoryURL,
+			}
+			toVerify := &commandStepWithInvariants{
+				CommandStep:   *tc.step,
+				RepositoryURL: fakeRepositoryURL,
+			}
+
+			sig, err := Sign(ctx, key, toSign)
+			if err != nil {
+				t.Fatalf("Sign(ctx, key, %v) error = %v", toSign, err)
+			}
+
+			if !slices.Contains(sig.SignedFields, "checkout") {
+				t.Errorf("sig.SignedFields = %v, want it to contain %q", sig.SignedFields, "checkout")
+			}
+
+			if err := Verify(ctx, sig, verifier, toVerify); err != nil {
+				t.Errorf("Verify(ctx, %v, verifier, %v) = %v", sig, toVerify, err)
+			}
+		})
+	}
+}
+
+// TestSignVerifyCheckoutTamperDetection asserts that swapping checkout values
+// between sign and verify fails verification, so the signer can't be ignored
+// at the agent.
+func TestSignVerifyCheckoutTamperDetection(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	signStep := &pipeline.CommandStep{
+		Command:  "llamas",
+		Checkout: &pipeline.Checkout{Skip: ptr(true)},
+	}
+	verifyStep := &pipeline.CommandStep{
+		Command:  "llamas",
+		Checkout: &pipeline.Checkout{Skip: ptr(false)},
+	}
+
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
+	if err != nil {
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
+	}
+
+	key, ok := signer.Key(0)
+	if !ok {
+		t.Fatalf("signer.Key(0) = _, false, want true")
+	}
+
+	sig, err := Sign(ctx, key, &commandStepWithInvariants{CommandStep: *signStep, RepositoryURL: fakeRepositoryURL})
+	if err != nil {
+		t.Fatalf("Sign error = %v", err)
+	}
+
+	err = Verify(ctx, sig, verifier, &commandStepWithInvariants{CommandStep: *verifyStep, RepositoryURL: fakeRepositoryURL})
+	if err == nil {
+		t.Fatalf("Verify error = nil, want non-nil for tampered checkout")
+	}
+}
+
+// TestVerifyLegacySignatureWithCheckoutFails asserts that a signature whose
+// signed_fields omits "checkout" fails to verify a step that now carries
+// non-empty Checkout data.
+func TestVerifyLegacySignatureWithCheckoutFails(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	// Sign with no checkout (the pre-#73 state).
+	signStep := &pipeline.CommandStep{Command: "llamas"}
+	// Verify with the same step but carrying checkout data (e.g. a pipeline
+	// that always had `submodules: true` but was signed before checkout was
+	// part of the signed payload).
+	verifyStep := &pipeline.CommandStep{
+		Command:  "llamas",
+		Checkout: &pipeline.Checkout{Submodules: ptr(true)},
+	}
+
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
+	if err != nil {
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
+	}
+
+	key, ok := signer.Key(0)
+	if !ok {
+		t.Fatalf("signer.Key(0) = _, false, want true")
+	}
+
+	sig, err := Sign(ctx, key, &commandStepWithInvariants{CommandStep: *signStep, RepositoryURL: fakeRepositoryURL})
+	if err != nil {
+		t.Fatalf("Sign error = %v", err)
+	}
+
+	if slices.Contains(sig.SignedFields, "checkout") {
+		t.Fatalf("sig.SignedFields = %v, want it to NOT contain %q (sign step has no checkout)", sig.SignedFields, "checkout")
+	}
+
+	err = Verify(ctx, sig, verifier, &commandStepWithInvariants{CommandStep: *verifyStep, RepositoryURL: fakeRepositoryURL})
+	if err == nil {
+		t.Fatalf("Verify error = nil, want error citing missing 'checkout' field")
+	}
+	if !strings.Contains(err.Error(), "checkout") {
+		t.Errorf("Verify error = %q, want it to mention 'checkout'", err.Error())
+	}
+}
+
 func TestSignVerifyEnv(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -700,6 +862,26 @@ func TestSignVerify_NilVsEmpty(t *testing.T) {
 			name:       "matrix sign empty verify empty",
 			stepSign:   &pipeline.CommandStep{Command: "llamas", Matrix: &pipeline.Matrix{}},
 			stepVerify: &pipeline.CommandStep{Command: "llamas", Matrix: &pipeline.Matrix{}},
+		},
+		{
+			name:       "checkout sign nil verify nil",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Checkout: nil},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Checkout: nil},
+		},
+		{
+			name:       "checkout sign nil verify empty",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Checkout: nil},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Checkout: &pipeline.Checkout{}},
+		},
+		{
+			name:       "checkout sign empty verify nil",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Checkout: &pipeline.Checkout{}},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Checkout: nil},
+		},
+		{
+			name:       "checkout sign empty verify empty",
+			stepSign:   &pipeline.CommandStep{Command: "llamas", Checkout: &pipeline.Checkout{}},
+			stepVerify: &pipeline.CommandStep{Command: "llamas", Checkout: &pipeline.Checkout{}},
 		},
 	}
 

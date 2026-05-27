@@ -42,6 +42,13 @@ func (c *commandStepWithInvariants) SignedFields() (map[string]any, error) {
 		object["secrets"] = EmptyToNilSlice(c.Secrets)
 	}
 
+	// Include checkout only when non-empty, so signatures produced against
+	// steps with no checkout config keep the legacy field set. Note this is
+	// not symmetric with verification: see ValuesForFields below.
+	if !c.Checkout.IsEmpty() {
+		object["checkout"] = EmptyToNilPtr(c.Checkout)
+	}
+
 	// Step env overrides pipeline and build env:
 	// https://buildkite.com/docs/tutorials/pipeline-upgrade#what-is-the-yaml-steps-editor-compatibility-issues
 	// (Beware of inconsistent docs written in the time of legacy steps.)
@@ -74,6 +81,17 @@ func (c *commandStepWithInvariants) ValuesForFields(fields []string) (map[string
 		required["secrets"] = struct{}{}
 	}
 
+	// Require checkout when the step has any checkout config, so an attacker
+	// cannot strip "checkout" from signed_fields and ship modified checkout
+	// settings. The cost is that signatures produced before checkout was
+	// signed will fail to verify if the step now carries any Checkout data
+	// (e.g. a step that only sets `submodules`), even when nothing was
+	// modified. Operators rotating to this verifier should re-sign such
+	// pipelines.
+	if !c.Checkout.IsEmpty() {
+		required["checkout"] = struct{}{}
+	}
+
 	out := make(map[string]any, len(fields))
 	for _, f := range fields {
 		delete(required, f)
@@ -96,6 +114,9 @@ func (c *commandStepWithInvariants) ValuesForFields(fields []string) (map[string
 
 		case "secrets":
 			out["secrets"] = EmptyToNilSlice(c.Secrets)
+
+		case "checkout":
+			out["checkout"] = EmptyToNilPtr(c.Checkout)
 
 		default:
 			if name, has := strings.CutPrefix(f, EnvNamespacePrefix); has {
