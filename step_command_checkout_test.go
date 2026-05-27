@@ -378,6 +378,14 @@ func TestCommandStepCheckoutRejectedShapes(t *testing.T) {
         - "--depth 1"
 `,
 		},
+		{
+			name: "flags as scalar bool",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags: true
+`,
+		},
 	}
 
 	for _, tc := range cases {
@@ -417,6 +425,148 @@ steps:
   - "--depth 1"
 steps:
   - command: build.sh
+`,
+		},
+		{
+			name: "flags as scalar bool",
+			yaml: `checkout:
+  flags: true
+steps:
+  - command: build.sh
+`,
+		},
+		{
+			name: "flags as scalar string",
+			yaml: `checkout:
+  flags: "--depth 1"
+steps:
+  - command: build.sh
+`,
+		},
+		{
+			name: "flags as sequence",
+			yaml: `checkout:
+  flags:
+    - "--depth 1"
+steps:
+  - command: build.sh
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := Parse(strings.NewReader(tc.yaml)); err == nil {
+				t.Fatalf("Parse(%q) = nil, want error", tc.yaml)
+			}
+		})
+	}
+}
+
+// TestCheckoutFlagsPerLeafScalarCoercion pins the current behavior that
+// non-string scalar values under a flag key (int, bool, float) are coerced
+// to their canonical string form by yaml.v3 + ordered.Unmarshal. This is
+// neither documented nor obviously desirable, but pinning it here means a
+// future yaml.v3 upgrade that changes the behavior (e.g. starts rejecting)
+// fails loudly rather than silently changing wire format.
+func TestCheckoutFlagsPerLeafScalarCoercion(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		yaml string
+		want string
+	}{
+		{
+			name: "int",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: 42
+`,
+			want: "42",
+		},
+		{
+			name: "bool true",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: true
+`,
+			want: "true",
+		},
+		{
+			name: "bool false",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: false
+`,
+			want: "false",
+		},
+		{
+			name: "float",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: 3.14
+`,
+			want: "3.14",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p, err := Parse(strings.NewReader(tc.yaml))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			cs := p.Steps[0].(*CommandStep)
+			if cs.Checkout == nil || cs.Checkout.Flags == nil || cs.Checkout.Flags.Clone == nil {
+				t.Fatalf("cs.Checkout.Flags.Clone = nil, want ptr(%q)", tc.want)
+			}
+			if got := *cs.Checkout.Flags.Clone; got != tc.want {
+				t.Errorf("cs.Checkout.Flags.Clone = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestCheckoutFlagsPerLeafCollectionRejection pins the current behavior that
+// non-scalar values under a flag key (sequence, mapping) fail parsing with
+// an "incompatible types" error from ordered.Unmarshal. The flag fields are
+// *string; collection inputs can't be coerced to a string and don't
+// silently round-trip via RemainingFields either.
+func TestCheckoutFlagsPerLeafCollectionRejection(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "sequence",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone:
+          - "--depth 1"
+`,
+		},
+		{
+			name: "mapping",
+			yaml: `steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: {}
 `,
 		},
 	}
