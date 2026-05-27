@@ -548,6 +548,27 @@ func TestSignVerifyCheckout(t *testing.T) {
 				Checkout: &pipeline.Checkout{Skip: ptr(false), Submodules: ptr(true)},
 			},
 		},
+		{
+			name: "flags only",
+			step: &pipeline.CommandStep{
+				Command: "llamas",
+				Checkout: &pipeline.Checkout{
+					Flags: &pipeline.CheckoutFlags{
+						Clone: ptr("--depth 1"),
+						Fetch: ptr("--prune"),
+					},
+				},
+			},
+		},
+		{
+			name: "remaining fields only",
+			step: &pipeline.CommandStep{
+				Command: "llamas",
+				Checkout: &pipeline.Checkout{
+					RemainingFields: map[string]any{"future_field": "value"},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -625,6 +646,49 @@ func TestSignVerifyCheckoutTamperDetection(t *testing.T) {
 	err = Verify(ctx, sig, verifier, &commandStepWithInvariants{CommandStep: *verifyStep, RepositoryURL: fakeRepositoryURL})
 	if err == nil {
 		t.Fatalf("Verify error = nil, want non-nil for tampered checkout")
+	}
+}
+
+// TestSignVerifyCheckoutFlagsTamperDetection asserts that mutating a leaf of
+// Checkout.Flags between sign and verify fails verification. Mirrors the Skip
+// tamper test for the nested Flags shape, which goes through a different code
+// path in EmptyToNilPtr / signature hashing.
+func TestSignVerifyCheckoutFlagsTamperDetection(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	signStep := &pipeline.CommandStep{
+		Command: "llamas",
+		Checkout: &pipeline.Checkout{
+			Flags: &pipeline.CheckoutFlags{Clone: ptr("--depth 1")},
+		},
+	}
+	verifyStep := &pipeline.CommandStep{
+		Command: "llamas",
+		Checkout: &pipeline.Checkout{
+			Flags: &pipeline.CheckoutFlags{Clone: ptr("--depth 50")},
+		},
+	}
+
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
+	if err != nil {
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
+	}
+
+	key, ok := signer.Key(0)
+	if !ok {
+		t.Fatalf("signer.Key(0) = _, false, want true")
+	}
+
+	sig, err := Sign(ctx, key, &commandStepWithInvariants{CommandStep: *signStep, RepositoryURL: fakeRepositoryURL})
+	if err != nil {
+		t.Fatalf("Sign error = %v", err)
+	}
+
+	err = Verify(ctx, sig, verifier, &commandStepWithInvariants{CommandStep: *verifyStep, RepositoryURL: fakeRepositoryURL})
+	if err == nil {
+		t.Fatalf("Verify error = nil, want non-nil for tampered checkout.flags.clone")
 	}
 }
 
