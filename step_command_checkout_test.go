@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -477,6 +478,34 @@ steps:
 			t.Parallel()
 			if _, err := Parse(strings.NewReader(tc.yaml)); err == nil {
 				t.Fatalf("Parse(%q) = nil, want error", tc.yaml)
+			}
+		})
+	}
+}
+
+// TestCheckoutUnmarshalOrderedWrapsSentinel asserts that non-mapping inputs
+// to Checkout.UnmarshalOrdered surface errUnsupportedCheckoutType via
+// errors.Is. Mirrors the parity in step_command_cache_test.go for
+// errUnsupportedCacheType. The bool-rejection arms return tailored messages
+// without wrapping the sentinel; the operator-facing rejection of bool
+// shorthands is pinned by TestPipelineCheckoutRejectsBool.
+func TestCheckoutUnmarshalOrderedWrapsSentinel(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		input any
+	}{
+		{name: "scalar string", input: "skip"},
+		{name: "scalar int", input: 5},
+		{name: "sequence", input: []any{"--depth 1"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var c Checkout
+			err := c.UnmarshalOrdered(tc.input)
+			if !errors.Is(err, errUnsupportedCheckoutType) {
+				t.Fatalf("UnmarshalOrdered(%v) = %v, want errors.Is(..., errUnsupportedCheckoutType)", tc.input, err)
 			}
 		})
 	}
@@ -1404,6 +1433,50 @@ func TestCommandStepMergeCheckoutNestedRemainingFieldsAreCopied(t *testing.T) {
 	}
 }
 
+// TestCommandStepMergeCheckoutOrderedMapSAValueClone covers the in-prod path
+// for cloneInlineValue's *ordered.MapSA branch: YAML parse stores nested mappings
+// under inline RemainingFields as *ordered.MapSA, and MergeCheckoutFromPipeline
+// must deep-copy them so mutating the child does not leak into the pipeline.
+// The sibling TestCommandStepMergeCheckoutNestedRemainingFieldsAreCopied
+// covers the map[string]any and []any branches via programmatic construction;
+// this test fills the third branch and pins the assumption that the parser
+// produces *ordered.MapSA, not map[string]any.
+func TestCommandStepMergeCheckoutOrderedMapSAValueClone(t *testing.T) {
+	t.Parallel()
+
+	const yamlData = `checkout:
+  future_field:
+    nested_key: pipeline_value
+steps:
+  - command: build.sh
+`
+	p, err := Parse(strings.NewReader(yamlData))
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+
+	parentVal, ok := p.Checkout.RemainingFields["future_field"].(*ordered.MapSA)
+	if !ok {
+		t.Fatalf("parent RemainingFields[future_field] type = %T, want *ordered.MapSA", p.Checkout.RemainingFields["future_field"])
+	}
+
+	step := p.Steps[0].(*CommandStep)
+	step.MergeCheckoutFromPipeline(p.Checkout)
+
+	childVal, ok := step.Checkout.RemainingFields["future_field"].(*ordered.MapSA)
+	if !ok {
+		t.Fatalf("child RemainingFields[future_field] type = %T, want *ordered.MapSA", step.Checkout.RemainingFields["future_field"])
+	}
+	if childVal == parentVal {
+		t.Fatalf("child and parent share the same *ordered.MapSA pointer; want deep-copy")
+	}
+
+	childVal.Set("nested_key", "child_value")
+	if got, _ := parentVal.Get("nested_key"); got != "pipeline_value" {
+		t.Errorf("mutating child leaked into parent; parent[nested_key] = %v, want pipeline_value", got)
+	}
+}
+
 func TestPipelineCheckoutMergeAtBothLevels(t *testing.T) {
 	t.Parallel()
 
@@ -1676,6 +1749,63 @@ func TestCommandStepMergeCheckoutSubmodules(t *testing.T) {
 			t.Errorf("mutating step leaked to parent.Submodules = %v", *parent.Submodules)
 		}
 	})
+}
+
+// TestCommandStepMergeCheckoutChildSkipOnlyParentFlagsOnly covers the
+// asymmetric case Checkout.mergeFrom must handle: parent has only Flags set
+// while child has only Skip set, so the merge has to populate Flags on a
+// non-nil child Checkout that itself has no Flags pointer.
+func TestCommandStepMergeCheckoutChildSkipOnlyParentFlagsOnly(t *testing.T) {
+	t.Parallel()
+
+	parent := &Checkout{Flags: &CheckoutFlags{Clone: ptr("--depth 1")}}
+	step := &CommandStep{Checkout: &Checkout{Skip: ptr(true)}}
+	step.MergeCheckoutFromPipeline(parent)
+
+	if step.Checkout.Skip == nil || *step.Checkout.Skip != true {
+		t.Errorf("step.Checkout.Skip = %v, want ptr(true)", step.Checkout.Skip)
+	}
+	if step.Checkout.Flags == nil || step.Checkout.Flags.Clone == nil || *step.Checkout.Flags.Clone != "--depth 1" {
+		t.Fatalf("step.Checkout.Flags = %+v, want Flags.Clone = ptr(\"--depth 1\")", step.Checkout.Flags)
+	}
+
+	*step.Checkout.Flags.Clone = "mutated"
+	if *parent.Flags.Clone != "--depth 1" {
+		t.Errorf("mutating step leaked to parent.Flags.Clone = %q", *parent.Flags.Clone)
+	}
+}
+
+// TestCommandStepMergeCheckoutRemainingFieldsOverlap covers Checkout-level
+// RemainingFields merge semantics: child wins per key, parent fills keys the
+// child does not set. The CheckoutFlags-level equivalent is covered by
+// TestCommandStepMergeCheckoutFlagsPerLeaf's "RemainingFields overlap" case.
+func TestCommandStepMergeCheckoutRemainingFieldsOverlap(t *testing.T) {
+	t.Parallel()
+
+	parent := &Checkout{
+		RemainingFields: map[string]any{
+			"shared":      "parent_value",
+			"parent_only": "parent_only_value",
+		},
+	}
+	step := &CommandStep{
+		Checkout: &Checkout{
+			RemainingFields: map[string]any{
+				"shared":     "child_value",
+				"child_only": "child_only_value",
+			},
+		},
+	}
+	step.MergeCheckoutFromPipeline(parent)
+
+	want := map[string]any{
+		"shared":      "child_value",
+		"parent_only": "parent_only_value",
+		"child_only":  "child_only_value",
+	}
+	if diff := cmp.Diff(step.Checkout.RemainingFields, want); diff != "" {
+		t.Errorf("step.Checkout.RemainingFields after merge diff (-got +want):\n%s", diff)
+	}
 }
 
 // TestCommandStepMergeCheckoutEmptyParentFlagsDoesNotMaterialise asserts that

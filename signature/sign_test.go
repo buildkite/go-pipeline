@@ -692,6 +692,51 @@ func TestSignVerifyCheckoutFlagsTamperDetection(t *testing.T) {
 	}
 }
 
+// TestSignVerifyCheckoutRemainingFieldsTamperDetection asserts that mutating
+// an inline RemainingFields value between sign and verify fails verification.
+// RemainingFields goes through inlineFriendlyMarshalJSON's inline-merge path
+// rather than the named-field path the Skip and Flags tamper tests exercise,
+// so a refactor that drops inline merging from the canonical payload would
+// pass those tests but fail this one.
+func TestSignVerifyCheckoutRemainingFieldsTamperDetection(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	signStep := &pipeline.CommandStep{
+		Command: "llamas",
+		Checkout: &pipeline.Checkout{
+			RemainingFields: map[string]any{"future_field": "v1"},
+		},
+	}
+	verifyStep := &pipeline.CommandStep{
+		Command: "llamas",
+		Checkout: &pipeline.Checkout{
+			RemainingFields: map[string]any{"future_field": "v2"},
+		},
+	}
+
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
+	if err != nil {
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
+	}
+
+	key, ok := signer.Key(0)
+	if !ok {
+		t.Fatalf("signer.Key(0) = _, false, want true")
+	}
+
+	sig, err := Sign(ctx, key, &commandStepWithInvariants{CommandStep: *signStep, RepositoryURL: fakeRepositoryURL})
+	if err != nil {
+		t.Fatalf("Sign error = %v", err)
+	}
+
+	err = Verify(ctx, sig, verifier, &commandStepWithInvariants{CommandStep: *verifyStep, RepositoryURL: fakeRepositoryURL})
+	if err == nil {
+		t.Fatalf("Verify error = nil, want non-nil for tampered checkout.RemainingFields")
+	}
+}
+
 // TestVerifyLegacySignatureWithCheckoutFails asserts that a signature whose
 // signed_fields omits "checkout" fails to verify a step that now carries
 // non-empty Checkout data. This pins the operator-facing promise from the
