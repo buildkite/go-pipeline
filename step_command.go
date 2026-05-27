@@ -169,10 +169,7 @@ func (c *CommandStep) MergeCheckoutFromPipeline(pipelineCheckout *Checkout) {
 	if pipelineCheckout.IsEmpty() {
 		return
 	}
-	if c.Checkout == nil {
-		c.Checkout = &Checkout{}
-	}
-	c.Checkout.mergeFrom(pipelineCheckout)
+	c.Checkout = c.Checkout.mergeFrom(pipelineCheckout)
 }
 
 func (CommandStep) stepTag() {}

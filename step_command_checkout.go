@@ -92,7 +92,7 @@ func (c *Checkout) UnmarshalOrdered(o any) error {
 	}
 }
 
-// MarshalJSON: see Checkout.MarshalJSON.
+// MarshalJSON is needed to use inlineFriendlyMarshalJSON.
 func (f *CheckoutFlags) MarshalJSON() ([]byte, error) {
 	return inlineFriendlyMarshalJSON(f)
 }
@@ -151,12 +151,17 @@ func (f *CheckoutFlags) interpolate(tf stringTransformer) error {
 	return interpolateMap(tf, f.RemainingFields)
 }
 
-// mergeFrom merges parent values into c. Child wins per top-level key;
-// parent contributes only keys the child does not set. Flags are merged
-// per leaf so a child overriding clone: still inherits the parent's fetch:.
-func (c *Checkout) mergeFrom(parent *Checkout) {
-	if c == nil || parent == nil {
-		return
+// mergeFrom returns the merge of c and parent. Child wins per top-level key;
+// parent contributes only keys the child does not set. Flags are merged per
+// leaf so a child overriding clone: still inherits the parent's fetch:.
+// A nil receiver is safe: if c is nil and parent is non-nil, a fresh Checkout
+// is allocated. Mirrors (*CheckoutFlags).mergeFrom.
+func (c *Checkout) mergeFrom(parent *Checkout) *Checkout {
+	if parent == nil {
+		return c
+	}
+	if c == nil {
+		c = &Checkout{}
 	}
 
 	if c.Skip == nil && parent.Skip != nil {
@@ -172,7 +177,7 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 	c.Flags = c.Flags.mergeFrom(parent.Flags)
 
 	if len(parent.RemainingFields) == 0 {
-		return
+		return c
 	}
 	if c.RemainingFields == nil {
 		c.RemainingFields = make(map[string]any, len(parent.RemainingFields))
@@ -181,8 +186,9 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 		if _, ok := c.RemainingFields[k]; ok {
 			continue
 		}
-		c.RemainingFields[k] = cloneAny(pv)
+		c.RemainingFields[k] = cloneInlineValue(pv)
 	}
+	return c
 }
 
 // mergeFrom returns the per-leaf merge of c and parent: c wins where set,
@@ -234,29 +240,29 @@ func (c *CheckoutFlags) mergeFrom(parent *CheckoutFlags) *CheckoutFlags {
 		if _, ok := c.RemainingFields[k]; ok {
 			continue
 		}
-		c.RemainingFields[k] = cloneAny(pv)
+		c.RemainingFields[k] = cloneInlineValue(pv)
 	}
 	return c
 }
 
-// cloneAny deep-copies the value shapes YAML/JSON decoding produces in inline
+// cloneInlineValue deep-copies the value shapes YAML/JSON decoding produces in inline
 // RemainingFields: nested map[string]any, []any, and *ordered.MapSA. Other
 // types fall through by value; callers that put typed reference values
 // (e.g. []string, map[string]string) into RemainingFields programmatically
 // are responsible for their own copies before merging.
-func cloneAny(v any) any {
+func cloneInlineValue(v any) any {
 	switch v := v.(type) {
 	case map[string]any:
 		out := make(map[string]any, len(v))
 		for k, vv := range v {
-			out[k] = cloneAny(vv)
+			out[k] = cloneInlineValue(vv)
 		}
 		return out
 
 	case []any:
 		out := make([]any, len(v))
 		for i, vv := range v {
-			out[i] = cloneAny(vv)
+			out[i] = cloneInlineValue(vv)
 		}
 		return out
 
@@ -266,7 +272,7 @@ func cloneAny(v any) any {
 		}
 		out := ordered.NewMap[string, any](v.Len())
 		_ = v.Range(func(k string, vv any) error {
-			out.Set(k, cloneAny(vv))
+			out.Set(k, cloneInlineValue(vv))
 			return nil
 		})
 		return out
