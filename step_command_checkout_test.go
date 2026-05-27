@@ -1688,6 +1688,25 @@ func TestCommandStepMergeCheckoutSubmodules(t *testing.T) {
 	})
 }
 
+// TestCommandStepMergeCheckoutEmptyParentFlagsDoesNotMaterialise asserts that
+// a parent Checkout with a non-nil-but-empty Flags pointer does not propagate
+// the empty pointer onto a child whose Flags is nil. The early-return inside
+// CheckoutFlags.mergeFrom makes the merge symmetric with the RemainingFields
+// path, which also treats an empty parent as no contribution.
+func TestCommandStepMergeCheckoutEmptyParentFlagsDoesNotMaterialise(t *testing.T) {
+	t.Parallel()
+
+	step := &CommandStep{}
+	step.MergeCheckoutFromPipeline(&Checkout{Flags: &CheckoutFlags{}})
+
+	if step.Checkout == nil {
+		t.Fatalf("step.Checkout = nil, want non-nil after merge with non-empty parent Checkout")
+	}
+	if step.Checkout.Flags != nil {
+		t.Errorf("step.Checkout.Flags = %+v, want nil (empty parent Flags should not materialize child Flags)", step.Checkout.Flags)
+	}
+}
+
 // TestCommandStepMergeCheckoutFlagsPerLeaf covers the both-non-nil branch of the Flags
 // merge: child wins per leaf, parent fills the remaining leaves. The
 // child==nil + parent!=nil branch is exercised by

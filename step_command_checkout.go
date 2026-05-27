@@ -167,6 +167,16 @@ func (c *CheckoutFlags) mergeFrom(parent *CheckoutFlags) *CheckoutFlags {
 	if parent == nil {
 		return c
 	}
+	// Symmetry with RemainingFields handling below: a parent with no leaves
+	// and no inline keys contributes nothing, so don't materialize a fresh
+	// CheckoutFlags on the child just to leave it empty.
+	if parent.Clone == nil &&
+		parent.Fetch == nil &&
+		parent.Checkout == nil &&
+		parent.Clean == nil &&
+		len(parent.RemainingFields) == 0 {
+		return c
+	}
 	if c == nil {
 		c = &CheckoutFlags{}
 	}
