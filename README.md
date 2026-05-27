@@ -138,7 +138,9 @@ steps:
       skip: true
 ```
 
-`skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout, while an absent `skip` inherits whatever default applies. Round-trips preserve the distinction; `skip: false` does not collapse to an empty mapping. `skip` maps to `BUILDKITE_SKIP_CHECKOUT` on the agent (`true` skips the checkout phase; absent leaves it to the agent default). `submodules` follows the same tristate pattern and maps to `BUILDKITE_GIT_SUBMODULES` on the agent (`true` and `false` set the env var explicitly; absent leaves it to the agent default).
+`skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout; an absent `skip` inherits whatever default applies. Round-trips preserve the distinction, so `skip: false` does not collapse to an empty mapping.
+
+`skip` maps to `BUILDKITE_SKIP_CHECKOUT` on the agent: `true` skips the checkout phase, absent leaves it to the agent default. `submodules` follows the same tristate pattern and maps to `BUILDKITE_GIT_SUBMODULES`: `true` and `false` set the env var explicitly, absent leaves it to the agent default.
 
 `flags` carries per-phase git invocation overrides for `clone`, `fetch`, `checkout`, and `clean`:
 
@@ -173,7 +175,7 @@ After merging, the second step has `skip: false` (step wins) and the first step 
 
 The conventional ordering is `Pipeline.Interpolate` first, then merge per step before dispatching to the agent.
 
-`checkout: false` (and `checkout: true`) as a shorthand is rejected at unmarshal time; `checkout` is a mapping, so opt-out is spelled `checkout: { skip: true }`.
+Both `checkout:` and `flags:` must be mappings. Non-mapping shapes (scalars, including the `checkout: true` / `checkout: false` shorthand, and sequences) are rejected at parse time. Opt-out is spelled `checkout: { skip: true }`.
 
 Pipelines signed before checkout was a signed field will fail to verify if the step now carries any non-empty Checkout data (for example a step that sets only `submodules`). Re-sign such pipelines when rolling forward to a verifier that includes checkout.
 
