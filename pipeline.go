@@ -105,6 +105,12 @@ func (p *Pipeline) Interpolate(interpolationEnv InterpolationEnv, preferRuntimeE
 		return err
 	}
 
+	if p.Checkout != nil {
+		if err := p.Checkout.interpolate(tf); err != nil {
+			return err
+		}
+	}
+
 	return interpolateMap(tf, p.RemainingFields)
 }
 
