@@ -7,6 +7,7 @@ import (
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/buildkite/go-pipeline/warning"
 	"github.com/buildkite/interpolate"
+	"gopkg.in/yaml.v3"
 )
 
 // Pipeline models a pipeline.
@@ -120,7 +121,7 @@ func (p *Pipeline) Interpolate(interpolationEnv InterpolationEnv, preferRuntimeE
 // be interpolated into later environment variables, we also add the results
 // to interpolationEnv, making the input ordering of p.Env potentially important.
 func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv, preferRuntimeEnv bool) error {
-	return p.Env.Range(func(k, v string) error {
+	return p.Env.Range(func(k, v string, src *yaml.Node) error {
 		// We interpolate both keys and values.
 		intk, err := interpolate.Interpolate(interpolationEnv, k)
 		if err != nil {
@@ -133,7 +134,7 @@ func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv, prefer
 			return err
 		}
 
-		p.Env.Replace(k, intk, intv)
+		p.Env.Replace(k, intk, intv, src)
 
 		// If the variable already existed and we prefer the runtime environment then don't overwrite it
 		if _, exists := interpolationEnv.Get(intk); !(preferRuntimeEnv && exists) {

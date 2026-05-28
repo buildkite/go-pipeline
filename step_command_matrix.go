@@ -351,13 +351,13 @@ func (maw *MatrixAdjustmentWith) UnmarshalOrdered(o any) error {
 	case *ordered.MapSA:
 		// A map of dimension key -> dimension value. (Tuple of dimension value
 		// selections.)
-		return src.Range(func(k string, v any) error {
+		return src.Range(func(k string, v any, src *yaml.Node) error {
 			switch vt := v.(type) {
 			case bool, int, string:
 				(*maw)[k] = fmt.Sprint(vt)
 
 			default:
-				return fmt.Errorf("unsupported value type %T in key %q for MatrixAdjustmentsWith", v, k)
+				return fmt.Errorf("%sunsupported value type %T in key %q for MatrixAdjustmentsWith", ordered.SourcePrefix(src), v, k)
 			}
 			return nil
 		})
