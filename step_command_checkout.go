@@ -24,9 +24,9 @@ var (
 var errUnsupportedCheckoutType = fmt.Errorf("unsupported type for checkout")
 
 // Checkout models the checkout settings block on a command step or pipeline.
-// Skip and Submodules sit at the top level; per-flag overrides live under the
-// nested flags: key. Any other keys directly under checkout: land in
-// RemainingFields and survive a round-trip but are not interpreted.
+// Skip, Submodules, and Depth sit at the top level; per-flag overrides live
+// under the nested flags: key. Any other keys directly under checkout: land
+// in RemainingFields and survive a round-trip but are not interpreted.
 //
 // Direct json.Unmarshal into a Checkout drops inline RemainingFields; route
 // through CommandStep or Pipeline to preserve them.
@@ -34,8 +34,11 @@ type Checkout struct {
 	// Skip maps to BUILDKITE_SKIP_CHECKOUT on the agent.
 	Skip *bool `yaml:"skip,omitempty"`
 	// Submodules maps to BUILDKITE_GIT_SUBMODULES on the agent.
-	Submodules *bool          `yaml:"submodules,omitempty"`
-	Flags      *CheckoutFlags `yaml:"flags,omitempty"`
+	Submodules *bool `yaml:"submodules,omitempty"`
+	// Depth performs a shallow clone of the given depth. nil leaves the
+	// agent default (full clone).
+	Depth *int           `yaml:"depth,omitempty"`
+	Flags *CheckoutFlags `yaml:"flags,omitempty"`
 
 	RemainingFields map[string]any `yaml:",inline"`
 }
@@ -64,6 +67,7 @@ func (c *Checkout) IsEmpty() bool {
 	return c == nil ||
 		(c.Skip == nil &&
 			c.Submodules == nil &&
+			c.Depth == nil &&
 			c.Flags == nil &&
 			len(c.RemainingFields) == 0)
 }
@@ -172,6 +176,11 @@ func (c *Checkout) mergeFrom(parent *Checkout) *Checkout {
 	if c.Submodules == nil && parent.Submodules != nil {
 		v := *parent.Submodules
 		c.Submodules = &v
+	}
+
+	if c.Depth == nil && parent.Depth != nil {
+		v := *parent.Depth
+		c.Depth = &v
 	}
 
 	c.Flags = c.Flags.mergeFrom(parent.Flags)

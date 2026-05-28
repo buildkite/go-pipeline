@@ -179,6 +179,20 @@ Both `checkout:` and `flags:` must be mappings. Non-mapping shapes (scalars, inc
 
 Pipelines signed before checkout was a signed field will fail to verify if the step now carries any non-empty Checkout data (for example a step that sets only `submodules`). Re-sign such pipelines when rolling forward to a verifier that includes checkout.
 
+`Checkout.Depth` is a `*int` for the same reason as `Skip`, this is distinguishable from any explicit value, so an inherited pipeline level depth can be cleanly overridden at the step level. The backend validates `depth >= 1`, this library does not.
+
+```yaml
+checkout:
+  depth: 10
+
+steps:
+  - command: echo "Shallow depth defaulting to 10 from build level checkout"
+
+  - command: echo "Deeper shallow at the step level"
+    checkout:
+      depth: 50
+```
+
 ## What's up with the ordered module?
 
 While implementing the pipeline module, we ran into a problem: in some cases, in the buildkite pipeline.yaml, the order of map fields is significant. Because of this, whenever the pipeline gets unmarshaled from YAML or JSON, it needs to be stored in a way that preserves the order of the fields. The `ordered` module is a simple implementation of an ordered map. In most cases, when the pipeline is dealing with user-input maps, it will store them internally as `ordered.Map`s. When the pipeline is marshaled back out to YAML or JSON, the `ordered.Map`s will be marshaled in the correct order.
