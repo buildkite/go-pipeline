@@ -24,9 +24,10 @@ var (
 var errUnsupportedCheckoutType = fmt.Errorf("unsupported type for checkout")
 
 // Checkout models the checkout settings block on a command step or pipeline.
-// Skip, Submodules, and Depth sit at the top level; per-flag overrides live
-// under the nested flags: key. Any other keys directly under checkout: land
-// in RemainingFields and survive a round-trip but are not interpreted.
+// Skip, Submodules, SSHSecret, and Depth sit at the top level; per-flag
+// overrides live under the nested flags: key. Any other keys directly under
+// checkout: land in RemainingFields and survive a round-trip but are not
+// interpreted.
 //
 // Direct json.Unmarshal into a Checkout drops inline RemainingFields; route
 // through CommandStep or Pipeline to preserve them.
@@ -35,6 +36,13 @@ type Checkout struct {
 	Skip *bool `yaml:"skip,omitempty"`
 	// Submodules maps to BUILDKITE_GIT_SUBMODULES on the agent.
 	Submodules *bool `yaml:"submodules,omitempty"`
+	// SSHSecret names a Buildkite Secret holding an SSH private key the agent
+	// uses for git checkout; *string preserves the set/empty/absent tristate.
+	// The explicit json tag is required because the snake_case key does not
+	// case-insensitively match the field name (unlike skip/submodules), so
+	// json.Unmarshal would otherwise drop it. Marshal output is unaffected:
+	// inlineFriendlyMarshalJSON derives JSON keys from the yaml tag.
+	SSHSecret *string `json:"ssh_secret,omitempty" yaml:"ssh_secret,omitempty"`
 	// Depth performs a shallow clone of the given depth. nil leaves the
 	// agent default (full clone).
 	Depth *int           `yaml:"depth,omitempty"`
@@ -67,6 +75,7 @@ func (c *Checkout) IsEmpty() bool {
 	return c == nil ||
 		(c.Skip == nil &&
 			c.Submodules == nil &&
+			c.SSHSecret == nil &&
 			c.Depth == nil &&
 			c.Flags == nil &&
 			len(c.RemainingFields) == 0)
@@ -176,6 +185,11 @@ func (c *Checkout) mergeFrom(parent *Checkout) *Checkout {
 	if c.Submodules == nil && parent.Submodules != nil {
 		v := *parent.Submodules
 		c.Submodules = &v
+	}
+
+	if c.SSHSecret == nil && parent.SSHSecret != nil {
+		v := *parent.SSHSecret
+		c.SSHSecret = &v
 	}
 
 	if c.Depth == nil && parent.Depth != nil {

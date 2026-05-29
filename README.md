@@ -127,7 +127,7 @@ This go struct would be marshaled back out to YAML equivalent to the original in
 
 ## Checkout
 
-The `checkout` block configures git checkout behavior for a pipeline or a command step. Three fields are supported today: `skip`, `submodules`, and `flags`. `skip` and `submodules` are `*bool` so the model preserves the difference between `true`, `false`, and an absent value; `flags` is a nested mapping of per-phase git overrides.
+The `checkout` block configures git checkout behavior for a pipeline or a command step. It supports `skip`, `submodules`, `depth`, `ssh_secret`, and a nested `flags` mapping. `skip` and `submodules` are `*bool`, so the model preserves the difference between `true`, `false`, and an absent value; `depth` (`*int`) and `ssh_secret` (`*string`) keep the same distinction between an explicit value and an absent one; `flags` carries per-phase git overrides.
 
 The simplest case opts a step out of checkout entirely:
 
@@ -141,6 +141,15 @@ steps:
 `skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout; an absent `skip` inherits whatever default applies. Round-trips preserve the distinction, so `skip: false` does not collapse to an empty mapping.
 
 `skip` maps to `BUILDKITE_SKIP_CHECKOUT` on the agent: `true` skips the checkout phase, absent leaves it to the agent default. `submodules` follows the same tristate pattern and maps to `BUILDKITE_GIT_SUBMODULES`: `true` and `false` set the env var explicitly, absent leaves it to the agent default.
+
+`ssh_secret` holds the name or ID of a Buildkite Secret containing an SSH private key the agent uses for git checkout. The agent owns retrieval and validation; go-pipeline only parses and round-trips the value.
+
+```yaml
+steps:
+  - command: make test
+    checkout:
+      ssh_secret: deploy-key
+```
 
 `flags` carries per-phase git invocation overrides for `clone`, `fetch`, `checkout`, and `clean`:
 
