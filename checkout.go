@@ -30,6 +30,19 @@ type Checkout struct {
 	// the agent default; true/false set the env var explicitly.
 	Submodules *bool `yaml:"submodules,omitempty"`
 
+	// SSHSecret is the name or ID of a Buildkite Secret holding an SSH
+	// private key the agent uses for git checkout. *string preserves the
+	// tristate (set / explicit empty string / absent) for the same reasons
+	// Skip and Submodules are *bool. The agent owns secret name validation
+	// and retrieval; go-pipeline only parses and round-trips the value.
+	//
+	// An explicit json tag is needed because the snake_case JSON key does
+	// not case-insensitively match the Go field name (unlike `skip` and
+	// `submodules`), so direct json.Unmarshal would otherwise skip the
+	// field. Marshal output is unaffected — inlineFriendlyMarshalJSON
+	// derives JSON keys from the yaml tag.
+	SSHSecret *string `json:"ssh_secret,omitempty" yaml:"ssh_secret,omitempty"`
+
 	// Depth performs a shallow clone of the given depth. nil leaves the agent
 	// default (full clone).
 	Depth *int `yaml:"depth,omitempty"`
@@ -48,7 +61,7 @@ func (c *Checkout) MarshalJSON() ([]byte, error) {
 // IsEmpty reports whether the checkout is nil or has no fields set.
 // Used by signing to canonicalise empty/nil values.
 func (c *Checkout) IsEmpty() bool {
-	return c == nil || (c.Skip == nil && c.Submodules == nil && c.Depth == nil && len(c.RemainingFields) == 0)
+	return c == nil || (c.Skip == nil && c.Submodules == nil && c.Depth == nil && c.SSHSecret == nil && len(c.RemainingFields) == 0)
 }
 
 // UnmarshalOrdered unmarshals a Checkout from an ordered map. Bool inputs are
@@ -92,6 +105,11 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 	if c.Submodules == nil && parent.Submodules != nil {
 		v := *parent.Submodules
 		c.Submodules = &v
+	}
+
+	if c.SSHSecret == nil && parent.SSHSecret != nil {
+		v := *parent.SSHSecret
+		c.SSHSecret = &v
 	}
 
 	if c.Depth == nil && parent.Depth != nil {

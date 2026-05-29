@@ -127,7 +127,7 @@ This go struct would be marshaled back out to YAML equivalent to the original in
 
 ## Checkout
 
-The `checkout` block configures git checkout behavior for a pipeline or a command step. Two fields are supported today: `skip` and `submodules`. Both are `*bool` so the model preserves the difference between `true`, `false`, and an absent value.
+The `checkout` block configures git checkout behavior for a pipeline or a command step. Three fields are supported today: `skip`, `submodules`, and `ssh_secret`. `skip` and `submodules` are `*bool` so the model preserves the difference between `true`, `false`, and an absent value. `ssh_secret` is `*string` for the same reason — nil (absent) is distinguishable from an explicit empty string.
 
 The simplest case opts a step out of checkout entirely:
 
@@ -138,7 +138,14 @@ steps:
       skip: true
 ```
 
-`skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout, while an absent `skip` inherits whatever default applies. Round-trips preserve the distinction; `skip: false` does not collapse to an empty mapping. `skip` maps to `BUILDKITE_SKIP_CHECKOUT` on the agent (`true` skips the checkout phase; absent leaves it to the agent default). `submodules` follows the same tristate pattern and maps to `BUILDKITE_GIT_SUBMODULES` on the agent (`true` and `false` set the env var explicitly; absent leaves it to the agent default).
+`skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout, while an absent `skip` inherits whatever default applies. Round-trips preserve the distinction; `skip: false` does not collapse to an empty mapping. `skip` maps to `BUILDKITE_SKIP_CHECKOUT` on the agent (`true` skips the checkout phase; absent leaves it to the agent default). `submodules` follows the same tristate pattern and maps to `BUILDKITE_GIT_SUBMODULES` on the agent (`true` and `false` set the env var explicitly; absent leaves it to the agent default). `ssh_secret` holds the name or ID of a Buildkite Secret containing an SSH private key the agent uses for git checkout — the agent owns retrieval and validation; go-pipeline only parses and round-trips the value.
+
+```yaml
+steps:
+  - command: make test
+    checkout:
+      ssh_secret: deploy-key
+```
 
 A pipeline-level `checkout` provides defaults for command steps. Inheritance is opt-in: the consumer merges pipeline values into each step. After merging the step value wins per leaf, with anything the step didn't set inherited from the pipeline:
 

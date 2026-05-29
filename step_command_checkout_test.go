@@ -55,6 +55,52 @@ func TestCommandStepWithCheckoutJSON(t *testing.T) {
 	}
 }
 
+// Matches the example YAML from SUP-6214 verbatim so the diff is easy to
+// trace back to the ticket.
+func TestCommandStepWithCheckoutSSHSecretYAML(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+command: "make test"
+checkout:
+  ssh_secret: "deploy-key"
+`
+
+	var step CommandStep
+	var node yaml.Node
+	if err := yaml.Unmarshal([]byte(yamlData), &node); err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+	if err := ordered.Unmarshal(&node, &step); err != nil {
+		t.Fatalf("ordered.Unmarshal() error = %v", err)
+	}
+
+	if step.Checkout == nil {
+		t.Fatalf("step.Checkout = nil, want non-nil")
+	}
+	if step.Checkout.SSHSecret == nil || *step.Checkout.SSHSecret != "deploy-key" {
+		t.Errorf("step.Checkout.SSHSecret = %v, want ptr(%q)", step.Checkout.SSHSecret, "deploy-key")
+	}
+}
+
+func TestCommandStepWithCheckoutSSHSecretJSON(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`{"command":"make test","checkout":{"ssh_secret":"deploy-key"}}`)
+
+	got := new(CommandStep)
+	if err := got.UnmarshalJSON(input); err != nil {
+		t.Fatalf("CommandStep.UnmarshalJSON() = %v", err)
+	}
+
+	if got.Checkout == nil {
+		t.Fatalf("step.Checkout = nil, want non-nil")
+	}
+	if got.Checkout.SSHSecret == nil || *got.Checkout.SSHSecret != "deploy-key" {
+		t.Errorf("step.Checkout.SSHSecret = %v, want ptr(%q)", got.Checkout.SSHSecret, "deploy-key")
+	}
+}
+
 func TestCommandStepCheckoutFalseSurvivesRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -490,6 +536,78 @@ func TestMergeCheckoutFromPipelineIdempotent(t *testing.T) {
 
 	if diff := cmp.Diff(once.Checkout, twice.Checkout, cmp.Comparer(ordered.EqualSA)); diff != "" {
 		t.Errorf("second MergeCheckoutFromPipeline changed result (-once +twice):\n%s", diff)
+	}
+}
+
+// Exercises the deep-merge story from SUP-6214: a pipeline-level
+// `ssh_secret` propagates to steps that omit it, loses to steps that set
+// their own, and merges per-leaf alongside step-only fields like skip.
+func TestPipelineCheckoutSSHSecretMerge(t *testing.T) {
+	t.Parallel()
+
+	src := `checkout:
+  ssh_secret: "pipeline-key"
+steps:
+  - command: echo "inherits ssh_secret from pipeline"
+  - command: echo "explicit override"
+    checkout:
+      ssh_secret: "step-key"
+  - command: echo "inherits ssh_secret but keeps own skip"
+    checkout:
+      skip: true
+`
+
+	p := parseCheckoutPipeline(t, src)
+	if len(p.Steps) != 3 {
+		t.Fatalf("len(p.Steps) = %d, want 3", len(p.Steps))
+	}
+	for _, s := range p.Steps {
+		s.(*CommandStep).MergeCheckoutFromPipeline(p.Checkout)
+	}
+
+	wants := []struct {
+		skip      *bool
+		sshSecret string
+	}{
+		{sshSecret: "pipeline-key"},
+		{sshSecret: "step-key"},
+		{skip: ptr(true), sshSecret: "pipeline-key"},
+	}
+
+	for i, w := range wants {
+		cs := p.Steps[i].(*CommandStep)
+		if cs.Checkout == nil {
+			t.Errorf("steps[%d].Checkout = nil", i)
+			continue
+		}
+		if cs.Checkout.SSHSecret == nil || *cs.Checkout.SSHSecret != w.sshSecret {
+			t.Errorf("steps[%d].Checkout.SSHSecret = %v, want ptr(%q)", i, cs.Checkout.SSHSecret, w.sshSecret)
+		}
+		switch {
+		case w.skip == nil && cs.Checkout.Skip != nil:
+			t.Errorf("steps[%d].Checkout.Skip = %v, want nil", i, cs.Checkout.Skip)
+		case w.skip != nil && (cs.Checkout.Skip == nil || *cs.Checkout.Skip != *w.skip):
+			t.Errorf("steps[%d].Checkout.Skip = %v, want ptr(%v)", i, cs.Checkout.Skip, *w.skip)
+		}
+	}
+}
+
+// Mirrors TestMergeCheckoutFromPipelineNilStep but for SSHSecret: mutating
+// the step after merging must not leak into the parent pipeline's checkout.
+func TestMergeCheckoutFromPipelineSSHSecretIndependent(t *testing.T) {
+	t.Parallel()
+
+	pipelineCheckout := &Checkout{SSHSecret: ptr("pipeline-key")}
+	step := &CommandStep{}
+	step.MergeCheckoutFromPipeline(pipelineCheckout)
+
+	if step.Checkout == nil || step.Checkout.SSHSecret == nil || *step.Checkout.SSHSecret != "pipeline-key" {
+		t.Fatalf("step.Checkout.SSHSecret = %v, want ptr(%q)", step.Checkout, "pipeline-key")
+	}
+
+	*step.Checkout.SSHSecret = "step-key"
+	if *pipelineCheckout.SSHSecret != "pipeline-key" {
+		t.Errorf("mutating step.Checkout.SSHSecret leaked into pipeline; pipelineCheckout.SSHSecret = %q", *pipelineCheckout.SSHSecret)
 	}
 }
 
