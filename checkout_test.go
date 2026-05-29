@@ -79,8 +79,8 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 			c: Checkout{
 				RemainingFields: map[string]any{"ref": "main"},
 			},
-			wantParts: []string{"depth: 1"},
-			notWant:   []string{"skip", "submodules", "ssh_secret"},
+			wantParts: []string{"ref: main"},
+			notWant:   []string{"skip", "submodules", "ssh_secret", "depth"},
 		},
 		{
 			name: "ssh_secret set",
@@ -94,11 +94,10 @@ func TestCheckoutMarshalYAML(t *testing.T) {
 			// exact emitted form (quoted empty scalar) so a future
 			// change to yaml.v3's empty-scalar rendering surfaces here
 			// rather than being silently absorbed by a substring match.
-			name: "ssh_secret empty string preserved",
-			c:    Checkout{SSHSecret: ptr("")},
-			want: "ssh_secret: \"\"\n",
-			wantParts: []string{"ref: main"},
-			notWant:   []string{"skip", "submodules", "depth"},
+			name:    "ssh_secret empty string preserved",
+			c:       Checkout{SSHSecret: ptr("")},
+			want:    "ssh_secret: \"\"\n",
+			notWant: []string{"skip", "submodules", "depth"},
 		},
 	}
 
@@ -869,8 +868,8 @@ func TestCheckoutMergeFrom(t *testing.T) {
 			child:  &Checkout{},
 			parent: &Checkout{SSHSecret: ptr("")},
 			want:   &Checkout{SSHSecret: ptr("")},
-    },
-    {
+		},
+		{
 			name:   "parent only depth",
 			child:  &Checkout{},
 			parent: &Checkout{Depth: ptr(10)},
