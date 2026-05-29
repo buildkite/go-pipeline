@@ -117,10 +117,8 @@ func (c *CommandStep) interpolate(tf stringTransformer) error {
 			return fmt.Errorf("interpolating cache: %w", err)
 		}
 	}
-	if c.Checkout != nil {
-		if err := c.Checkout.interpolate(tf); err != nil {
-			return fmt.Errorf("interpolating checkout: %w", err)
-		}
+	if err := c.Checkout.interpolate(tf); err != nil {
+		return fmt.Errorf("interpolating checkout: %w", err)
 	}
 
 	switch tf.(type) {
@@ -171,10 +169,7 @@ func (c *CommandStep) MergeCheckoutFromPipeline(pipelineCheckout *Checkout) {
 	if pipelineCheckout.IsEmpty() {
 		return
 	}
-	if c.Checkout == nil {
-		c.Checkout = &Checkout{}
-	}
-	c.Checkout.mergeFrom(pipelineCheckout)
+	c.Checkout = c.Checkout.mergeFrom(pipelineCheckout)
 }
 
 func (CommandStep) stepTag() {}

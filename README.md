@@ -127,7 +127,7 @@ This go struct would be marshaled back out to YAML equivalent to the original in
 
 ## Checkout
 
-The `checkout` block configures git checkout behavior for a pipeline or a command step. Three fields are supported today: `skip`, `submodules`, and `ssh_secret`. `skip` and `submodules` are `*bool` so the model preserves the difference between `true`, `false`, and an absent value. `ssh_secret` is `*string` for the same reason — nil (absent) is distinguishable from an explicit empty string.
+The `checkout` block configures git checkout behavior for a pipeline or a command step. It supports `skip`, `submodules`, `depth`, `ssh_secret`, and a nested `flags` mapping. `skip` and `submodules` are `*bool`, so the model preserves the difference between `true`, `false`, and an absent value; `depth` (`*int`) and `ssh_secret` (`*string`) keep the same distinction between an explicit value and an absent one; `flags` carries per-phase git overrides.
 
 The simplest case opts a step out of checkout entirely:
 
@@ -138,7 +138,11 @@ steps:
       skip: true
 ```
 
-`skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout, while an absent `skip` inherits whatever default applies. Round-trips preserve the distinction; `skip: false` does not collapse to an empty mapping. `skip` maps to `BUILDKITE_SKIP_CHECKOUT` on the agent (`true` skips the checkout phase; absent leaves it to the agent default). `submodules` follows the same tristate pattern and maps to `BUILDKITE_GIT_SUBMODULES` on the agent (`true` and `false` set the env var explicitly; absent leaves it to the agent default). `ssh_secret` holds the name or ID of a Buildkite Secret containing an SSH private key the agent uses for git checkout — the agent owns retrieval and validation; go-pipeline only parses and round-trips the value.
+`skip: false` at the step level explicitly overrides any pipeline-level or agent-level default that would otherwise skip checkout; an absent `skip` inherits whatever default applies. Round-trips preserve the distinction, so `skip: false` does not collapse to an empty mapping.
+
+`skip` maps to `BUILDKITE_SKIP_CHECKOUT` on the agent: `true` skips the checkout phase, absent leaves it to the agent default. `submodules` follows the same tristate pattern and maps to `BUILDKITE_GIT_SUBMODULES`: `true` and `false` set the env var explicitly, absent leaves it to the agent default.
+
+`ssh_secret` holds the name or ID of a Buildkite Secret containing an SSH private key the agent uses for git checkout. The agent owns retrieval and validation; go-pipeline only parses and round-trips the value.
 
 ```yaml
 steps:
@@ -147,7 +151,22 @@ steps:
       ssh_secret: deploy-key
 ```
 
-A pipeline-level `checkout` provides defaults for command steps. Inheritance is opt-in: the consumer merges pipeline values into each step. After merging the step value wins per leaf, with anything the step didn't set inherited from the pipeline:
+`flags` carries per-phase git invocation overrides for `clone`, `fetch`, `checkout`, and `clean`:
+
+```yaml
+steps:
+  - command: build.sh
+    checkout:
+      flags:
+        clone: "--depth 1"
+        fetch: "--prune"
+        checkout: "--force"
+        clean: "-fdx"
+```
+
+Each leaf is `*string`. Omitting a flag leaves whatever default the consumer applies; an explicit empty string (`clone: ""`) is preserved through round-trips and signals "no flags for this phase". Non-string scalars (`clone: 42`, `clone: true`) are rejected at parse time, since the value passes through to git as flag text and coercion would silently produce broken invocations. Unknown keys under `flags:` land in `RemainingFields`, so a pipeline using a flag name this library doesn't yet recognize still parses and round-trips cleanly.
+
+A pipeline-level `checkout` provides defaults for command steps. Inheritance is opt-in: the consumer merges pipeline values into each step. After merging the step value wins per leaf, with anything the step didn't set inherited from the pipeline, at both the top level and inside `flags`:
 
 ```yaml
 checkout:
@@ -165,7 +184,7 @@ After merging, the second step has `skip: false` (step wins) and the first step 
 
 The conventional ordering is `Pipeline.Interpolate` first, then merge per step before dispatching to the agent.
 
-`checkout: false` (and `checkout: true`) as a shorthand is rejected at unmarshal time; `checkout` is a mapping, so opt-out is spelled `checkout: { skip: true }`.
+Both `checkout:` and `flags:` must be mappings. Non-mapping shapes (scalars, including the `checkout: true` / `checkout: false` shorthand, and sequences) are rejected at parse time. Opt-out is spelled `checkout: { skip: true }`.
 
 Pipelines signed before checkout was a signed field will fail to verify if the step now carries any non-empty Checkout data (for example a step that sets only `submodules`). Re-sign such pipelines when rolling forward to a verifier that includes checkout.
 
