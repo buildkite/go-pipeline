@@ -42,6 +42,10 @@ type Checkout struct {
 	// field. Marshal output is unaffected — inlineFriendlyMarshalJSON
 	// derives JSON keys from the yaml tag.
 	SSHSecret *string `json:"ssh_secret,omitempty" yaml:"ssh_secret,omitempty"`
+  
+	// Depth performs a shallow clone of the given depth. nil leaves the agent
+	// default (full clone).
+	Depth *int `yaml:"depth,omitempty"`
 
 	// RemainingFields stores any other top-level mapping items so they
 	// survive an unmarshal-marshal round-trip.
@@ -57,7 +61,7 @@ func (c *Checkout) MarshalJSON() ([]byte, error) {
 // IsEmpty reports whether the checkout is nil or has no fields set.
 // Used by signing to canonicalise empty/nil values.
 func (c *Checkout) IsEmpty() bool {
-	return c == nil || (c.Skip == nil && c.Submodules == nil && c.SSHSecret == nil && len(c.RemainingFields) == 0)
+	return c == nil || (c.Skip == nil && c.Submodules == nil && c.Depth == nil && c.SSHSecret == nil && len(c.RemainingFields) == 0)
 }
 
 // UnmarshalOrdered unmarshals a Checkout from an ordered map. Bool inputs are
@@ -106,6 +110,11 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 	if c.SSHSecret == nil && parent.SSHSecret != nil {
 		v := *parent.SSHSecret
 		c.SSHSecret = &v
+  }
+  
+	if c.Depth == nil && parent.Depth != nil {
+		v := *parent.Depth
+		c.Depth = &v
 	}
 
 	if len(parent.RemainingFields) == 0 {
