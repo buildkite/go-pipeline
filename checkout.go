@@ -42,7 +42,7 @@ type Checkout struct {
 	// field. Marshal output is unaffected — inlineFriendlyMarshalJSON
 	// derives JSON keys from the yaml tag.
 	SSHSecret *string `json:"ssh_secret,omitempty" yaml:"ssh_secret,omitempty"`
-  
+
 	// Depth performs a shallow clone of the given depth. nil leaves the agent
 	// default (full clone).
 	Depth *int `yaml:"depth,omitempty"`
@@ -110,8 +110,8 @@ func (c *Checkout) mergeFrom(parent *Checkout) {
 	if c.SSHSecret == nil && parent.SSHSecret != nil {
 		v := *parent.SSHSecret
 		c.SSHSecret = &v
-  }
-  
+	}
+
 	if c.Depth == nil && parent.Depth != nil {
 		v := *parent.Depth
 		c.Depth = &v
