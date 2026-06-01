@@ -548,6 +548,27 @@ func TestSignVerifyCheckout(t *testing.T) {
 				Checkout: &pipeline.Checkout{Skip: ptr(false), Submodules: ptr(true)},
 			},
 		},
+		{
+			name: "flags only",
+			step: &pipeline.CommandStep{
+				Command: "llamas",
+				Checkout: &pipeline.Checkout{
+					Flags: &pipeline.CheckoutFlags{
+						Clone: ptr("--depth 1"),
+						Fetch: ptr("--prune"),
+					},
+				},
+			},
+		},
+		{
+			name: "remaining fields only",
+			step: &pipeline.CommandStep{
+				Command: "llamas",
+				Checkout: &pipeline.Checkout{
+					RemainingFields: map[string]any{"future_field": "value"},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -628,9 +649,100 @@ func TestSignVerifyCheckoutTamperDetection(t *testing.T) {
 	}
 }
 
+// TestSignVerifyCheckoutFlagsTamperDetection asserts that mutating a leaf of
+// Checkout.Flags between sign and verify fails verification. Mirrors the Skip
+// tamper test for the nested Flags shape, which goes through a different code
+// path in EmptyToNilPtr / signature hashing.
+func TestSignVerifyCheckoutFlagsTamperDetection(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	signStep := &pipeline.CommandStep{
+		Command: "llamas",
+		Checkout: &pipeline.Checkout{
+			Flags: &pipeline.CheckoutFlags{Clone: ptr("--depth 1")},
+		},
+	}
+	verifyStep := &pipeline.CommandStep{
+		Command: "llamas",
+		Checkout: &pipeline.Checkout{
+			Flags: &pipeline.CheckoutFlags{Clone: ptr("--depth 50")},
+		},
+	}
+
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
+	if err != nil {
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
+	}
+
+	key, ok := signer.Key(0)
+	if !ok {
+		t.Fatalf("signer.Key(0) = _, false, want true")
+	}
+
+	sig, err := Sign(ctx, key, &commandStepWithInvariants{CommandStep: *signStep, RepositoryURL: fakeRepositoryURL})
+	if err != nil {
+		t.Fatalf("Sign error = %v", err)
+	}
+
+	err = Verify(ctx, sig, verifier, &commandStepWithInvariants{CommandStep: *verifyStep, RepositoryURL: fakeRepositoryURL})
+	if err == nil {
+		t.Fatalf("Verify error = nil, want non-nil for tampered checkout.flags.clone")
+	}
+}
+
+// TestSignVerifyCheckoutRemainingFieldsTamperDetection asserts that mutating
+// an inline RemainingFields value between sign and verify fails verification.
+// RemainingFields goes through inlineFriendlyMarshalJSON's inline-merge path
+// rather than the named-field path the Skip and Flags tamper tests exercise,
+// so a refactor that drops inline merging from the canonical payload would
+// pass those tests but fail this one.
+func TestSignVerifyCheckoutRemainingFieldsTamperDetection(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	signStep := &pipeline.CommandStep{
+		Command: "llamas",
+		Checkout: &pipeline.Checkout{
+			RemainingFields: map[string]any{"future_field": "v1"},
+		},
+	}
+	verifyStep := &pipeline.CommandStep{
+		Command: "llamas",
+		Checkout: &pipeline.Checkout{
+			RemainingFields: map[string]any{"future_field": "v2"},
+		},
+	}
+
+	keyStr, keyAlg := "alpacas", jwa.HS256
+	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
+	if err != nil {
+		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
+	}
+
+	key, ok := signer.Key(0)
+	if !ok {
+		t.Fatalf("signer.Key(0) = _, false, want true")
+	}
+
+	sig, err := Sign(ctx, key, &commandStepWithInvariants{CommandStep: *signStep, RepositoryURL: fakeRepositoryURL})
+	if err != nil {
+		t.Fatalf("Sign error = %v", err)
+	}
+
+	err = Verify(ctx, sig, verifier, &commandStepWithInvariants{CommandStep: *verifyStep, RepositoryURL: fakeRepositoryURL})
+	if err == nil {
+		t.Fatalf("Verify error = nil, want non-nil for tampered checkout.RemainingFields")
+	}
+}
+
 // TestVerifyLegacySignatureWithCheckoutFails asserts that a signature whose
 // signed_fields omits "checkout" fails to verify a step that now carries
-// non-empty Checkout data.
+// non-empty Checkout data. This pins the operator-facing promise from the
+// README "Checkout" section ("Pipelines signed before checkout was a signed
+// field will fail to verify if the step now carries any non-empty Checkout
+// data"); re-signing is the documented remediation.
 func TestVerifyLegacySignatureWithCheckoutFails(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
