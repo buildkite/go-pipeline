@@ -112,10 +112,13 @@ func (c *CommandStep) interpolate(tf stringTransformer) error {
 	if err := interpolateSlice(tf, c.Secrets); err != nil {
 		return fmt.Errorf("interpolating secrets: %w", err)
 	}
-	if c.Checkout != nil {
-		if err := c.Checkout.interpolate(tf); err != nil {
-			return fmt.Errorf("interpolating checkout: %w", err)
+	if c.Cache != nil {
+		if _, err := interpolateAny(tf, c.Cache); err != nil {
+			return fmt.Errorf("interpolating cache: %w", err)
 		}
+	}
+	if err := c.Checkout.interpolate(tf); err != nil {
+		return fmt.Errorf("interpolating checkout: %w", err)
 	}
 
 	switch tf.(type) {
@@ -156,17 +159,17 @@ func (c *CommandStep) MergeSecretsFromPipeline(pipelineSecrets Secrets) {
 }
 
 // MergeCheckoutFromPipeline merges pipeline-level checkout config into this
-// step's checkout. Step-level values take precedence per leaf. An empty parent
-// is treated as no-op so callers don't materialise empty `checkout: {}` on
-// steps that didn't have one.
+// step's checkout. Step-level values take precedence per leaf; an empty
+// parent is a no-op.
+//
+// The receiver's Checkout is mutated in place, so callers that share a
+// *Checkout across steps (e.g. via programmatic construction) must copy
+// first. The parse path materialises an independent Checkout per step.
 func (c *CommandStep) MergeCheckoutFromPipeline(pipelineCheckout *Checkout) {
 	if pipelineCheckout.IsEmpty() {
 		return
 	}
-	if c.Checkout == nil {
-		c.Checkout = &Checkout{}
-	}
-	c.Checkout.mergeFrom(pipelineCheckout)
+	c.Checkout = c.Checkout.mergeFrom(pipelineCheckout)
 }
 
 func (CommandStep) stepTag() {}
