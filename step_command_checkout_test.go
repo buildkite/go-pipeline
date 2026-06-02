@@ -2198,6 +2198,7 @@ func TestCommandStepMergeCheckoutLFS(t *testing.T) {
 			t.Errorf("mutating step leaked to parent.LFS = %v", *parent.LFS)
 		}
 	})
+}
 
 // --- CommitVerification tests ---
 

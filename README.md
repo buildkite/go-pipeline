@@ -127,7 +127,7 @@ This go struct would be marshaled back out to YAML equivalent to the original in
 
 ## Checkout
 
-The `checkout` block configures git checkout behavior for a pipeline or a command step. It supports `skip`, `submodules`, `depth`, `lfs`, `ssh_secret`, and a nested `flags` mapping. `skip`, `submodules`, and `lfs` are `*bool`, so the model preserves the difference between `true`, `false`, and an absent value; `depth` (`*int`) and `ssh_secret` (`*string`) keep the same distinction between an explicit value and an absent one; `flags` carries per-phase git overrides.
+The `checkout` block configures git checkout behavior for a pipeline or a command step. It supports `skip`, `submodules`, `depth`, `lfs`, `ssh_secret`, `commit_verification`, and a nested `flags` mapping. `skip`, `lfs` and `submodules` are `*bool`, so the model preserves the difference between `true`, `false`, and an absent value; `depth` (`*int`) and `ssh_secret` (`*string`) keep the same distinction between an explicit value and an absent one; `flags` carries per-phase git overrides. `commit_verification` is a `string` and supports `warn` or `strict` values.
 
 The simplest case opts a step out of checkout entirely:
 
@@ -149,6 +149,15 @@ steps:
   - command: make test
     checkout:
       ssh_secret: deploy-key
+```
+
+`commit_verification` enables a verification step which ensures that the specified commit SHA genuinely exists on the specified branch. Allowed values are `warn` or `strict`. `warn` logs a warning but allows the checkout to proceed; `strict` will fail the checkout with an error if it determines that the SHA doesn't exist on the branch.
+
+```yaml
+steps:
+  - command: build.sh
+    checkout:
+      commit_verification: strict
 ```
 
 `flags` carries per-phase git invocation overrides for `clone`, `fetch`, `checkout`, and `clean`:
