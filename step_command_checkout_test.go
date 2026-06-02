@@ -2063,3 +2063,139 @@ func TestCommandStepMergeCheckoutFlagsPerLeaf(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckoutLFSMarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		c    Checkout
+		want string
+	}{
+		{
+			name: "lfs true",
+			c:    Checkout{LFS: ptr(true)},
+			want: `{"lfs":true}`,
+		},
+		{
+			name: "lfs false",
+			c:    Checkout{LFS: ptr(false)},
+			want: `{"lfs":false}`,
+		},
+		{
+			name: "lfs nil omitted",
+			c:    Checkout{LFS: nil},
+			want: `{}`,
+		},
+		{
+			name: "lfs with depth",
+			c:    Checkout{Depth: ptr(10), LFS: ptr(true)},
+			want: `{"depth":10,"lfs":true}`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			b, err := json.Marshal(&tc.c)
+			if err != nil {
+				t.Fatalf("json.Marshal(&Checkout{}) error: %v", err)
+			}
+			if diff := cmp.Diff(string(b), tc.want); diff != "" {
+				t.Errorf("Checkout JSON diff (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestCheckoutLFSYAMLRoundTrip pins both the lfs tristate parsing and the
+// marshal ordering: depth precedes lfs in struct field order, so the
+// round-trip output must too.
+func TestCheckoutLFSYAMLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   string
+		want *bool
+	}{
+		{name: "lfs true", in: "lfs: true\n", want: ptr(true)},
+		{name: "lfs false", in: "lfs: false\n", want: ptr(false)},
+		{name: "lfs with depth", in: "depth: 10\nlfs: true\n", want: ptr(true)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var c Checkout
+			var node yaml.Node
+			if err := yaml.Unmarshal([]byte(tc.in), &node); err != nil {
+				t.Fatalf("yaml.Unmarshal(%q) error = %v", tc.in, err)
+			}
+			if err := ordered.Unmarshal(&node, &c); err != nil {
+				t.Fatalf("ordered.Unmarshal error = %v", err)
+			}
+			if c.LFS == nil || *c.LFS != *tc.want {
+				t.Fatalf("c.LFS = %v, want ptr(%v)", c.LFS, *tc.want)
+			}
+
+			out, err := yaml.Marshal(c)
+			if err != nil {
+				t.Fatalf("yaml.Marshal error = %v", err)
+			}
+			if string(out) != tc.in {
+				t.Errorf("round-trip YAML = %q, want %q", out, tc.in)
+			}
+		})
+	}
+}
+
+func TestCommandStepMergeCheckoutLFS(t *testing.T) {
+	t.Parallel()
+
+	t.Run("inherits when child Checkout has no LFS", func(t *testing.T) {
+		t.Parallel()
+		parent := &Checkout{LFS: ptr(true)}
+		step := &CommandStep{Checkout: &Checkout{Skip: ptr(true)}}
+		step.MergeCheckoutFromPipeline(parent)
+
+		if step.Checkout.LFS == nil || *step.Checkout.LFS != true {
+			t.Errorf("step.Checkout.LFS = %v, want ptr(true)", step.Checkout.LFS)
+		}
+	})
+
+	t.Run("child LFS true wins over parent false", func(t *testing.T) {
+		t.Parallel()
+		parent := &Checkout{LFS: ptr(false)}
+		step := &CommandStep{Checkout: &Checkout{LFS: ptr(true)}}
+		step.MergeCheckoutFromPipeline(parent)
+
+		if step.Checkout.LFS == nil || *step.Checkout.LFS != true {
+			t.Errorf("step.Checkout.LFS = %v, want ptr(true)", step.Checkout.LFS)
+		}
+	})
+
+	t.Run("child LFS false wins over parent true", func(t *testing.T) {
+		t.Parallel()
+		parent := &Checkout{LFS: ptr(true)}
+		step := &CommandStep{Checkout: &Checkout{LFS: ptr(false)}}
+		step.MergeCheckoutFromPipeline(parent)
+
+		if step.Checkout.LFS == nil || *step.Checkout.LFS != false {
+			t.Errorf("step.Checkout.LFS = %v, want ptr(false)", step.Checkout.LFS)
+		}
+	})
+
+	t.Run("pointer is independently copied", func(t *testing.T) {
+		t.Parallel()
+		parent := &Checkout{LFS: ptr(true)}
+		step := &CommandStep{}
+		step.MergeCheckoutFromPipeline(parent)
+
+		*step.Checkout.LFS = false
+		if *parent.LFS != true {
+			t.Errorf("mutating step leaked to parent.LFS = %v", *parent.LFS)
+		}
+	})
+}

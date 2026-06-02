@@ -45,7 +45,9 @@ type Checkout struct {
 	SSHSecret *string `json:"ssh_secret,omitempty" yaml:"ssh_secret,omitempty"`
 	// Depth performs a shallow clone of the given depth. nil leaves the
 	// agent default (full clone).
-	Depth *int           `yaml:"depth,omitempty"`
+	Depth *int `yaml:"depth,omitempty"`
+	// LFS enables Git LFS when checking out. nil leaves the agent default.
+	LFS   *bool          `yaml:"lfs,omitempty"`
 	Flags *CheckoutFlags `yaml:"flags,omitempty"`
 
 	RemainingFields map[string]any `yaml:",inline"`
@@ -77,6 +79,7 @@ func (c *Checkout) IsEmpty() bool {
 			c.Submodules == nil &&
 			c.SSHSecret == nil &&
 			c.Depth == nil &&
+			c.LFS == nil &&
 			c.Flags == nil &&
 			len(c.RemainingFields) == 0)
 }
@@ -195,6 +198,11 @@ func (c *Checkout) mergeFrom(parent *Checkout) *Checkout {
 	if c.Depth == nil && parent.Depth != nil {
 		v := *parent.Depth
 		c.Depth = &v
+	}
+
+	if c.LFS == nil && parent.LFS != nil {
+		v := *parent.LFS
+		c.LFS = &v
 	}
 
 	c.Flags = c.Flags.mergeFrom(parent.Flags)

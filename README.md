@@ -127,7 +127,7 @@ This go struct would be marshaled back out to YAML equivalent to the original in
 
 ## Checkout
 
-The `checkout` block configures git checkout behavior for a pipeline or a command step. It supports `skip`, `submodules`, `depth`, `ssh_secret`, and a nested `flags` mapping. `skip` and `submodules` are `*bool`, so the model preserves the difference between `true`, `false`, and an absent value; `depth` (`*int`) and `ssh_secret` (`*string`) keep the same distinction between an explicit value and an absent one; `flags` carries per-phase git overrides.
+The `checkout` block configures git checkout behavior for a pipeline or a command step. It supports `skip`, `submodules`, `depth`, `lfs`, `ssh_secret`, and a nested `flags` mapping. `skip`, `submodules`, and `lfs` are `*bool`, so the model preserves the difference between `true`, `false`, and an absent value; `depth` (`*int`) and `ssh_secret` (`*string`) keep the same distinction between an explicit value and an absent one; `flags` carries per-phase git overrides.
 
 The simplest case opts a step out of checkout entirely:
 
@@ -200,6 +200,20 @@ steps:
   - command: echo "Deeper shallow at the step level"
     checkout:
       depth: 50
+```
+
+`lfs` is a `*bool` following the same tristate pattern as `skip` and `submodules`: `true` and `false` set the behaviour explicitly, an absent value leaves it to the agent default. A step inherits the pipeline-level `lfs` unless it sets its own.
+
+```yaml
+checkout:
+  lfs: true
+
+steps:
+  - command: echo "inherits lfs: true from the pipeline"
+
+  - command: echo "explicit override - no LFS for this step"
+    checkout:
+      lfs: false
 ```
 
 ## What's up with the ordered module?
