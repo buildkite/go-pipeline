@@ -43,6 +43,10 @@ type Checkout struct {
 	// json.Unmarshal would otherwise drop it. Marshal output is unaffected:
 	// inlineFriendlyMarshalJSON derives JSON keys from the yaml tag.
 	SSHSecret *string `json:"ssh_secret,omitempty" yaml:"ssh_secret,omitempty"`
+	// CommitVerification controls whether the agent verifies the commit
+	// exists on the expected branch. "strict" fails on definitive mismatch;
+	// "warn" only logs. Empty disables verification.
+	CommitVerification string `json:"commit_verification,omitempty" yaml:"commit_verification,omitempty"`
 	// Depth performs a shallow clone of the given depth. nil leaves the
 	// agent default (full clone).
 	Depth *int `yaml:"depth,omitempty"`
@@ -80,6 +84,7 @@ func (c *Checkout) IsEmpty() bool {
 		(c.Skip == nil &&
 			c.Submodules == nil &&
 			c.SSHSecret == nil &&
+			c.CommitVerification == "" &&
 			c.Depth == nil &&
 			c.LFS == nil &&
 			c.Sparse == nil &&
@@ -196,6 +201,10 @@ func (c *Checkout) mergeFrom(parent *Checkout) *Checkout {
 	if c.SSHSecret == nil && parent.SSHSecret != nil {
 		v := *parent.SSHSecret
 		c.SSHSecret = &v
+	}
+
+	if c.CommitVerification == "" && parent.CommitVerification != "" {
+		c.CommitVerification = parent.CommitVerification
 	}
 
 	if c.Depth == nil && parent.Depth != nil {

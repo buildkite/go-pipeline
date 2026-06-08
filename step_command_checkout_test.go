@@ -2199,3 +2199,255 @@ func TestCommandStepMergeCheckoutLFS(t *testing.T) {
 		}
 	})
 }
+
+// --- CommitVerification tests ---
+
+func TestCommandStepWithCommitVerificationYAML(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+command: echo "hello"
+checkout:
+  commit_verification: strict
+`
+
+	var step CommandStep
+	var node yaml.Node
+
+	if err := yaml.Unmarshal([]byte(yamlData), &node); err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+	if err := ordered.Unmarshal(&node, &step); err != nil {
+		t.Fatalf("ordered.Unmarshal() error = %v", err)
+	}
+
+	if step.Checkout == nil {
+		t.Fatalf("step.Checkout = nil, want non-nil")
+	}
+	if step.Checkout.CommitVerification != "strict" {
+		t.Errorf("step.Checkout.CommitVerification = %q, want %q", step.Checkout.CommitVerification, "strict")
+	}
+}
+
+func TestCommandStepWithCommitVerificationJSON(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`{"command":"echo hello","checkout":{"commit_verification":"warn"}}`)
+
+	got := new(CommandStep)
+	if err := got.UnmarshalJSON(input); err != nil {
+		t.Fatalf("CommandStep.UnmarshalJSON() = %v", err)
+	}
+
+	if got.Checkout == nil {
+		t.Fatalf("step.Checkout = nil, want non-nil")
+	}
+	if got.Checkout.CommitVerification != "warn" {
+		t.Errorf("step.Checkout.CommitVerification = %q, want %q", got.Checkout.CommitVerification, "warn")
+	}
+}
+
+func TestPipelineCommitVerificationMergeAtBothLevels(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `checkout:
+  commit_verification: strict
+steps:
+  - command: echo hello
+    checkout:
+      commit_verification: warn
+  - command: echo bye
+`
+
+	p, err := Parse(strings.NewReader(yamlData))
+	if err != nil {
+		t.Fatalf("Parse error = %v", err)
+	}
+
+	if p.Checkout == nil {
+		t.Fatalf("p.Checkout = nil, want non-nil")
+	}
+	if p.Checkout.CommitVerification != "strict" {
+		t.Errorf("p.Checkout.CommitVerification = %q, want %q", p.Checkout.CommitVerification, "strict")
+	}
+
+	if len(p.Steps) != 2 {
+		t.Fatalf("len(p.Steps) = %d, want 2", len(p.Steps))
+	}
+
+	// Step 1 has its own commit_verification: warn — should keep it.
+	step1 := p.Steps[0].(*CommandStep)
+	if step1.Checkout == nil {
+		t.Fatalf("step1.Checkout = nil, want non-nil")
+	}
+	if step1.Checkout.CommitVerification != "warn" {
+		t.Errorf("step1.Checkout.CommitVerification = %q, want %q", step1.Checkout.CommitVerification, "warn")
+	}
+
+	// Step 2 has no checkout — should be nil before merge.
+	step2 := p.Steps[1].(*CommandStep)
+	if step2.Checkout != nil {
+		t.Errorf("step2.Checkout = %v, want nil before merge", step2.Checkout)
+	}
+
+	// After merge, step 1 keeps "warn", step 2 inherits "strict".
+	step1.MergeCheckoutFromPipeline(p.Checkout)
+	step2.MergeCheckoutFromPipeline(p.Checkout)
+
+	if step1.Checkout.CommitVerification != "warn" {
+		t.Errorf("step1.Checkout.CommitVerification after merge = %q, want %q", step1.Checkout.CommitVerification, "warn")
+	}
+	if step2.Checkout == nil {
+		t.Fatalf("step2.Checkout = nil after merge, want non-nil")
+	}
+	if step2.Checkout.CommitVerification != "strict" {
+		t.Errorf("step2.Checkout.CommitVerification after merge = %q, want %q", step2.Checkout.CommitVerification, "strict")
+	}
+}
+
+func TestCheckoutIsEmptyWithCommitVerification(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		c    *Checkout
+		want bool
+	}{
+		{
+			name: "only commit verification set",
+			c:    &Checkout{CommitVerification: "strict"},
+			want: false,
+		},
+		{
+			name: "commit verification empty is empty",
+			c:    &Checkout{CommitVerification: ""},
+			want: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tc.c.IsEmpty(); got != tc.want {
+				t.Errorf("Checkout.IsEmpty() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCheckoutMergeCommitVerification(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		child  *Checkout
+		parent *Checkout
+		want   string
+	}{
+		{
+			name:   "parent only",
+			child:  &Checkout{},
+			parent: &Checkout{CommitVerification: "strict"},
+			want:   "strict",
+		},
+		{
+			name:   "child only",
+			child:  &Checkout{CommitVerification: "strict"},
+			parent: &Checkout{},
+			want:   "strict",
+		},
+		{
+			name:   "child beats parent",
+			child:  &Checkout{CommitVerification: "warn"},
+			parent: &Checkout{CommitVerification: "strict"},
+			want:   "warn",
+		},
+		{
+			name:   "child empty inherits parent",
+			child:  &Checkout{CommitVerification: ""},
+			parent: &Checkout{CommitVerification: "strict"},
+			want:   "strict",
+		},
+		{
+			name:   "both empty stays empty",
+			child:  &Checkout{},
+			parent: &Checkout{},
+			want:   "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			step := &CommandStep{Checkout: tc.child}
+			step.MergeCheckoutFromPipeline(tc.parent)
+			if step.Checkout.CommitVerification != tc.want {
+				t.Errorf("CommitVerification after merge = %q, want %q", step.Checkout.CommitVerification, tc.want)
+			}
+		})
+	}
+}
+
+func TestCheckoutCommitVerificationYAMLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+command: echo hello
+checkout:
+  commit_verification: strict
+`
+
+	var step CommandStep
+	var node yaml.Node
+	if err := yaml.Unmarshal([]byte(yamlData), &node); err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+	if err := ordered.Unmarshal(&node, &step); err != nil {
+		t.Fatalf("ordered.Unmarshal() error = %v", err)
+	}
+
+	out, err := yaml.Marshal(step)
+	if err != nil {
+		t.Fatalf("yaml.Marshal error = %v", err)
+	}
+
+	if !strings.Contains(string(out), "commit_verification: strict") {
+		t.Errorf("YAML output missing 'commit_verification: strict':\n%s", out)
+	}
+}
+
+func TestCheckoutCommitVerificationJSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`{"command":"echo hello","checkout":{"commit_verification":"strict"}}`)
+
+	got := new(CommandStep)
+	if err := got.UnmarshalJSON(input); err != nil {
+		t.Fatalf("CommandStep.UnmarshalJSON() = %v", err)
+	}
+
+	out, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("json.Marshal error = %v", err)
+	}
+
+	if !strings.Contains(string(out), `"commit_verification":"strict"`) {
+		t.Errorf("JSON output missing commit_verification:\n%s", out)
+	}
+}
+
+func TestCheckoutCommitVerificationArbitraryValueSurvives(t *testing.T) {
+	t.Parallel()
+
+	// go-pipeline is a data model; validation lives in the schema/backend.
+	input := []byte(`{"command":"echo hello","checkout":{"commit_verification":"bananas"}}`)
+
+	got := new(CommandStep)
+	if err := got.UnmarshalJSON(input); err != nil {
+		t.Fatalf("CommandStep.UnmarshalJSON() = %v", err)
+	}
+
+	if got.Checkout == nil || got.Checkout.CommitVerification != "bananas" {
+		t.Errorf("arbitrary value not preserved: got %q", got.Checkout.CommitVerification)
+	}
+}
