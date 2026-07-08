@@ -1,9 +1,16 @@
 package ordered
 
+import (
+	"gopkg.in/yaml.v3"
+)
+
 // Tuple is used for storing values in Map.
 type Tuple[K comparable, V any] struct {
 	Key   K
 	Value V
+
+	// Source is where place where the value came from.
+	Source *yaml.Node
 
 	deleted bool
 }

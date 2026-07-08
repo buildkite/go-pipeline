@@ -29,7 +29,7 @@ func decodeYAML(seen map[*yaml.Node]bool, n *yaml.Node) (any, error) {
 	// a: &a  // seen is empty on encoding a
 	//   b: *a   // seen contains a while encoding b
 	if seen[n] {
-		return nil, fmt.Errorf("line %d, col %d: infinite recursion", n.Line, n.Column)
+		return nil, fmt.Errorf("%sinfinite recursion", SourcePrefix(n))
 	}
 	seen[n] = true
 
@@ -78,7 +78,7 @@ func decodeYAML(seen map[*yaml.Node]bool, n *yaml.Node) (any, error) {
 			if err != nil {
 				return err
 			}
-			m.Set(key, v)
+			m.Set(key, v, val)
 			return nil
 		})
 		if err != nil {
@@ -98,11 +98,11 @@ func decodeYAML(seen map[*yaml.Node]bool, n *yaml.Node) (any, error) {
 		case 1:
 			return decodeYAML(seen, n.Content[0])
 		default:
-			return nil, fmt.Errorf("line %d, col %d: document contains more than 1 content item (%d)", n.Line, n.Column, len(n.Content))
+			return nil, fmt.Errorf("%sdocument contains more than 1 content item (%d)", SourcePrefix(n), len(n.Content))
 		}
 
 	default:
-		return nil, fmt.Errorf("line %d, col %d: unsupported kind %x", n.Line, n.Column, n.Kind)
+		return nil, fmt.Errorf("%sunsupported kind %x", SourcePrefix(n), n.Kind)
 	}
 }
 
@@ -138,7 +138,7 @@ func rangeYAMLMapImpl(merged map[*yaml.Node]bool, n *yaml.Node, f func(key strin
 		// gopkg.in/yaml.v3 parses mapping node contents as a flat list:
 		// key, value, key, value...
 		if len(n.Content)%2 != 0 {
-			return fmt.Errorf("line %d, col %d: mapping node has odd content length %d", n.Line, n.Column, len(n.Content))
+			return fmt.Errorf("%smapping node has odd content length %d", SourcePrefix(n), len(n.Content))
 		}
 
 		// Keys at an outer level take precedence over keys being merged:
@@ -224,7 +224,7 @@ func rangeYAMLMapImpl(merged map[*yaml.Node]bool, n *yaml.Node, f func(key strin
 
 	default:
 		// TODO: Use %v once yaml.Kind has a String method
-		return fmt.Errorf("line %d, col %d: cannot range over node kind %x", n.Line, n.Column, n.Kind)
+		return fmt.Errorf("%scannot range over node kind %x", SourcePrefix(n), n.Kind)
 	}
 	return nil
 }
@@ -245,7 +245,7 @@ func canonicalMapKey(n *yaml.Node) (string, error) {
 		}
 		if x == nil || n.Tag == "!!null" {
 			// Nulls are not valid JSON keys.
-			return "", fmt.Errorf("line %d, col %d: null not supported as a map key", n.Line, n.Column)
+			return "", fmt.Errorf("%snull is not supported as a map key", SourcePrefix(n))
 		}
 		switch n.Tag {
 		case "!!bool":
@@ -265,6 +265,15 @@ func canonicalMapKey(n *yaml.Node) (string, error) {
 
 	default:
 		// TODO: Use %v once yaml.Kind has a String method
-		return "", fmt.Errorf("line %d, col %d: cannot use node kind %x as a map key", n.Line, n.Column, n.Kind)
+		return "", fmt.Errorf("%scannot use node kind %x as a map key", SourcePrefix(n), n.Kind)
 	}
+}
+
+// SourcePrefix returns some info from a YAML node. If n is nil, it returns the
+// empty string. It is intended to prefix e.g. an error string.
+func SourcePrefix(n *yaml.Node) string {
+	if n == nil {
+		return ""
+	}
+	return fmt.Sprintf("at line %d, column %d: ", n.Line, n.Column)
 }

@@ -3,6 +3,7 @@ package pipeline
 import (
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/buildkite/interpolate"
+	"gopkg.in/yaml.v3"
 )
 
 // This file contains helpers for recursively interpolating all the strings in
@@ -151,7 +152,7 @@ func interpolateMap[K comparable, V any, M ~map[K]V](tf stringTransformer, m M) 
 // interpolateOrderedMap applies interpolateAny over any type of ordered.Map.
 // The map is altered in-place.
 func interpolateOrderedMap[K comparable, V any](tf stringTransformer, m *ordered.Map[K, V]) error {
-	return m.Range(func(k K, v V) error {
+	return m.Range(func(k K, v V, src *yaml.Node) error {
 		// We interpolate both keys and values.
 		intk, err := interpolateAny(tf, k)
 		if err != nil {
@@ -162,7 +163,7 @@ func interpolateOrderedMap[K comparable, V any](tf stringTransformer, m *ordered
 			return err
 		}
 
-		m.Replace(k, intk, intv)
+		m.Replace(k, intk, intv, src)
 		return nil
 	})
 }

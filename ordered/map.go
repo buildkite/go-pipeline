@@ -40,11 +40,11 @@ func NewMap[K comparable, V any](cap int) *Map[K, V] {
 	}
 }
 
-// MapFromItems creates an Map with some items.
+// MapFromItems creates an Map with some items. Sources are set to nil.
 func MapFromItems[K comparable, V any](ps ...Tuple[K, V]) *Map[K, V] {
 	m := NewMap[K, V](len(ps))
 	for _, p := range ps {
-		m.Set(p.Key, p.Value)
+		m.Set(p.Key, p.Value, nil)
 	}
 	return m
 }
@@ -87,7 +87,7 @@ func (m *Map[K, V]) Contains(k K) bool {
 
 // Set sets the value for the given key. If the key exists, it remains in its
 // existing spot, otherwise it is added to the end of the map.
-func (m *Map[K, V]) Set(k K, v V) {
+func (m *Map[K, V]) Set(k K, v V, source *yaml.Node) {
 	// Suppose someone makes Map with new(Map). The one thing we need to not be
 	// nil will be nil.
 	if m.index == nil {
@@ -103,8 +103,9 @@ func (m *Map[K, V]) Set(k K, v V) {
 	// Append new item.
 	m.index[k] = len(m.items)
 	m.items = append(m.items, Tuple[K, V]{
-		Key:   k,
-		Value: v,
+		Key:    k,
+		Value:  v,
+		Source: source,
 	})
 }
 
@@ -114,7 +115,7 @@ func (m *Map[K, V]) Set(k K, v V) {
 // then it is deleted.
 // This provides a way to change a single key in-place (easier than deleting the
 // old key and all later keys, adding the new key, then restoring the rest).
-func (m *Map[K, V]) Replace(old, new K, v V) {
+func (m *Map[K, V]) Replace(old, new K, v V, src *yaml.Node) {
 	// Suppose someone makes Map with new(Map). The one thing we need to not be
 	// nil will be nil.
 	if m.index == nil {
@@ -146,8 +147,9 @@ func (m *Map[K, V]) Replace(old, new K, v V) {
 
 	// Put the item into m.items at idx.
 	m.items[idx] = Tuple[K, V]{
-		Key:   new,
-		Value: v,
+		Key:    new,
+		Value:  v,
+		Source: src,
 	}
 }
 
@@ -177,7 +179,7 @@ func (m *Map[K, V]) ToMap() map[K]V {
 		return nil
 	}
 	um := make(map[K]V, len(m.index))
-	m.Range(func(k K, v V) error {
+	m.Range(func(k K, v V, _ *yaml.Node) error {
 		um[k] = v
 		return nil
 	})
@@ -192,7 +194,7 @@ func ToMapRecursive(src any) any {
 	switch tsrc := src.(type) {
 	case *Map[string, any]:
 		um := make(map[string]any, len(tsrc.index))
-		tsrc.Range(func(k string, v any) error {
+		tsrc.Range(func(k string, v any, _ *yaml.Node) error {
 			um[k] = ToMapRecursive(v)
 			return nil
 		})
@@ -264,7 +266,7 @@ func (m *Map[K, V]) compact() {
 
 // Range ranges over the map (in order). If f returns an error, it stops ranging
 // and returns that error.
-func (m *Map[K, V]) Range(f func(k K, v V) error) error {
+func (m *Map[K, V]) Range(f func(k K, v V, s *yaml.Node) error) error {
 	if m.IsZero() {
 		return nil
 	}
@@ -272,7 +274,7 @@ func (m *Map[K, V]) Range(f func(k K, v V) error) error {
 		if p.deleted {
 			continue
 		}
-		if err := f(p.Key, p.Value); err != nil {
+		if err := f(p.Key, p.Value, p.Source); err != nil {
 			return err
 		}
 	}
@@ -286,7 +288,7 @@ func (m *Map[K, V]) MarshalJSON() ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteRune('{')
 	first := true
-	err := m.Range(func(k K, v V) error {
+	err := m.Range(func(k K, v V, _ *yaml.Node) error {
 		if !first {
 			// Separating comma.
 			b.WriteRune(',')
@@ -319,7 +321,7 @@ func (m *Map[K, V]) MarshalYAML() (any, error) {
 		Kind: yaml.MappingNode,
 		Tag:  "!!map",
 	}
-	err := m.Range(func(k K, v V) error {
+	err := m.Range(func(k K, v V, _ *yaml.Node) error {
 		nk, nv := new(yaml.Node), new(yaml.Node)
 		if err := nk.Encode(k); err != nil {
 			return err
@@ -356,7 +358,7 @@ func (m *Map[K, V]) UnmarshalYAML(n *yaml.Node) error {
 	}
 
 	if n.Kind != yaml.MappingNode {
-		return fmt.Errorf("line %d, col %d: wrong kind (got %x, want %x)", n.Line, n.Column, n.Kind, yaml.MappingNode)
+		return fmt.Errorf("%swrong kind (got %x, want %x)", SourcePrefix(n), n.Kind, yaml.MappingNode)
 	}
 
 	switch tm := any(m).(type) {
@@ -372,7 +374,7 @@ func (m *Map[K, V]) UnmarshalYAML(n *yaml.Node) error {
 	case *Map[string, *yaml.Node]:
 		// Load into the map without any value decoding.
 		return rangeYAMLMap(n, func(key string, val *yaml.Node) error {
-			tm.Set(key, val)
+			tm.Set(key, val, val)
 			return nil
 		})
 
@@ -390,7 +392,7 @@ func (m *Map[K, V]) UnmarshalYAML(n *yaml.Node) error {
 					return err
 				}
 			}
-			om.Set(key, v)
+			om.Set(key, v, val)
 			return nil
 		})
 	}
@@ -401,22 +403,22 @@ func (m *Map[K, V]) UnmarshalYAML(n *yaml.Node) error {
 // assertable to V.
 func AssertValues[V any](m *MapSA) (*Map[string, V], error) {
 	msv := NewMap[string, V](m.Len())
-	return msv, m.Range(func(k string, v any) error {
+	return msv, m.Range(func(k string, v any, src *yaml.Node) error {
 		t, ok := v.(V)
 		if !ok {
-			return fmt.Errorf("value for key %q (type %T) is not assertable to %T", k, v, t)
+			return fmt.Errorf("%svalue for key %q (type %T) is not assertable to %T", SourcePrefix(src), k, v, t)
 		}
-		msv.Set(k, t)
+		msv.Set(k, t, src)
 		return nil
 	})
 }
 
 // TransformValues converts a map with V1 values into a map with V2 values by
-// running each value through a function.
+// running each value through a function. Sources are preserved.
 func TransformValues[K comparable, V1, V2 any](m *Map[K, V1], f func(V1) V2) *Map[K, V2] {
 	m2 := NewMap[K, V2](m.Len())
-	m.Range(func(k K, v V1) error {
-		m2.Set(k, f(v))
+	m.Range(func(k K, v V1, s *yaml.Node) error {
+		m2.Set(k, f(v), s)
 		return nil
 	})
 	return m2
