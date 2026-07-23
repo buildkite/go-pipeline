@@ -11,10 +11,11 @@ import (
 	"sort"
 
 	"github.com/buildkite/go-pipeline"
+	"github.com/buildkite/go-pipeline/jwkutil"
 	"github.com/gowebpki/jcs"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
 // SignedFielder describes types that can be signed and have signatures
@@ -90,7 +91,7 @@ func configureOptions[E Option](opts []E) options {
 }
 
 type Key interface {
-	Algorithm() jwa.KeyAlgorithm
+	Algorithm() (jwa.KeyAlgorithm, bool)
 }
 
 // Sign computes a new signature for object containing values (sf) using a given
@@ -114,7 +115,11 @@ func Sign(_ context.Context, key Key, sf SignedFielder, opts ...SignOrVerifyOpti
 	}
 	sort.Strings(fields)
 
-	payload, err := canonicalPayload(key.Algorithm().String(), values)
+	alg, ok := key.Algorithm()
+	if !ok {
+		return nil, jwkutil.ErrKeyMissingAlg
+	}
+	payload, err := canonicalPayload(alg.String(), values)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +153,7 @@ func Sign(_ context.Context, key Key, sf SignedFielder, opts ...SignOrVerifyOpti
 	}
 
 	sig, err := jws.Sign(nil,
-		jws.WithKey(key.Algorithm(), key),
+		jws.WithKey(alg, key),
 		jws.WithDetachedPayload(payload),
 		jws.WithCompact(),
 	)
@@ -157,7 +162,7 @@ func Sign(_ context.Context, key Key, sf SignedFielder, opts ...SignOrVerifyOpti
 	}
 
 	return &pipeline.Signature{
-		Algorithm:    key.Algorithm().String(),
+		Algorithm:    alg.String(),
 		SignedFields: fields,
 		Value:        string(sig),
 	}, nil
@@ -196,10 +201,9 @@ func Verify(ctx context.Context, s *pipeline.Signature, keySet any, sf SignedFie
 	var keyOpt jws.VerifyOption
 	switch keySet := keySet.(type) {
 	case jwk.Set:
-		for it := keySet.Keys(ctx); it.Next(ctx); {
-			pair := it.Pair()
-			publicKey := pair.Value.(jwk.Key)
-			fingerprint, err := publicKey.Thumbprint(crypto.SHA256)
+		for i := range keySet.Len() {
+			key, _ := keySet.Key(i)
+			fingerprint, err := key.Thumbprint(crypto.SHA256)
 			if err != nil {
 				return fmt.Errorf("calculating key thumbprint: %w", err)
 			}
@@ -216,7 +220,7 @@ func Verify(ctx context.Context, s *pipeline.Signature, keySet any, sf SignedFie
 
 		debug(options.logger, "Public Key Thumbprint (sha256): %x", sha256.Sum256(data))
 
-		keyOpt = jws.WithKey(jwa.ES256, keySet)
+		keyOpt = jws.WithKey(jwa.ES256(), keySet)
 	default:
 		panic(fmt.Sprintf("unsupported key type: %T", keySet)) // should never happen
 	}

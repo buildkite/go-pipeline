@@ -3,14 +3,19 @@ package jwkutil
 import (
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 func TestValidateJWKDisallows(t *testing.T) {
 	t.Parallel()
 
-	globallyDisallowed := concat([]jwa.SignatureAlgorithm{"", "none", "foo", "bar", "baz"}, UnsupportedAlgorithms)
+	globallyDisallowed := concat([]jwa.SignatureAlgorithm{
+		jwa.NewSignatureAlgorithm("none"),
+		jwa.NewSignatureAlgorithm("foo"),
+		jwa.NewSignatureAlgorithm("bar"),
+		jwa.NewSignatureAlgorithm("baz"),
+	}, UnsupportedAlgorithms)
 
 	cases := []struct {
 		name           string
@@ -23,8 +28,8 @@ func TestValidateJWKDisallows(t *testing.T) {
 			key:         newRSAJWK(t),
 			allowedAlgs: ValidRSAAlgorithms,
 			disallowedAlgs: concat(
-				[]jwa.SignatureAlgorithm{jwa.RS256, jwa.RS384, jwa.RS512}, // Specific to RSA, these are possible but we choose not to support them
-				[]jwa.SignatureAlgorithm{jwa.PS256, jwa.PS384},            // We only allow 512 bit keys
+				[]jwa.SignatureAlgorithm{jwa.RS256(), jwa.RS384(), jwa.RS512()}, // Specific to RSA, these are possible but we choose not to support them
+				[]jwa.SignatureAlgorithm{jwa.PS256(), jwa.PS384()},              // We only allow 512 bit keys
 				globallyDisallowed,
 				ValidECAlgorithms,
 				ValidOKPAlgorithms,
@@ -35,7 +40,7 @@ func TestValidateJWKDisallows(t *testing.T) {
 			key:         newECJWK(t),
 			allowedAlgs: ValidECAlgorithms,
 			disallowedAlgs: concat(
-				[]jwa.SignatureAlgorithm{jwa.ES256, jwa.ES384}, // We only allow 512 bit keys
+				[]jwa.SignatureAlgorithm{jwa.ES256(), jwa.ES384()}, // We only allow 512 bit keys
 				globallyDisallowed,
 				ValidRSAAlgorithms,
 				ValidOKPAlgorithms,
@@ -65,7 +70,8 @@ func TestValidateJWKDisallows(t *testing.T) {
 
 				err = Validate(tc.key)
 				if err != nil {
-					t.Errorf("Validate({keyType: %s, alg: %s}) error = %v", tc.key.KeyType(), tc.key.Algorithm(), err)
+					alg, _ := tc.key.Algorithm()
+					t.Errorf("Validate({keyType: %s, alg: %s}) error = %v", tc.key.KeyType(), alg, err)
 				}
 			}
 
@@ -77,7 +83,8 @@ func TestValidateJWKDisallows(t *testing.T) {
 
 				err = Validate(tc.key)
 				if err == nil {
-					t.Errorf("Validate({keyType: %s, alg: %s}) expected error, got nil", tc.key.KeyType(), tc.key.Algorithm())
+					alg, _ := tc.key.Algorithm()
+					t.Errorf("Validate({keyType: %s, alg: %s}) expected error, got nil", tc.key.KeyType(), alg)
 				}
 			}
 		})

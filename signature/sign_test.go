@@ -1,7 +1,6 @@
 package signature
 
 import (
-	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/x509"
@@ -18,8 +17,8 @@ import (
 
 	"github.com/buildkite/go-pipeline"
 	"github.com/buildkite/go-pipeline/jwkutil"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 const (
@@ -29,7 +28,7 @@ const (
 
 func TestSignVerify(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	step := &pipeline.CommandStep{
 		Command: "llamas",
@@ -77,16 +76,16 @@ func TestSignVerify(t *testing.T) {
 	}{
 		{
 			name:              "EdDSA Ed25519",
-			alg:               jwa.EdDSA,
+			alg:               jwa.EdDSA(),
 			expectedSignature: "eyJhbGciOiJFZERTQSIsImtpZCI6IlRFU1RfRE9fTk9UX1VTRSJ9..VvC3kr18HKN8me3NvSJcG6m-Kco54n-088kq8bqF5eNIZVqbtuMhIzw_pp8UltASUvUcEypPnZJ3eYjzOeIVDQ",
 		},
 		{
 			name: "RSA-PSS 512",
-			alg:  jwa.PS512,
+			alg:  jwa.PS512(),
 		},
 		{
 			name: "ECDSA P-512",
-			alg:  jwa.ES512,
+			alg:  jwa.ES512(),
 		},
 	}
 
@@ -121,7 +120,7 @@ func TestSignVerify(t *testing.T) {
 				t.Errorf("Signature.Algorithm = %v, want %v", sig.Algorithm, tc.alg)
 			}
 
-			if slices.Contains([]jwa.SignatureAlgorithm{jwa.EdDSA, jwa.HS512}, tc.alg) {
+			if slices.Contains([]jwa.SignatureAlgorithm{jwa.EdDSA(), jwa.HS512()}, tc.alg) {
 				// These algorithms are deterministic across keys, so we can check the signature value
 				if sig.Value != tc.expectedSignature {
 					t.Errorf("Signature.Value = %v, want %v", sig.Value, tc.expectedSignature)
@@ -158,14 +157,14 @@ func (m testECDSASigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerO
 	return ecdsa.SignASN1(rand, m.privateKey.(*ecdsa.PrivateKey), digest)
 }
 
-func (m testECDSASigner) Algorithm() jwa.KeyAlgorithm {
-	return jwa.ES256
+func (m testECDSASigner) Algorithm() (jwa.KeyAlgorithm, bool) {
+	return jwa.ES256(), true
 }
 
 func TestSignVerifyCryptoSigner(t *testing.T) {
 
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	step := &pipeline.CommandStep{
 		Command: "llamas",
@@ -213,7 +212,7 @@ func TestSignVerifyCryptoSigner(t *testing.T) {
 	}{
 		{
 			name:              "should sign using crypto.Signer",
-			alg:               jwa.ES256,
+			alg:               jwa.ES256(),
 			expectedSignature: "eyJhbGciOiJFUzI1NiJ9..Op5KSww95n5s1b9jz0Me5UGqUQPcHzEIFvkWTB_yEv6qEDnnFUO1XsC5592fQoAcB0VnPnHaK31iSiCypREIdA",
 		},
 	}
@@ -295,7 +294,7 @@ func (m testFields) ValuesForFields(fields []string) (map[string]any, error) {
 
 func TestSignConcatenatedFields(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Tests that Sign is resilient to concatenation.
 	// Specifically, these maps should all have distinct "content". (If you
@@ -321,7 +320,7 @@ func TestSignConcatenatedFields(t *testing.T) {
 
 	sigs := make(map[string][]testFields)
 
-	keyStr, keyAlg := "alpacas", jwa.HS256
+	keyStr, keyAlg := "alpacas", jwa.HS256()
 	signer, _, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
 		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -354,9 +353,9 @@ func TestSignConcatenatedFields(t *testing.T) {
 
 func TestUnknownAlgorithm(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
-	keyStr, keyAlg := "alpacas", jwa.HS256
+	keyStr, keyAlg := "alpacas", jwa.HS256()
 	signer, _, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
 		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -367,7 +366,10 @@ func TestUnknownAlgorithm(t *testing.T) {
 		t.Fatalf("signer.Key(0) = _, false, want true")
 	}
 
-	key.Set(jwk.AlgorithmKey, "rot13")
+	unknownAlg := jwa.NewSignatureAlgorithm("rot13")
+	if err := key.Set(jwk.AlgorithmKey, unknownAlg); err != nil {
+		t.Fatalf("key.Set(%q, %v) error = %v", jwk.AlgorithmKey, unknownAlg, err)
+	}
 
 	step := &commandStepWithInvariants{
 		CommandStep: pipeline.CommandStep{
@@ -382,7 +384,7 @@ func TestUnknownAlgorithm(t *testing.T) {
 
 func TestVerifyBadSignature(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cs := &commandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}}
 
@@ -392,7 +394,7 @@ func TestVerifyBadSignature(t *testing.T) {
 		Value:        "YWxwYWNhcw==", // base64("alpacas")
 	}
 
-	keyStr, keyAlg := "alpacas", jwa.HS256
+	keyStr, keyAlg := "alpacas", jwa.HS256()
 	_, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
 		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -405,7 +407,7 @@ func TestVerifyBadSignature(t *testing.T) {
 
 func TestSignUnknownStep(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	steps := pipeline.Steps{
 		&pipeline.UnknownStep{
@@ -413,7 +415,7 @@ func TestSignUnknownStep(t *testing.T) {
 		},
 	}
 
-	keyStr, keyAlg := "alpacas", jwa.HS256
+	keyStr, keyAlg := "alpacas", jwa.HS256()
 	signer, _, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
 		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -431,7 +433,7 @@ func TestSignUnknownStep(t *testing.T) {
 
 func TestSignVerifySecrets(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cases := []struct {
 		name            string
@@ -480,7 +482,7 @@ func TestSignVerifySecrets(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			keyStr, keyAlg := "alpacas", jwa.HS256
+			keyStr, keyAlg := "alpacas", jwa.HS256()
 			signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 			if err != nil {
 				t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -514,7 +516,7 @@ func TestSignVerifySecrets(t *testing.T) {
 
 func TestSignVerifyCheckout(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cases := []struct {
 		name string
@@ -575,7 +577,7 @@ func TestSignVerifyCheckout(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			keyStr, keyAlg := "alpacas", jwa.HS256
+			keyStr, keyAlg := "alpacas", jwa.HS256()
 			signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 			if err != nil {
 				t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -616,7 +618,7 @@ func TestSignVerifyCheckout(t *testing.T) {
 // at the agent.
 func TestSignVerifyCheckoutTamperDetection(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	signStep := &pipeline.CommandStep{
 		Command:  "llamas",
@@ -627,7 +629,7 @@ func TestSignVerifyCheckoutTamperDetection(t *testing.T) {
 		Checkout: &pipeline.Checkout{Skip: ptr(false)},
 	}
 
-	keyStr, keyAlg := "alpacas", jwa.HS256
+	keyStr, keyAlg := "alpacas", jwa.HS256()
 	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
 		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -655,7 +657,7 @@ func TestSignVerifyCheckoutTamperDetection(t *testing.T) {
 // path in EmptyToNilPtr / signature hashing.
 func TestSignVerifyCheckoutFlagsTamperDetection(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	signStep := &pipeline.CommandStep{
 		Command: "llamas",
@@ -670,7 +672,7 @@ func TestSignVerifyCheckoutFlagsTamperDetection(t *testing.T) {
 		},
 	}
 
-	keyStr, keyAlg := "alpacas", jwa.HS256
+	keyStr, keyAlg := "alpacas", jwa.HS256()
 	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
 		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -700,7 +702,7 @@ func TestSignVerifyCheckoutFlagsTamperDetection(t *testing.T) {
 // pass those tests but fail this one.
 func TestSignVerifyCheckoutRemainingFieldsTamperDetection(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	signStep := &pipeline.CommandStep{
 		Command: "llamas",
@@ -715,7 +717,7 @@ func TestSignVerifyCheckoutRemainingFieldsTamperDetection(t *testing.T) {
 		},
 	}
 
-	keyStr, keyAlg := "alpacas", jwa.HS256
+	keyStr, keyAlg := "alpacas", jwa.HS256()
 	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
 		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -745,7 +747,7 @@ func TestSignVerifyCheckoutRemainingFieldsTamperDetection(t *testing.T) {
 // data"); re-signing is the documented remediation.
 func TestVerifyLegacySignatureWithCheckoutFails(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Sign with no checkout (the pre-#73 state).
 	signStep := &pipeline.CommandStep{Command: "llamas"}
@@ -757,7 +759,7 @@ func TestVerifyLegacySignatureWithCheckoutFails(t *testing.T) {
 		Checkout: &pipeline.Checkout{Submodules: ptr(true)},
 	}
 
-	keyStr, keyAlg := "alpacas", jwa.HS256
+	keyStr, keyAlg := "alpacas", jwa.HS256()
 	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 	if err != nil {
 		t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -788,7 +790,7 @@ func TestVerifyLegacySignatureWithCheckoutFails(t *testing.T) {
 
 func TestSignVerifyEnv(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cases := []struct {
 		name          string
@@ -855,7 +857,7 @@ func TestSignVerifyEnv(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			keyStr, keyAlg := "alpacas", jwa.HS256
+			keyStr, keyAlg := "alpacas", jwa.HS256()
 			signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 			if err != nil {
 				t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -891,7 +893,7 @@ func TestSignVerifyEnv(t *testing.T) {
 
 func TestSignVerify_NilVsEmpty(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cases := []struct {
 		name       string
@@ -1001,7 +1003,7 @@ func TestSignVerify_NilVsEmpty(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			keyStr, keyAlg := "alpacas", jwa.HS256
+			keyStr, keyAlg := "alpacas", jwa.HS256()
 			signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, keyStr, keyAlg)
 			if err != nil {
 				t.Fatalf("jwkutil.NewSymmetricKeyPairFromString(%q, %q, %q) error = %v", keyID, keyStr, keyAlg, err)
@@ -1035,7 +1037,7 @@ func TestSignVerify_NilVsEmpty(t *testing.T) {
 
 func TestSignatureStability(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// The idea here is to sign and verify a step that is likely to encode in a
 	// non-stable way if there are ordering bugs.
@@ -1064,7 +1066,7 @@ func TestSignatureStability(t *testing.T) {
 		pluginSubCfg[fmt.Sprintf("key%08x", rand.Uint32())] = fmt.Sprintf("value%08x", rand.Uint32())
 	}
 
-	keyAlg := jwa.ES512
+	keyAlg := jwa.ES512()
 	signer, verifier, err := jwkutil.NewKeyPair(keyID, keyAlg)
 	if err != nil {
 		t.Fatalf("jwk.NewKeyPair(%q, %q) error = %v", keyID, keyAlg, err)
@@ -1093,7 +1095,7 @@ func TestSignatureStability(t *testing.T) {
 
 func TestDebugSigning(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	step := &pipeline.CommandStep{
 		Command: "llamas",
@@ -1130,7 +1132,7 @@ func TestDebugSigning(t *testing.T) {
 
 	// We load the key from disk so that we can have deterministic signatures - key generation is non-deterministic,
 	// but signature itself is deterministic across keys for HS512 and EdDSA.
-	keyPath := path.Join(wd, "fixtures", "keys", jwa.EdDSA.String())
+	keyPath := path.Join(wd, "fixtures", "keys", jwa.EdDSA().String())
 
 	keyName := "TEST_DO_NOT_USE"
 	privPath := path.Join(keyPath, fmt.Sprintf("%s-private.json", keyName))
