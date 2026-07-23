@@ -1,0 +1,22 @@
+{
+  "keys": [
+    {
+      "alg": "EdDSA",
+      "crv": "Ed25519",
+      "d": "loA56oW3rfESuQ5EqzpZg-O8mXpFVsEo4Lw4dufvPHk",
+      "kid": "cool-macaw",
+      "kty": "OKP",
+      "use": "sig",
+      "x": "gQo6_hBMMs3_fqbvO6Um46aniWrncu3NwEw0zSWlRZs"
+    },
+    {
+      "alg": "EdDSA",
+      "crv": "Ed25519",
+      "d": "YiQxgGuo0ZUVFVJqx_DGuhQMensMoNAwp-MuFCciGpA",
+      "kid": "giving-moth",
+      "kty": "OKP",
+      "use": "sig",
+      "x": "gb_tPqYukWBC9pHqiHw4f2Eeh_7Mz4UP356NouB78uw"
+    }
+  ]
+}

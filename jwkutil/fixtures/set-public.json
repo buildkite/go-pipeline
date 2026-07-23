@@ -1,0 +1,20 @@
+{
+  "keys": [
+    {
+      "alg": "EdDSA",
+      "crv": "Ed25519",
+      "kid": "cool-macaw",
+      "kty": "OKP",
+      "use": "sig",
+      "x": "gQo6_hBMMs3_fqbvO6Um46aniWrncu3NwEw0zSWlRZs"
+    },
+    {
+      "alg": "EdDSA",
+      "crv": "Ed25519",
+      "kid": "giving-moth",
+      "kty": "OKP",
+      "use": "sig",
+      "x": "gb_tPqYukWBC9pHqiHw4f2Eeh_7Mz4UP356NouB78uw"
+    }
+  ]
+}
