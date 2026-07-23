@@ -118,7 +118,7 @@ func (p *Pipeline) Interpolate(interpolationEnv InterpolationEnv, preferRuntimeE
 // be interpolated into later environment variables, we also add the results
 // to interpolationEnv, making the input ordering of p.Env potentially important.
 func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv, preferRuntimeEnv bool) error {
-	return p.Env.Range(func(k, v string) error {
+	for k, v := range p.Env.All {
 		// We interpolate both keys and values.
 		intk, err := interpolate.Interpolate(interpolationEnv, k)
 		if err != nil {
@@ -137,7 +137,6 @@ func (p *Pipeline) interpolateEnvBlock(interpolationEnv InterpolationEnv, prefer
 		if _, exists := interpolationEnv.Get(intk); !(preferRuntimeEnv && exists) {
 			interpolationEnv.Set(intk, intv)
 		}
-
-		return nil
-	})
+	}
+	return nil
 }

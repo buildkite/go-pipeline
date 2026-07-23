@@ -2,9 +2,11 @@ package ordered
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
 )
 
@@ -834,5 +836,95 @@ func TestMapMarshalJSON(t *testing.T) {
 	want := `{"key":"value","molehill":"large","switch":true,"count":42,"fader":2.71828,"slicey":[5,6,7,8]}`
 	if diff := cmp.Diff(string(got), want); diff != "" {
 		t.Errorf("src.MarshalJSON() output diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestMapAll(t *testing.T) {
+	t.Parallel()
+
+	want := []TupleSA{
+		{Key: "key", Value: "value"},
+		{Key: "molehill", Value: "large"},
+		{Key: "switch", Value: true},
+		{Key: "count", Value: 42},
+		{Key: "fader", Value: 2.71828},
+		{Key: "slicey", Value: []any{5, 6, 7, 8}},
+	}
+	m := MapFromItems(want...)
+
+	var got []TupleSA
+	for k, v := range m.All {
+		got = append(got, TupleSA{Key: k, Value: v})
+	}
+
+	if diff := cmp.Diff(got, want, cmpopts.IgnoreUnexported(TupleSA{})); diff != "" {
+		t.Errorf("m.All items ranged diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestMapAllBreak(t *testing.T) {
+	t.Parallel()
+
+	in := []TupleSA{
+		{Key: "key", Value: "value"},
+		{Key: "molehill", Value: "large"},
+		{Key: "switch", Value: true},
+		{Key: "count", Value: 42},
+		{Key: "fader", Value: 2.71828},
+		{Key: "slicey", Value: []any{5, 6, 7, 8}},
+	}
+	m := MapFromItems(in...)
+
+	var got []TupleSA
+	for k, v := range m.All {
+		if k == "count" {
+			break
+		}
+		got = append(got, TupleSA{Key: k, Value: v})
+	}
+
+	want := in[:3]
+	if diff := cmp.Diff(got, want, cmpopts.IgnoreUnexported(TupleSA{})); diff != "" {
+		t.Errorf("m.All items ranged diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestMapKeys(t *testing.T) {
+	t.Parallel()
+
+	m := MapFromItems(
+		TupleSA{Key: "key", Value: "value"},
+		TupleSA{Key: "molehill", Value: "large"},
+		TupleSA{Key: "switch", Value: true},
+		TupleSA{Key: "count", Value: 42},
+		TupleSA{Key: "fader", Value: 2.71828},
+		TupleSA{Key: "slicey", Value: []any{5, 6, 7, 8}},
+	)
+
+	got := slices.Collect(m.Keys)
+	want := []string{"key", "molehill", "switch", "count", "fader", "slicey"}
+
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Errorf("slices.Collect(m.Keys) diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestMapValues(t *testing.T) {
+	t.Parallel()
+
+	m := MapFromItems(
+		TupleSA{Key: "key", Value: "value"},
+		TupleSA{Key: "molehill", Value: "large"},
+		TupleSA{Key: "switch", Value: true},
+		TupleSA{Key: "count", Value: 42},
+		TupleSA{Key: "fader", Value: 2.71828},
+		TupleSA{Key: "slicey", Value: []any{5, 6, 7, 8}},
+	)
+
+	got := slices.Collect(m.Values)
+	want := []any{"value", "large", true, 42, 2.71828, []any{5, 6, 7, 8}}
+
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Errorf("slices.Collect(m.Values) diff (-got +want):\n%s", diff)
 	}
 }

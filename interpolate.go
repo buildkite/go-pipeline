@@ -151,7 +151,7 @@ func interpolateMap[K comparable, V any, M ~map[K]V](tf stringTransformer, m M) 
 // interpolateOrderedMap applies interpolateAny over any type of ordered.Map.
 // The map is altered in-place.
 func interpolateOrderedMap[K comparable, V any](tf stringTransformer, m *ordered.Map[K, V]) error {
-	return m.Range(func(k K, v V) error {
+	for k, v := range m.All {
 		// We interpolate both keys and values.
 		intk, err := interpolateAny(tf, k)
 		if err != nil {
@@ -163,6 +163,6 @@ func interpolateOrderedMap[K comparable, V any](tf stringTransformer, m *ordered
 		}
 
 		m.Replace(k, intk, intv)
-		return nil
-	})
+	}
+	return nil
 }

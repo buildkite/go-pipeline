@@ -304,7 +304,7 @@ func (m *Map[K, V]) decodeInto(target any) error {
 
 		valueType := mapType.Elem()
 		var warns []error
-		if err := tm.Range(func(k string, v any) error {
+		for k, v := range tm.All {
 			nv := reflect.New(valueType)
 			err := Unmarshal(v, nv.Interface())
 			if w := warning.As(err); w != nil {
@@ -314,9 +314,6 @@ func (m *Map[K, V]) decodeInto(target any) error {
 			}
 
 			targetValue.SetMapIndex(reflect.ValueOf(k), nv.Elem())
-			return nil
-		}); err != nil {
-			return err
 		}
 		return warning.Wrap(warns...)
 
@@ -410,13 +407,12 @@ func (m *Map[K, V]) decodeInto(target any) error {
 	// Copy all values that weren't non-inline fields into a temporary map.
 	// This is just to avoid mutating tm.
 	temp := NewMap[string, any](tm.Len())
-	tm.Range(func(k string, v any) error {
+	for k, v := range tm.All {
 		if _, outline := outlineKeys[k]; outline {
-			return nil
+			continue
 		}
 		temp.Set(k, v)
-		return nil
-	})
+	}
 
 	// If the inline map contains nothing, then don't bother setting it.
 	if temp.Len() == 0 {
@@ -453,7 +449,7 @@ func (m *Map[K, V]) UnmarshalOrdered(src any) error {
 	}
 
 	var warns []error
-	if err := tsrc.Range(func(k string, v any) error {
+	for k, v := range tsrc.All {
 		var dv V
 		err := Unmarshal(v, &dv)
 		if w := warning.As(err); w != nil {
@@ -462,9 +458,6 @@ func (m *Map[K, V]) UnmarshalOrdered(src any) error {
 			return fmt.Errorf("unmarshaling value for key %q: %w", k, err)
 		}
 		tm.Set(k, dv)
-		return nil
-	}); err != nil {
-		return err
 	}
 	return warning.Wrap(warns...)
 }
