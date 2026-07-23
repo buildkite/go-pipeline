@@ -1,7 +1,6 @@
 package signature
 
 import (
-	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/x509"
@@ -29,7 +28,7 @@ const (
 
 func TestSignVerify(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	step := &pipeline.CommandStep{
 		Command: "llamas",
@@ -165,7 +164,7 @@ func (m testECDSASigner) Algorithm() (jwa.KeyAlgorithm, bool) {
 func TestSignVerifyCryptoSigner(t *testing.T) {
 
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	step := &pipeline.CommandStep{
 		Command: "llamas",
@@ -295,7 +294,7 @@ func (m testFields) ValuesForFields(fields []string) (map[string]any, error) {
 
 func TestSignConcatenatedFields(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Tests that Sign is resilient to concatenation.
 	// Specifically, these maps should all have distinct "content". (If you
@@ -385,7 +384,7 @@ func TestUnknownAlgorithm(t *testing.T) {
 
 func TestVerifyBadSignature(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cs := &commandStepWithInvariants{CommandStep: pipeline.CommandStep{Command: "llamas"}}
 
@@ -408,7 +407,7 @@ func TestVerifyBadSignature(t *testing.T) {
 
 func TestSignUnknownStep(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	steps := pipeline.Steps{
 		&pipeline.UnknownStep{
@@ -434,7 +433,7 @@ func TestSignUnknownStep(t *testing.T) {
 
 func TestSignVerifySecrets(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cases := []struct {
 		name            string
@@ -517,7 +516,7 @@ func TestSignVerifySecrets(t *testing.T) {
 
 func TestSignVerifyCheckout(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cases := []struct {
 		name string
@@ -619,7 +618,7 @@ func TestSignVerifyCheckout(t *testing.T) {
 // at the agent.
 func TestSignVerifyCheckoutTamperDetection(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	signStep := &pipeline.CommandStep{
 		Command:  "llamas",
@@ -658,7 +657,7 @@ func TestSignVerifyCheckoutTamperDetection(t *testing.T) {
 // path in EmptyToNilPtr / signature hashing.
 func TestSignVerifyCheckoutFlagsTamperDetection(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	signStep := &pipeline.CommandStep{
 		Command: "llamas",
@@ -703,7 +702,7 @@ func TestSignVerifyCheckoutFlagsTamperDetection(t *testing.T) {
 // pass those tests but fail this one.
 func TestSignVerifyCheckoutRemainingFieldsTamperDetection(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	signStep := &pipeline.CommandStep{
 		Command: "llamas",
@@ -748,7 +747,7 @@ func TestSignVerifyCheckoutRemainingFieldsTamperDetection(t *testing.T) {
 // data"); re-signing is the documented remediation.
 func TestVerifyLegacySignatureWithCheckoutFails(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Sign with no checkout (the pre-#73 state).
 	signStep := &pipeline.CommandStep{Command: "llamas"}
@@ -791,7 +790,7 @@ func TestVerifyLegacySignatureWithCheckoutFails(t *testing.T) {
 
 func TestSignVerifyEnv(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cases := []struct {
 		name          string
@@ -894,7 +893,7 @@ func TestSignVerifyEnv(t *testing.T) {
 
 func TestSignVerify_NilVsEmpty(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cases := []struct {
 		name       string
@@ -1038,7 +1037,7 @@ func TestSignVerify_NilVsEmpty(t *testing.T) {
 
 func TestSignatureStability(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// The idea here is to sign and verify a step that is likely to encode in a
 	// non-stable way if there are ordering bugs.
@@ -1096,7 +1095,7 @@ func TestSignatureStability(t *testing.T) {
 
 func TestDebugSigning(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	step := &pipeline.CommandStep{
 		Command: "llamas",
