@@ -26,8 +26,8 @@ func (p *Plugins) UnmarshalOrdered(o any) error {
 	// Whether processing one big map, or a sequence of small maps, the central
 	// part remains the same.
 	// Parse each "key: value" as "name: config", then append in order.
-	unmarshalMap := func(m *ordered.MapSA) error {
-		return m.Range(func(k string, v any) error {
+	unmarshalMap := func(m *ordered.MapSA) {
+		for k, v := range m.All {
 			// ToMapRecursive demolishes any ordering within the plugin config.
 			// This is needed because the backend likes to reorder the keys,
 			// and for signing we need the JSON form to be stable.
@@ -36,8 +36,7 @@ func (p *Plugins) UnmarshalOrdered(o any) error {
 				Config: ordered.ToMapRecursive(v),
 			}
 			*p = append(*p, plugin)
-			return nil
-		})
+		}
 	}
 
 	switch o := o.(type) {
@@ -55,9 +54,7 @@ func (p *Plugins) UnmarshalOrdered(o any) error {
 				// plugins:
 				//   - plugin#1.0.0:
 				//       config: config, etc
-				if err := unmarshalMap(ct); err != nil {
-					return err
-				}
+				unmarshalMap(ct)
 
 			case string:
 				// Less typical, but supported:
@@ -83,9 +80,7 @@ func (p *Plugins) UnmarshalOrdered(o any) error {
 		//     config: config, etc
 		//   otherplugin#2.0.0:
 		//     etc
-		if err := unmarshalMap(o); err != nil {
-			return err
-		}
+		unmarshalMap(o)
 
 	default:
 		return fmt.Errorf("unmarshaling plugins: got %T, want []any or *ordered.Map[string, any]", o)

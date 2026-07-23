@@ -26,7 +26,7 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 
 	case *ordered.Map[string, any]:
 		// Handle map syntax: {"ENV_VAR": "SECRET_KEY"}
-		return o.Range(func(envVar string, secretKeyVal any) error {
+		for envVar, secretKeyVal := range o.All {
 			secretKey, ok := secretKeyVal.(string)
 			if !ok {
 				return fmt.Errorf("unmarshaling secrets: secret key must be a string, but was %T", secretKeyVal)
@@ -43,8 +43,8 @@ func (s *Secrets) UnmarshalOrdered(o any) error {
 				EnvironmentVariable: envVar,
 			}
 			*s = append(*s, secret)
-			return nil
-		})
+		}
+		return nil
 
 	case []any:
 		for _, c := range o {

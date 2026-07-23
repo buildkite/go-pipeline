@@ -351,7 +351,7 @@ func (maw *MatrixAdjustmentWith) UnmarshalOrdered(o any) error {
 	case *ordered.MapSA:
 		// A map of dimension key -> dimension value. (Tuple of dimension value
 		// selections.)
-		return src.Range(func(k string, v any) error {
+		for k, v := range src.All {
 			switch vt := v.(type) {
 			case bool, int, string:
 				(*maw)[k] = fmt.Sprint(vt)
@@ -359,8 +359,8 @@ func (maw *MatrixAdjustmentWith) UnmarshalOrdered(o any) error {
 			default:
 				return fmt.Errorf("unsupported value type %T in key %q for MatrixAdjustmentsWith", v, k)
 			}
-			return nil
-		})
+		}
+		return nil
 
 	default:
 		return fmt.Errorf("unsupported src type for MatrixAdjustmentsWith: %T", o)

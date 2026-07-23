@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 
 	"github.com/google/go-cmp/cmp"
 	"gopkg.in/yaml.v3"
@@ -176,12 +177,7 @@ func (m *Map[K, V]) ToMap() map[K]V {
 	if m == nil {
 		return nil
 	}
-	um := make(map[K]V, len(m.index))
-	m.Range(func(k K, v V) error {
-		um[k] = v
-		return nil
-	})
-	return um
+	return maps.Collect(m.All)
 }
 
 // ToMapRecursive converts a weakly typed nested structure consisting of
@@ -192,10 +188,9 @@ func ToMapRecursive(src any) any {
 	switch tsrc := src.(type) {
 	case *Map[string, any]:
 		um := make(map[string]any, len(tsrc.index))
-		tsrc.Range(func(k string, v any) error {
+		for k, v := range tsrc.All {
 			um[k] = ToMapRecursive(v)
-			return nil
-		})
+		}
 		return um
 
 	case []any:
@@ -264,6 +259,7 @@ func (m *Map[K, V]) compact() {
 
 // Range ranges over the map (in order). If f returns an error, it stops ranging
 // and returns that error.
+// Deprecated: Use a for loop ranging over m.All instead.
 func (m *Map[K, V]) Range(f func(k K, v V) error) error {
 	if m.IsZero() {
 		return nil
@@ -279,6 +275,45 @@ func (m *Map[K, V]) Range(f func(k K, v V) error) error {
 	return nil
 }
 
+// All is an iterator over all key-value pairs in the map.
+//
+// Example:
+//
+//	for k, v := range m.All {
+//	    fmt.Printf("Got %v => %v\n", k, v)
+//	}
+func (m *Map[K, V]) All(yield func(K, V) bool) {
+	if m.IsZero() {
+		return
+	}
+	for _, p := range m.items {
+		if p.deleted {
+			continue
+		}
+		if !yield(p.Key, p.Value) {
+			return
+		}
+	}
+}
+
+// Keys is an iterator over all keys in the map.
+//
+// Example:
+//
+//	keys := slices.Collect(m.Keys)
+func (m *Map[K, V]) Keys(yield func(K) bool) {
+	m.All(func(k K, _ V) bool { return yield(k) })
+}
+
+// Values is an iterator over all values in the map.
+//
+// Example:
+//
+//	values := slices.Collect(m.Values)
+func (m *Map[K, V]) Values(yield func(V) bool) {
+	m.All(func(_ K, v V) bool { return yield(v) })
+}
+
 // MarshalJSON marshals the ordered map to JSON. It preserves the map order in
 // the output.
 func (m *Map[K, V]) MarshalJSON() ([]byte, error) {
@@ -286,7 +321,7 @@ func (m *Map[K, V]) MarshalJSON() ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteRune('{')
 	first := true
-	err := m.Range(func(k K, v V) error {
+	for k, v := range m.All {
 		if !first {
 			// Separating comma.
 			b.WriteRune(',')
@@ -294,19 +329,15 @@ func (m *Map[K, V]) MarshalJSON() ([]byte, error) {
 		first = false
 		bk, err := json.Marshal(k)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		b.Write(bk)
 		b.WriteRune(':')
 		bv, err := json.Marshal(v)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		b.Write(bv)
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 	b.WriteRune('}')
 	return b.Bytes(), nil
@@ -319,20 +350,15 @@ func (m *Map[K, V]) MarshalYAML() (any, error) {
 		Kind: yaml.MappingNode,
 		Tag:  "!!map",
 	}
-	err := m.Range(func(k K, v V) error {
+	for k, v := range m.All {
 		nk, nv := new(yaml.Node), new(yaml.Node)
 		if err := nk.Encode(k); err != nil {
-			return err
+			return nil, err
 		}
 		if err := nv.Encode(v); err != nil {
-			return err
+			return nil, err
 		}
 		n.Content = append(n.Content, nk, nv)
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
 	}
 	return n, nil
 }
@@ -401,23 +427,22 @@ func (m *Map[K, V]) UnmarshalYAML(n *yaml.Node) error {
 // assertable to V.
 func AssertValues[V any](m *MapSA) (*Map[string, V], error) {
 	msv := NewMap[string, V](m.Len())
-	return msv, m.Range(func(k string, v any) error {
+	for k, v := range m.All {
 		t, ok := v.(V)
 		if !ok {
-			return fmt.Errorf("value for key %q (type %T) is not assertable to %T", k, v, t)
+			return msv, fmt.Errorf("value for key %q (type %T) is not assertable to %T", k, v, t)
 		}
 		msv.Set(k, t)
-		return nil
-	})
+	}
+	return msv, nil
 }
 
 // TransformValues converts a map with V1 values into a map with V2 values by
 // running each value through a function.
 func TransformValues[K comparable, V1, V2 any](m *Map[K, V1], f func(V1) V2) *Map[K, V2] {
 	m2 := NewMap[K, V2](m.Len())
-	m.Range(func(k K, v V1) error {
+	for k, v := range m.All {
 		m2.Set(k, f(v))
-		return nil
-	})
+	}
 	return m2
 }

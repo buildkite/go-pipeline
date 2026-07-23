@@ -319,10 +319,9 @@ func cloneInlineValue(v any) any {
 			return (*ordered.MapSA)(nil)
 		}
 		out := ordered.NewMap[string, any](v.Len())
-		_ = v.Range(func(k string, vv any) error {
+		for k, vv := range v.All {
 			out.Set(k, cloneInlineValue(vv))
-			return nil
-		})
+		}
 		return out
 
 	default:

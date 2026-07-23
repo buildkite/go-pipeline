@@ -337,7 +337,7 @@ func TestSecretsUnmarshalEmptyMap(t *testing.T) {
 		t.Fatalf("ordered.Unmarshal() error = %v", err)
 	}
 
-	if secrets != nil && len(secrets) != 0 {
+	if len(secrets) != 0 {
 		t.Errorf("Expected empty secrets, got %v", secrets)
 	}
 }
