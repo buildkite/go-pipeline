@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 var (
@@ -63,8 +63,8 @@ func fromIdOrOnlyKey(jwks jwk.Set, keyID string) (jwk.Key, string, error) {
 		if !found {
 			return nil, "", ErrNoFirstKey
 		}
-
-		return key, key.KeyID(), nil
+		id, _ := key.KeyID()
+		return key, id, nil
 	}
 
 	key, found := jwks.LookupKeyID(keyID)

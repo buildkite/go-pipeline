@@ -8,8 +8,8 @@ import (
 	"crypto/rsa"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 const symmetricKeyLength = 2048
@@ -18,7 +18,7 @@ const symmetricKeyLength = 2048
 // `keyID`. The returned key sets contain the public and private keys and an error in that order.
 func NewKeyPair(keyID string, alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) {
 	switch alg {
-	case jwa.HS512:
+	case jwa.HS512():
 		key := make([]byte, symmetricKeyLength)
 		_, err := rand.Read(key)
 		if err != nil {
@@ -27,13 +27,13 @@ func NewKeyPair(keyID string, alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, err
 
 		return newSymmetricKeyPair(keyID, key, alg)
 
-	case jwa.ES512:
+	case jwa.ES512():
 		return newECKeyPair(keyID, alg, elliptic.P521())
 
-	case jwa.PS512:
+	case jwa.PS512():
 		return newRSAKeyPair(keyID, alg)
 
-	case jwa.EdDSA:
+	case jwa.EdDSA():
 		return newEdwardsKeyPair(keyID, alg)
 
 	default:
@@ -48,7 +48,7 @@ func NewSymmetricKeyPairFromString(id, key string, alg jwa.SignatureAlgorithm) (
 }
 
 func newSymmetricKeyPair(id string, key []byte, alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set, error) {
-	skey, err := jwk.FromRaw(key)
+	skey, err := jwk.Import(key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create symmetric key: %s", err)
 	}
@@ -99,9 +99,9 @@ func newEdwardsKeyPair(id string, alg jwa.SignatureAlgorithm) (jwk.Set, jwk.Set,
 }
 
 func newKeyPair(id string, alg jwa.SignatureAlgorithm, privKey any) (jwk.Set, jwk.Set, error) {
-	privJWK, err := jwk.FromRaw(privKey)
+	privJWK, err := jwk.Import(privKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("jwk.FromRaw(%v) error = %v", privKey, err)
+		return nil, nil, fmt.Errorf("jwk.Import(%v) error = %v", privKey, err)
 	}
 
 	err = setAll(privJWK, map[string]interface{}{

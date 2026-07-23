@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 var (
-	ValidRSAAlgorithms = []jwa.SignatureAlgorithm{jwa.PS512}
-	ValidECAlgorithms  = []jwa.SignatureAlgorithm{jwa.ES512}
-	ValidOKPAlgorithms = []jwa.SignatureAlgorithm{jwa.EdDSA}
+	ValidRSAAlgorithms = []jwa.SignatureAlgorithm{jwa.PS512()}
+	ValidECAlgorithms  = []jwa.SignatureAlgorithm{jwa.ES512()}
+	ValidOKPAlgorithms = []jwa.SignatureAlgorithm{jwa.EdDSA()}
 
 	ValidSigningAlgorithms = concat(
 		ValidRSAAlgorithms,
@@ -21,14 +21,14 @@ var (
 	)
 
 	ValidAlgsForKeyType = map[jwa.KeyType][]jwa.SignatureAlgorithm{
-		jwa.RSA: {jwa.PS512},
-		jwa.EC:  {jwa.ES512},
-		jwa.OKP: {jwa.EdDSA},
+		jwa.RSA(): {jwa.PS512()},
+		jwa.EC():  {jwa.ES512()},
+		jwa.OKP(): {jwa.EdDSA()},
 	}
 
 	UnsupportedAlgorithms = []jwa.SignatureAlgorithm{
-		jwa.HS256, jwa.HS384, jwa.HS512, // We don't support HMAC-SHA (HS*) because we don't like symmetric signature algorithms for the job signing use case
-		jwa.RS256, jwa.RS384, jwa.RS512, // We don't support RSA-PKCS1v1.5 (RS*) because it's arguably less secure than RSA-PSS
+		jwa.HS256(), jwa.HS384(), jwa.HS512(), // We don't support HMAC-SHA (HS*) because we don't like symmetric signature algorithms for the job signing use case
+		jwa.RS256(), jwa.RS384(), jwa.RS512(), // We don't support RSA-PKCS1v1.5 (RS*) because it's arguably less secure than RSA-PSS
 	}
 )
 
@@ -49,20 +49,21 @@ func Validate(key jwk.Key) error {
 		return err
 	}
 
-	if _, ok := key.Get(jwk.AlgorithmKey); !ok {
+	keyAlg, has := key.Algorithm()
+	if !has {
 		return ErrKeyMissingAlg
 	}
 
-	signingAlg, ok := key.Algorithm().(jwa.SignatureAlgorithm)
+	signingAlg, ok := keyAlg.(jwa.SignatureAlgorithm)
 	if !ok {
-		return fmt.Errorf("%w: %q", ErrInvalidSigningAlgorithm, key.Algorithm())
+		return fmt.Errorf("%w: %q", ErrInvalidSigningAlgorithm, keyAlg)
 	}
 
 	if !slices.Contains(ValidSigningAlgorithms, signingAlg) {
 		return fmt.Errorf("%w: %q", ErrUnsupportedSigningAlgorithm, signingAlg)
 	}
 
-	validKeyTypes := []jwa.KeyType{jwa.RSA, jwa.EC, jwa.OctetSeq, jwa.OKP}
+	validKeyTypes := []jwa.KeyType{jwa.RSA(), jwa.EC(), jwa.OctetSeq(), jwa.OKP()}
 	if !slices.Contains(validKeyTypes, key.KeyType()) {
 		return fmt.Errorf(
 			"%w: %q. Key type must be one of %q",
