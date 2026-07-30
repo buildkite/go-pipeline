@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -149,6 +150,7 @@ var _ crypto.Signer = testECDSASigner{}
 type testECDSASigner struct {
 	privateKey crypto.PrivateKey
 	publickKey crypto.PublicKey
+	alg        jwa.KeyAlgorithm
 }
 
 func (m testECDSASigner) Public() crypto.PublicKey { return m.publickKey }
@@ -158,11 +160,10 @@ func (m testECDSASigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerO
 }
 
 func (m testECDSASigner) Algorithm() (jwa.KeyAlgorithm, bool) {
-	return jwa.ES256(), true
+	return m.alg, true
 }
 
 func TestSignVerifyCryptoSigner(t *testing.T) {
-
 	t.Parallel()
 	ctx := t.Context()
 
@@ -206,57 +207,59 @@ func TestSignVerifyCryptoSigner(t *testing.T) {
 	}
 
 	cases := []struct {
-		name              string
-		alg               jwa.SignatureAlgorithm
-		expectedSignature string
+		name           string
+		privateKeyPath string
+		publicKeyPath  string
+		alg            jwa.SignatureAlgorithm
 	}{
 		{
-			name:              "should sign using crypto.Signer",
-			alg:               jwa.ES256(),
-			expectedSignature: "eyJhbGciOiJFUzI1NiJ9..Op5KSww95n5s1b9jz0Me5UGqUQPcHzEIFvkWTB_yEv6qEDnnFUO1XsC5592fQoAcB0VnPnHaK31iSiCypREIdA",
+			name:           "should sign using crypto.Signer",
+			privateKeyPath: filepath.Join("fixtures", "crypto_signer", "P256", "private.pem"),
+			publicKeyPath:  filepath.Join("fixtures", "crypto_signer", "P256", "public.pem"),
+			alg:            jwa.ES256(),
+		},
+		{
+			name:           "should sign using crypto.Signer with ES512",
+			privateKeyPath: filepath.Join("fixtures", "crypto_signer", "P512", "private.pem"),
+			publicKeyPath:  filepath.Join("fixtures", "crypto_signer", "P512", "public.pem"),
+			alg:            jwa.ES512(),
 		},
 	}
-
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("os.Getwd() error = %v", err)
-	}
-
-	privateKeyPath := path.Join(wd, "fixtures", "crypto_signer", "P256", "private.pem")
-	pemPrivateKey, err := os.ReadFile(privateKeyPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", privateKeyPath, err)
-	}
-
-	block, _ := pem.Decode([]byte(pemPrivateKey))
-	x509Encoded := block.Bytes
-	privateKey, err := x509.ParseECPrivateKey(x509Encoded)
-	if err != nil {
-		t.Fatalf("x509.ParseECPrivateKey(%v) error = %v", x509Encoded, err)
-	}
-
-	publicKeyPath := path.Join(wd, "fixtures", "crypto_signer", "P256", "public.pem")
-	pemPublicKey, err := os.ReadFile(publicKeyPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", publicKeyPath, err)
-	}
-
-	blockPub, _ := pem.Decode([]byte(pemPublicKey))
-	x509EncodedPub := blockPub.Bytes
-	genericPublicKey, err := x509.ParsePKIXPublicKey(x509EncodedPub)
-	if err != nil {
-		t.Fatalf("x509.ParsePKIXPublicKey(%v) error = %v", x509EncodedPub, err)
-	}
-
-	publicKey := genericPublicKey.(*ecdsa.PublicKey)
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			pemPrivateKey, err := os.ReadFile(tc.privateKeyPath)
+			if err != nil {
+				t.Fatalf("os.ReadFile(%q) error = %v", tc.privateKeyPath, err)
+			}
+
+			block, _ := pem.Decode([]byte(pemPrivateKey))
+			x509Encoded := block.Bytes
+			privateKey, err := x509.ParseECPrivateKey(x509Encoded)
+			if err != nil {
+				t.Fatalf("x509.ParseECPrivateKey(%v) error = %v", x509Encoded, err)
+			}
+
+			pemPublicKey, err := os.ReadFile(tc.publicKeyPath)
+			if err != nil {
+				t.Fatalf("os.ReadFile(%q) error = %v", tc.publicKeyPath, err)
+			}
+
+			blockPub, _ := pem.Decode([]byte(pemPublicKey))
+			x509EncodedPub := blockPub.Bytes
+			genericPublicKey, err := x509.ParsePKIXPublicKey(x509EncodedPub)
+			if err != nil {
+				t.Fatalf("x509.ParsePKIXPublicKey(%v) error = %v", x509EncodedPub, err)
+			}
+
+			publicKey := genericPublicKey.(*ecdsa.PublicKey)
+
 			sKey := testECDSASigner{
 				privateKey: privateKey,
 				publickKey: publicKey,
+				alg:        tc.alg,
 			}
 
 			sig, err := Sign(ctx, sKey, stepToSign)
