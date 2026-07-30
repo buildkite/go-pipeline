@@ -11,7 +11,7 @@ require (
 	github.com/buildkite/interpolate v0.1.5
 	github.com/google/go-cmp v0.7.0
 	github.com/gowebpki/jcs v1.0.1
-	github.com/lestrrat-go/jwx/v3 v3.1.1
+	github.com/lestrrat-go/jwx/v3 v3.2.0
 	github.com/oleiade/reflections v1.1.0
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools/v3 v3.5.2
