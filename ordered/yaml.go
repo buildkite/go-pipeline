@@ -11,15 +11,45 @@ import (
 // map[string]any for unmarshaling mappings into any, DecodeYAML chooses
 // *Map[string, any] instead.
 func DecodeYAML(n *yaml.Node) (any, error) {
-	return decodeYAML(make(map[*yaml.Node]bool), n)
+	return decodeYAML(make(map[*yaml.Node]bool), &yamlDecodeBudget{}, n)
+}
+
+type yamlDecodeBudget struct {
+	decodeCount int
+	aliasCount  int
+	aliasDepth  int
+}
+
+func (b *yamlDecodeBudget) excessiveAliasing() bool {
+	if b.aliasCount <= 100 || b.decodeCount <= 1000 {
+		return false
+	}
+
+	var allowedRatio float64
+	switch {
+	case b.decodeCount <= 400000:
+		allowedRatio = 0.99
+	case b.decodeCount >= 4000000:
+		allowedRatio = 0.10
+	default:
+		allowedRatio = 0.99 - 0.89*float64(b.decodeCount-400000)/3600000
+	}
+	return float64(b.aliasCount)/float64(b.decodeCount) > allowedRatio
 }
 
 // decode recursively unmarshals n into a generic type (any, []any, or
 // *Map[string, any]) depending on the kind of n.
-func decodeYAML(seen map[*yaml.Node]bool, n *yaml.Node) (any, error) {
+func decodeYAML(seen map[*yaml.Node]bool, budget *yamlDecodeBudget, n *yaml.Node) (any, error) {
 	// nil decodes to nil.
 	if n == nil {
 		return nil, nil
+	}
+	budget.decodeCount++
+	if budget.aliasDepth > 0 {
+		budget.aliasCount++
+	}
+	if budget.excessiveAliasing() {
+		return nil, fmt.Errorf("line %d, col %d: document contains excessive aliasing", n.Line, n.Column)
 	}
 
 	// If n has been seen already while processing the parents of n, it's an
@@ -61,7 +91,7 @@ func decodeYAML(seen map[*yaml.Node]bool, n *yaml.Node) (any, error) {
 	case yaml.SequenceNode:
 		v := make([]any, 0, len(n.Content))
 		for _, c := range n.Content {
-			cv, err := decodeYAML(seen, c)
+			cv, err := decodeYAML(seen, budget, c)
 			if err != nil {
 				return nil, err
 			}
@@ -74,7 +104,7 @@ func decodeYAML(seen map[*yaml.Node]bool, n *yaml.Node) (any, error) {
 		// Why not call m.UnmarshalYAML(n) ?
 		// Because we can't pass `seen` through that.
 		err := rangeYAMLMap(n, func(key string, val *yaml.Node) error {
-			v, err := decodeYAML(seen, val)
+			v, err := decodeYAML(seen, budget, val)
 			if err != nil {
 				return err
 			}
@@ -89,14 +119,16 @@ func decodeYAML(seen map[*yaml.Node]bool, n *yaml.Node) (any, error) {
 	case yaml.AliasNode:
 		// This is one of the two ways this can blow up recursively.
 		// The other (map merges) is handled by rangeMap.
-		return decodeYAML(seen, n.Alias)
+		budget.aliasDepth++
+		defer func() { budget.aliasDepth-- }()
+		return decodeYAML(seen, budget, n.Alias)
 
 	case yaml.DocumentNode:
 		switch len(n.Content) {
 		case 0:
 			return nil, nil
 		case 1:
-			return decodeYAML(seen, n.Content[0])
+			return decodeYAML(seen, budget, n.Content[0])
 		default:
 			return nil, fmt.Errorf("line %d, col %d: document contains more than 1 content item (%d)", n.Line, n.Column, len(n.Content))
 		}
