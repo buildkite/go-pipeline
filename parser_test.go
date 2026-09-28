@@ -3,6 +3,7 @@ package pipeline
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -67,6 +68,36 @@ func TestParserParsesYAML(t *testing.T) {
 `
 	if diff := cmp.Diff(string(gotYAML), wantYAML); diff != "" {
 		t.Errorf("marshalled YAML diff (-got +want):\n%s", diff)
+	}
+}
+
+func TestParseRejectsExcessiveAliasing(t *testing.T) {
+	var input strings.Builder
+	input.WriteString("a: &a [hello]\n")
+	for i := 0; i < 9; i++ {
+		name := string(rune('b' + i))
+		previous := string(rune('a' + i))
+		fmt.Fprintf(&input, "%s: &%s [*%s, *%s, *%s, *%s, *%s, *%s]\n", name, name, previous, previous, previous, previous, previous, previous)
+	}
+	input.WriteString("steps: *j\n")
+
+	if _, err := Parse(strings.NewReader(input.String())); err == nil || !strings.Contains(err.Error(), "excessive aliasing") {
+		t.Fatalf("Parse(alias bomb) error = %v, want excessive aliasing", err)
+	}
+	count := 0
+	for _, err := range ParseAll(strings.NewReader(input.String())) {
+		count++
+		if err == nil || !strings.Contains(err.Error(), "excessive aliasing") {
+			t.Fatalf("ParseAll(alias bomb) error = %v, want excessive aliasing", err)
+		}
+	}
+	if count != 1 {
+		t.Fatalf("ParseAll(alias bomb) yielded %d results, want 1", count)
+	}
+
+	var typed any
+	if err := yaml.Unmarshal([]byte(input.String()), &typed); err == nil || !strings.Contains(err.Error(), "excessive aliasing") {
+		t.Fatalf("yaml.Unmarshal(alias bomb) error = %v, want excessive aliasing", err)
 	}
 }
 
