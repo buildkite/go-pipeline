@@ -39,9 +39,10 @@ type SignedFielder interface {
 type Logger interface{ Debug(f string, v ...any) }
 
 type options struct {
-	env          map[string]string // not used in Sign or Verify
-	logger       Logger
-	debugSigning bool
+	env               map[string]string // not used in Sign or Verify
+	logger            Logger
+	debugSigning      bool
+	signArtifactPaths bool
 }
 
 // Allow *options to pass through SignOrVerifyOption.

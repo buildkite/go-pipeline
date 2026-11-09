@@ -24,7 +24,8 @@ type commandStepWithInvariants struct {
 	RepositoryURL string
 	// For signing, OuterEnv is the pipeline env.
 	// For verifying, OuterEnv is the job env.
-	OuterEnv map[string]string
+	OuterEnv          map[string]string
+	SignArtifactPaths bool
 }
 
 // SignedFields returns the default fields for signing.
@@ -47,6 +48,16 @@ func (c *commandStepWithInvariants) SignedFields() (map[string]any, error) {
 	// not symmetric with verification: see ValuesForFields below.
 	if !c.Checkout.IsEmpty() {
 		object["checkout"] = EmptyToNilPtr(c.Checkout)
+	}
+
+	// Opt in only after the backend and verifying agents support this field;
+	// older agents reject signatures with fields they do not recognize.
+	if c.SignArtifactPaths {
+		paths, err := c.ArtifactPaths()
+		if err != nil {
+			return nil, err
+		}
+		object["artifact_paths"] = paths
 	}
 
 	// Step env overrides pipeline and build env:
@@ -117,6 +128,13 @@ func (c *commandStepWithInvariants) ValuesForFields(fields []string) (map[string
 
 		case "checkout":
 			out["checkout"] = EmptyToNilPtr(c.Checkout)
+
+		case "artifact_paths":
+			paths, err := c.ArtifactPaths()
+			if err != nil {
+				return nil, err
+			}
+			out["artifact_paths"] = paths
 
 		default:
 			if name, has := strings.CutPrefix(f, EnvNamespacePrefix); has {

@@ -23,6 +23,15 @@ type envOption struct{ env map[string]string }
 
 func (o envOption) apply(opts *options) { opts.env = o.env }
 
+// WithArtifactPathsSigning adds automatic artifact upload paths to new step
+// signatures. Enable it only once agents verifying those steps understand the
+// field and the backend sends the original paths in the accepted job step.
+func WithArtifactPathsSigning(enabled bool) Option { return artifactPathsSigningOption{enabled} }
+
+type artifactPathsSigningOption struct{ enabled bool }
+
+func (o artifactPathsSigningOption) apply(opts *options) { opts.signArtifactPaths = o.enabled }
+
 // SignSteps adds signatures to each command step (and recursively to any command steps that are within group steps).
 // The steps are mutated directly, so an error part-way through may leave some steps un-signed.
 func SignSteps(ctx context.Context, s pipeline.Steps, key Key, repoURL string, opts ...Option) error {
@@ -32,9 +41,10 @@ func SignSteps(ctx context.Context, s pipeline.Steps, key Key, repoURL string, o
 		switch step := step.(type) {
 		case *pipeline.CommandStep:
 			stepWithInvariants := &commandStepWithInvariants{
-				CommandStep:   *step,
-				RepositoryURL: repoURL,
-				OuterEnv:      options.env,
+				CommandStep:       *step,
+				RepositoryURL:     repoURL,
+				OuterEnv:          options.env,
+				SignArtifactPaths: options.signArtifactPaths,
 			}
 
 			sig, err := Sign(ctx, key, stepWithInvariants, &options)

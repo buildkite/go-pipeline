@@ -84,6 +84,36 @@ func (c *CommandStep) UnmarshalOrdered(src any) error {
 	return nil
 }
 
+// ArtifactPaths returns the semicolon-separated paths the backend supplies to
+// the agent for automatic uploads. The pipeline accepts either spelling and
+// either a string or a list of strings.
+func (c *CommandStep) ArtifactPaths() (string, error) {
+	paths := c.RemainingFields["artifacts"]
+	if paths == nil {
+		paths = c.RemainingFields["artifact_paths"]
+	}
+	switch paths := paths.(type) {
+	case nil:
+		return "", nil
+	case string:
+		return paths, nil
+	case []string:
+		return strings.Join(paths, ";"), nil
+	case []any:
+		result := make([]string, len(paths))
+		for i, path := range paths {
+			value, ok := path.(string)
+			if !ok {
+				return "", fmt.Errorf("artifact path %d is %T, not a string", i, path)
+			}
+			result[i] = value
+		}
+		return strings.Join(result, ";"), nil
+	default:
+		return "", fmt.Errorf("artifact paths are %T, not a string or list of strings", paths)
+	}
+}
+
 // InterpolateMatrixPermutation validates and then interpolates the choice of
 // matrix values into the step. This should only be used in order to validate
 // a job that's about to be run, and not used before pipeline upload.
