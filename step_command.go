@@ -96,7 +96,9 @@ func (c *CommandStep) ArtifactPaths() (string, error) {
 	case nil:
 		return "", nil
 	case string:
-		return paths, nil
+		// The backend splits string paths on semicolons before joining them
+		// again, which drops trailing empty segments.
+		return strings.TrimRight(paths, ";"), nil
 	case []string:
 		return strings.Join(paths, ";"), nil
 	case []any:

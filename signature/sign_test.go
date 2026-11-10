@@ -541,6 +541,7 @@ func TestSignVerifyArtifactPaths(t *testing.T) {
 		valid bool
 	}{
 		{"same paths as backend string", map[string]any{"artifact_paths": "logs/*.txt;coverage/*.json"}, true},
+		{"backend drops trailing separator", map[string]any{"artifact_paths": "logs/*.txt;coverage/*.json;"}, true},
 		{"same paths through alias", map[string]any{"artifacts": []string{"logs/*.txt", "coverage/*.json"}}, true},
 		{"changed source", map[string]any{"artifact_paths": "logs/*.txt;private.txt"}, false},
 		{"removed source", nil, false},
