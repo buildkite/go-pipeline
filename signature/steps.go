@@ -23,9 +23,9 @@ type envOption struct{ env map[string]string }
 
 func (o envOption) apply(opts *options) { opts.env = o.env }
 
-// WithArtifactPathsSigning adds automatic artifact upload paths to new step
-// signatures. Enable it only once agents verifying those steps understand the
-// field and the backend sends the original paths in the accepted job step.
+// WithArtifactPathsSigning includes artifact_paths in new step signatures when
+// enabled. Enable it only once agents verifying those steps understand the field
+// and the backend sends the original paths in the accepted job step.
 func WithArtifactPathsSigning(enabled bool) Option { return artifactPathsSigningOption{enabled} }
 
 type artifactPathsSigningOption struct{ enabled bool }
