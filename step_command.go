@@ -69,8 +69,9 @@ func (c *CommandStep) UnmarshalOrdered(src any) error {
 	type wrappedCommand CommandStep
 	// Unmarshal into this secret type, then process special fields specially.
 	fullCommand := new(struct {
-		Commands      []string `yaml:"commands" aliases:"command"`
-		ArtifactPaths any      `yaml:"artifacts" aliases:"artifact_paths"`
+		Commands            []string `yaml:"commands" aliases:"command"`
+		ArtifactPaths       any      `yaml:"artifacts"`
+		LegacyArtifactPaths any      `yaml:"artifact_paths"`
 
 		// Use inline trickery to capture the rest of the struct.
 		Rem *wrappedCommand `yaml:",inline"`
@@ -91,7 +92,11 @@ func (c *CommandStep) UnmarshalOrdered(src any) error {
 	// segments. A list is already split and retains its elements as written.
 	c.ArtifactPaths = nil
 	c.artifactPathsUnexpanded = false
-	switch paths := fullCommand.ArtifactPaths.(type) {
+	pathsValue := fullCommand.ArtifactPaths
+	if pathsValue == nil {
+		pathsValue = fullCommand.LegacyArtifactPaths
+	}
+	switch paths := pathsValue.(type) {
 	case nil:
 	case string:
 		paths = strings.TrimRight(paths, ";")

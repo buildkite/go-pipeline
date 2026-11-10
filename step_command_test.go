@@ -183,6 +183,9 @@ func TestCommandStepArtifactPaths(t *testing.T) {
 		{"JSON alias", `{"command":"echo ok","artifacts":["logs/*.txt","coverage/*.json"]}`, []string{"logs/*.txt", "coverage/*.json"}},
 		{"JSON scalar", `{"command":"echo ok","artifact_paths":"logs/*.txt;coverage/*.json;"}`, []string{"logs/*.txt", "coverage/*.json"}},
 		{"both spellings prefer artifacts", `{"command":"echo ok","artifacts":"reports/*.xml","artifact_paths":"logs/*.txt"}`, []string{"reports/*.xml"}},
+		{"JSON null artifacts falls back", `{"command":"echo ok","artifacts":null,"artifact_paths":"logs/*.txt"}`, []string{"logs/*.txt"}},
+		{"YAML null artifacts falls back", "steps:\n  - command: echo ok\n    artifacts: null\n    artifact_paths: logs/*.txt\n", []string{"logs/*.txt"}},
+		{"null artifact_paths does not override artifacts", `{"command":"echo ok","artifacts":"reports/*.xml","artifact_paths":null}`, []string{"reports/*.xml"}},
 		{"unexpanded scalar drops trailing separator", `{"command":"echo ok","artifact_paths":"${PATHS:-logs/*.txt;coverage/*.json};"}`, []string{"${PATHS:-logs/*.txt;coverage/*.json}"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
