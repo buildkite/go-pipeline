@@ -30,16 +30,15 @@ type CommandStep struct {
 	Label string `yaml:"label,omitempty" aliases:"name"`
 
 	// Fields that are meaningful specifically for command steps
-	Command   string            `yaml:"command"`
-	Plugins   Plugins           `yaml:"plugins,omitempty"`
-	Secrets   Secrets           `yaml:"secrets,omitempty"`
-	Env       map[string]string `yaml:"env,omitempty"`
-	Signature *Signature        `yaml:"signature,omitempty"`
-	Matrix    *Matrix           `yaml:"matrix,omitempty"`
-	Cache     *Cache            `yaml:"cache,omitempty"`
-	Checkout  *Checkout         `yaml:"checkout,omitempty"`
-	// ArtifactPaths are the source paths for automatic artifact uploads.
-	ArtifactPaths []string `yaml:"artifact_paths,omitempty" aliases:"artifacts"`
+	Command       string            `yaml:"command"`
+	Plugins       Plugins           `yaml:"plugins,omitempty"`
+	Secrets       Secrets           `yaml:"secrets,omitempty"`
+	Env           map[string]string `yaml:"env,omitempty"`
+	Signature     *Signature        `yaml:"signature,omitempty"`
+	Matrix        *Matrix           `yaml:"matrix,omitempty"`
+	Cache         *Cache            `yaml:"cache,omitempty"`
+	Checkout      *Checkout         `yaml:"checkout,omitempty"`
+	ArtifactPaths []string          `yaml:"artifact_paths,omitempty" aliases:"artifacts"`
 
 	// RemainingFields stores any other top-level mapping items so they at least
 	// survive an unmarshal-marshal round-trip.
