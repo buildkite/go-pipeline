@@ -580,6 +580,17 @@ func TestSignVerifyArtifactPaths(t *testing.T) {
 	if err := VerifyStep(t.Context(), noPaths, verifier, fakeRepositoryURL); err == nil {
 		t.Fatal("added artifact path verified against a signature covering no paths")
 	}
+
+	// Programmatic callers must not silently sign absence while marshaling an
+	// upload source from the old inline field.
+	oldModel := &pipeline.CommandStep{Command: step.Command, RemainingFields: map[string]any{"artifact_paths": "private.txt"}}
+	if err := SignSteps(t.Context(), pipeline.Steps{oldModel}, key, fakeRepositoryURL, WithArtifactPathsSigning(true)); err == nil {
+		t.Fatal("signed an empty path value despite an inline upload source")
+	}
+	oldModel.Signature = noPaths.Signature
+	if err := VerifyStep(t.Context(), oldModel, verifier, fakeRepositoryURL); err == nil {
+		t.Fatal("verified an empty path value despite an inline upload source")
+	}
 }
 
 func TestSignVerifyCheckout(t *testing.T) {

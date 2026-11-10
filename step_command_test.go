@@ -7,6 +7,7 @@ import (
 
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func TestCommandStepUnmarshalJSON(t *testing.T) {
@@ -76,7 +77,7 @@ func TestCommandStepUnmarshalJSON(t *testing.T) {
 		t.Fatalf("CommandStep.UnmarshalJSON(input) = %v", err)
 	}
 
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA), cmpopts.IgnoreUnexported(CommandStep{})); diff != "" {
 		t.Errorf("CommandStep diff after UnmarshalJSON (-got +want):\n%s", diff)
 	}
 }
@@ -99,7 +100,7 @@ func TestCommandStepUnmarshalJSON_ControlCharacters(t *testing.T) {
 		t.Fatalf("CommandStep.UnmarshalJSON(input) = %v", err)
 	}
 
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA), cmpopts.IgnoreUnexported(CommandStep{})); diff != "" {
 		t.Errorf("CommandStep diff after UnmarshalJSON (-got +want):\n%s", diff)
 	}
 }
@@ -166,7 +167,7 @@ func TestCommandStepUnmarshalJSON_C1ControlCharacters(t *testing.T) {
 			t.Fatalf("CommandStep[%d].UnmarshalJSON() = %v", i, err)
 		}
 
-		if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+		if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA), cmpopts.IgnoreUnexported(CommandStep{})); diff != "" {
 			t.Errorf("CommandStep[%d] diff after UnmarshalJSON (-got +want):\n%s", i, diff)
 		}
 	}
@@ -181,6 +182,8 @@ func TestCommandStepArtifactPaths(t *testing.T) {
 		{"YAML list", "steps:\n  - command: echo ok\n    artifact_paths: ['logs/*.txt;', 'coverage/*.json']\n", []string{"logs/*.txt;", "coverage/*.json"}},
 		{"JSON alias", `{"command":"echo ok","artifacts":["logs/*.txt","coverage/*.json"]}`, []string{"logs/*.txt", "coverage/*.json"}},
 		{"JSON scalar", `{"command":"echo ok","artifact_paths":"logs/*.txt;coverage/*.json;"}`, []string{"logs/*.txt", "coverage/*.json"}},
+		{"both spellings prefer artifacts", `{"command":"echo ok","artifacts":"reports/*.xml","artifact_paths":"logs/*.txt"}`, []string{"reports/*.xml"}},
+		{"unexpanded scalar drops trailing separator", `{"command":"echo ok","artifact_paths":"${PATHS:-logs/*.txt;coverage/*.json};"}`, []string{"${PATHS:-logs/*.txt;coverage/*.json}"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var step *CommandStep
@@ -221,6 +224,35 @@ func TestCommandStepArtifactPaths(t *testing.T) {
 	step := new(CommandStep)
 	if err := step.UnmarshalJSON([]byte(`{"command":"echo ok","artifact_paths":["logs/*.txt",42]}`)); err == nil {
 		t.Fatal("accepted an artifact path that is not a string")
+	}
+
+	p, err := Parse(strings.NewReader("steps:\n  - command: echo ok\n    artifact_paths: '${PATHS:-logs/*.txt;coverage/*.json}'\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Interpolate(nil, false); err != nil {
+		t.Fatalf("interpolating scalar paths with a semicolon default: %v", err)
+	}
+	if diff := cmp.Diff([]string{"logs/*.txt", "coverage/*.json"}, p.Steps[0].(*CommandStep).ArtifactPaths); diff != "" {
+		t.Errorf("interpolated artifact paths (-want +got):\n%s", diff)
+	}
+	p, err = Parse(strings.NewReader("steps:\n  - command: echo ok\n    artifact_paths: ['${PATHS:-logs/*.txt;coverage/*.json}']\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Interpolate(nil, false); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]string{"logs/*.txt;coverage/*.json"}, p.Steps[0].(*CommandStep).ArtifactPaths); diff != "" {
+		t.Errorf("interpolated list element (-want +got):\n%s", diff)
+	}
+
+	step = &CommandStep{ArtifactPaths: []string{"previous.txt"}}
+	if err := step.UnmarshalJSON([]byte(`{"command":"echo ok","artifact_paths":";;"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if len(step.ArtifactPaths) != 0 {
+		t.Errorf("explicitly empty artifact paths kept stale value: %v", step.ArtifactPaths)
 	}
 }
 
@@ -324,7 +356,7 @@ func TestStepCommandMatrixInterpolate(t *testing.T) {
 			if err := tc.step.interpolate(tf); err != nil {
 				t.Errorf("tc.step.interpolate(matrixInterpolator) error = %v", err)
 			}
-			if diff := cmp.Diff(tc.step, tc.want, cmp.Comparer(ordered.EqualSA)); diff != "" {
+			if diff := cmp.Diff(tc.step, tc.want, cmp.Comparer(ordered.EqualSA), cmpopts.IgnoreUnexported(CommandStep{})); diff != "" {
 				t.Errorf("CommandStep diff after MatrixInterpolate (-got +want):\n%s", diff)
 			}
 		})

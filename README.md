@@ -124,6 +124,8 @@ would be represented in go as:
 ```
 
 This go struct would be marshaled back out to YAML equivalent to the original input.
+For programmatically constructed steps, set `CommandStep.ArtifactPaths` instead of
+putting `artifact_paths` in `RemainingFields`, particularly when signing paths.
 
 ## Checkout
 

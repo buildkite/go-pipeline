@@ -44,6 +44,8 @@ type CommandStep struct {
 	// RemainingFields stores any other top-level mapping items so they at least
 	// survive an unmarshal-marshal round-trip.
 	RemainingFields map[string]any `yaml:",inline"`
+
+	artifactPathsUnexpanded bool
 }
 
 // MarshalJSON marshals the step to JSON. Special handling is needed because
@@ -68,7 +70,7 @@ func (c *CommandStep) UnmarshalOrdered(src any) error {
 	// Unmarshal into this secret type, then process special fields specially.
 	fullCommand := new(struct {
 		Commands      []string `yaml:"commands" aliases:"command"`
-		ArtifactPaths any      `yaml:"artifact_paths" aliases:"artifacts"`
+		ArtifactPaths any      `yaml:"artifacts" aliases:"artifact_paths"`
 
 		// Use inline trickery to capture the rest of the struct.
 		Rem *wrappedCommand `yaml:",inline"`
@@ -87,11 +89,19 @@ func (c *CommandStep) UnmarshalOrdered(src any) error {
 
 	// The backend splits scalar paths on semicolons, dropping trailing empty
 	// segments. A list is already split and retains its elements as written.
+	c.ArtifactPaths = nil
+	c.artifactPathsUnexpanded = false
 	switch paths := fullCommand.ArtifactPaths.(type) {
 	case nil:
 	case string:
-		if paths := strings.TrimRight(paths, ";"); paths != "" {
-			c.ArtifactPaths = strings.Split(paths, ";")
+		paths = strings.TrimRight(paths, ";")
+		if strings.Contains(paths, "$") {
+			// Interpolate the complete expression before splitting the result;
+			// its default value may itself contain semicolons.
+			c.ArtifactPaths = []string{paths}
+			c.artifactPathsUnexpanded = true
+		} else {
+			c.ArtifactPaths = splitArtifactPaths(paths)
 		}
 	case []string:
 		c.ArtifactPaths = paths
@@ -107,7 +117,19 @@ func (c *CommandStep) UnmarshalOrdered(src any) error {
 	default:
 		return fmt.Errorf("artifact paths are %T, not a string or list of strings", paths)
 	}
+	// The backend prefers artifacts when both spellings appear in a step.
+	// Only emit the selected value under the canonical artifact_paths key.
+	delete(c.RemainingFields, "artifacts")
+	delete(c.RemainingFields, "artifact_paths")
 	return nil
+}
+
+func splitArtifactPaths(paths string) []string {
+	paths = strings.TrimRight(paths, ";")
+	if paths == "" {
+		return nil
+	}
+	return strings.Split(paths, ";")
 }
 
 // InterpolateMatrixPermutation validates and then interpolates the choice of
@@ -173,6 +195,10 @@ func (c *CommandStep) interpolate(tf stringTransformer) error {
 
 	if err := interpolateSlice(tf, c.ArtifactPaths); err != nil {
 		return fmt.Errorf("interpolating artifact paths: %w", err)
+	}
+	if _, ok := tf.(envInterpolator); ok && c.artifactPathsUnexpanded {
+		c.ArtifactPaths = splitArtifactPaths(strings.Join(c.ArtifactPaths, ";"))
+		c.artifactPathsUnexpanded = false
 	}
 	if err := interpolateMap(tf, c.RemainingFields); err != nil {
 		return fmt.Errorf("interpolating remaining fields: %w", err)
