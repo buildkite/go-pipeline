@@ -84,7 +84,7 @@ func WithLogger(logger Logger) SignOrVerifyOption { return loggerOption{logger} 
 func WithDebugSigning(debugSigning bool) SignOrVerifyOption { return debugSigningOption{debugSigning} }
 
 func configureOptions[E Option](opts []E) options {
-	options := options{signArtifactPaths: true}
+	options := options{}
 	for _, o := range opts {
 		o.apply(&options)
 	}

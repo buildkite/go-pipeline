@@ -526,7 +526,7 @@ func TestSignVerifyArtifactPaths(t *testing.T) {
 	}
 	key, _ := signer.Key(0)
 	step := &pipeline.CommandStep{Command: "llamas", ArtifactPaths: []string{"logs/*.txt", "coverage/*.json"}}
-	if err := SignSteps(t.Context(), pipeline.Steps{step}, key, fakeRepositoryURL); err != nil {
+	if err := SignSteps(t.Context(), pipeline.Steps{step}, key, fakeRepositoryURL, WithArtifactPathsSigning(true)); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Contains(step.Signature.SignedFields, "artifact_paths") {
@@ -558,20 +558,19 @@ func TestSignVerifyArtifactPaths(t *testing.T) {
 
 	// An older signature that didn't cover artifact paths remains valid.
 	legacy := &pipeline.CommandStep{Command: step.Command, ArtifactPaths: []string{"logs/*.txt"}}
-	if err := SignSteps(t.Context(), pipeline.Steps{legacy}, key, fakeRepositoryURL, WithArtifactPathsSigning(false)); err != nil {
+	if err := SignSteps(t.Context(), pipeline.Steps{legacy}, key, fakeRepositoryURL); err != nil {
 		t.Fatal(err)
 	}
 	if slices.Contains(legacy.Signature.SignedFields, "artifact_paths") {
 		t.Fatalf("legacy signature unexpectedly contains artifact_paths: %v", legacy.Signature.SignedFields)
 	}
-	legacy.ArtifactPaths = []string{"changed.txt"}
 	if err := VerifyStep(t.Context(), legacy, verifier, fakeRepositoryURL); err != nil {
 		t.Fatalf("legacy signature rejected: %v", err)
 	}
 
-	// Signing includes absence too, so an editor cannot add an upload source.
+	// Opt-in signs absence too, so an editor cannot add an upload source.
 	noPaths := &pipeline.CommandStep{Command: step.Command}
-	if err := SignSteps(t.Context(), pipeline.Steps{noPaths}, key, fakeRepositoryURL); err != nil {
+	if err := SignSteps(t.Context(), pipeline.Steps{noPaths}, key, fakeRepositoryURL, WithArtifactPathsSigning(true)); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Contains(noPaths.Signature.SignedFields, "artifact_paths") {
@@ -585,7 +584,7 @@ func TestSignVerifyArtifactPaths(t *testing.T) {
 	// Programmatic callers must not silently sign absence while marshaling an
 	// upload source from the old inline field.
 	oldModel := &pipeline.CommandStep{Command: step.Command, RemainingFields: map[string]any{"artifact_paths": "private.txt"}}
-	if err := SignSteps(t.Context(), pipeline.Steps{oldModel}, key, fakeRepositoryURL); err == nil {
+	if err := SignSteps(t.Context(), pipeline.Steps{oldModel}, key, fakeRepositoryURL, WithArtifactPathsSigning(true)); err == nil {
 		t.Fatal("signed an empty path value despite an inline upload source")
 	}
 	oldModel.Signature = noPaths.Signature

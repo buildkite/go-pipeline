@@ -23,9 +23,9 @@ type envOption struct{ env map[string]string }
 
 func (o envOption) apply(opts *options) { opts.env = o.env }
 
-// WithArtifactPathsSigning overrides the default inclusion of artifact_paths
-// in new step signatures. Disabling it creates a legacy signature whose upload
-// paths are not verified.
+// WithArtifactPathsSigning includes artifact_paths in new step signatures when
+// enabled. Enable it only once agents verifying those steps understand the field
+// and the backend sends the original paths in the accepted job step.
 func WithArtifactPathsSigning(enabled bool) Option { return artifactPathsSigningOption{enabled} }
 
 type artifactPathsSigningOption struct{ enabled bool }
