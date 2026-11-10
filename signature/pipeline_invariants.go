@@ -50,7 +50,7 @@ func (c *commandStepWithInvariants) SignedFields() (map[string]any, error) {
 		object["checkout"] = EmptyToNilPtr(c.Checkout)
 	}
 
-	// Opt in only after the backend and verifying agents support this field;
+	// Only omit this field when explicitly creating a legacy signature;
 	// older agents reject signatures with fields they do not recognize.
 	if c.SignArtifactPaths {
 		paths, err := c.artifactPathsForSignature()
