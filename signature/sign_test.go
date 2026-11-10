@@ -517,6 +517,70 @@ func TestSignVerifySecrets(t *testing.T) {
 	}
 }
 
+func TestSignVerifyArtifactPaths(t *testing.T) {
+	t.Parallel()
+
+	signer, verifier, err := jwkutil.NewSymmetricKeyPairFromString(keyID, "alpacas", jwa.HS256())
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, _ := signer.Key(0)
+	step := &pipeline.CommandStep{Command: "llamas", RemainingFields: map[string]any{
+		"artifact_paths": []any{"logs/*.txt", "coverage/*.json"},
+	}}
+	if err := SignSteps(t.Context(), pipeline.Steps{step}, key, fakeRepositoryURL, WithArtifactPathsSigning(true)); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(step.Signature.SignedFields, "artifact_paths") {
+		t.Fatalf("signed fields = %v, want artifact_paths", step.Signature.SignedFields)
+	}
+
+	for _, tc := range []struct {
+		name  string
+		paths map[string]any
+		valid bool
+	}{
+		{"same paths as backend string", map[string]any{"artifact_paths": "logs/*.txt;coverage/*.json"}, true},
+		{"backend drops trailing separator", map[string]any{"artifact_paths": "logs/*.txt;coverage/*.json;"}, true},
+		{"same paths through alias", map[string]any{"artifacts": []string{"logs/*.txt", "coverage/*.json"}}, true},
+		{"changed source", map[string]any{"artifact_paths": "logs/*.txt;private.txt"}, false},
+		{"removed source", nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			verifyStep := &pipeline.CommandStep{Command: step.Command, Signature: step.Signature, RemainingFields: tc.paths}
+			err := VerifyStep(t.Context(), verifyStep, verifier, fakeRepositoryURL)
+			if (err == nil) != tc.valid {
+				t.Fatalf("VerifyStep() error = %v, want valid = %t", err, tc.valid)
+			}
+		})
+	}
+
+	// An older signature that didn't cover artifact paths remains valid.
+	legacy := &pipeline.CommandStep{Command: step.Command, RemainingFields: map[string]any{"artifact_paths": "logs/*.txt"}}
+	if err := SignSteps(t.Context(), pipeline.Steps{legacy}, key, fakeRepositoryURL); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(legacy.Signature.SignedFields, "artifact_paths") {
+		t.Fatalf("legacy signature unexpectedly contains artifact_paths: %v", legacy.Signature.SignedFields)
+	}
+	if err := VerifyStep(t.Context(), legacy, verifier, fakeRepositoryURL); err != nil {
+		t.Fatalf("legacy signature rejected: %v", err)
+	}
+
+	// Opt-in signs absence too, so an editor cannot add an upload source.
+	noPaths := &pipeline.CommandStep{Command: step.Command}
+	if err := SignSteps(t.Context(), pipeline.Steps{noPaths}, key, fakeRepositoryURL, WithArtifactPathsSigning(true)); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(noPaths.Signature.SignedFields, "artifact_paths") {
+		t.Fatalf("signed fields without paths = %v, want artifact_paths", noPaths.Signature.SignedFields)
+	}
+	noPaths.RemainingFields = map[string]any{"artifact_paths": "private.txt"}
+	if err := VerifyStep(t.Context(), noPaths, verifier, fakeRepositoryURL); err == nil {
+		t.Fatal("added artifact path verified against a signature covering no paths")
+	}
+}
+
 func TestSignVerifyCheckout(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
