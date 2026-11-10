@@ -53,7 +53,7 @@ func (c *commandStepWithInvariants) SignedFields() (map[string]any, error) {
 	// Opt in only after the backend and verifying agents support this field;
 	// older agents reject signatures with fields they do not recognize.
 	if c.SignArtifactPaths {
-		paths, err := c.ArtifactPaths()
+		paths, err := c.artifactPathsForSignature()
 		if err != nil {
 			return nil, err
 		}
@@ -130,7 +130,7 @@ func (c *commandStepWithInvariants) ValuesForFields(fields []string) (map[string
 			out["checkout"] = EmptyToNilPtr(c.Checkout)
 
 		case "artifact_paths":
-			paths, err := c.ArtifactPaths()
+			paths, err := c.artifactPathsForSignature()
 			if err != nil {
 				return nil, err
 			}
@@ -159,4 +159,13 @@ func (c *commandStepWithInvariants) ValuesForFields(fields []string) (map[string
 		return nil, fmt.Errorf("one or more required fields are not present: %v", missing)
 	}
 	return out, nil
+}
+
+func (c *commandStepWithInvariants) artifactPathsForSignature() (string, error) {
+	for _, name := range []string{"artifact_paths", "artifacts"} {
+		if _, found := c.RemainingFields[name]; found {
+			return "", fmt.Errorf("%s in RemainingFields: set CommandStep.ArtifactPaths instead", name)
+		}
+	}
+	return strings.Join(c.ArtifactPaths, ";"), nil
 }

@@ -116,14 +116,16 @@ would be represented in go as:
     ordered.TupleSS("FOO", "bar"),
     ordered.TupleSS("BAZ", "qux"),
   ),
+  ArtifactPaths: []string{"logs/**/*", "coverage/**/*"},
   RemainingFields: map[string]any{
-    "artifact_paths": []string{"logs/**/*", "coverage/**/*"},
     "parallelism": 5,
   },
 }
 ```
 
 This go struct would be marshaled back out to YAML equivalent to the original input.
+For programmatically constructed steps, set `CommandStep.ArtifactPaths` instead of
+putting `artifact_paths` in `RemainingFields`, particularly when signing paths.
 
 ## Checkout
 

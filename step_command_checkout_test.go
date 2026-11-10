@@ -9,6 +9,7 @@ import (
 	"github.com/buildkite/go-pipeline/internal/env"
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
 )
 
@@ -1651,7 +1652,7 @@ steps:
 		t.Fatalf("yaml.Marshal error = %v", err)
 	}
 	p2 := parseCheckoutPipeline(t, string(yamlOut))
-	if diff := cmp.Diff(p, p2, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := cmp.Diff(p, p2, cmp.Comparer(ordered.EqualSA), cmpopts.IgnoreUnexported(CommandStep{})); diff != "" {
 		t.Errorf("Pipeline YAML round-trip diff (-orig +new):\n%s\nyaml output:\n%s", diff, yamlOut)
 	}
 
@@ -1669,7 +1670,7 @@ steps:
 	if err := ordered.Unmarshal(src3, p3); err != nil {
 		t.Fatalf("ordered.Unmarshal JSON error = %v", err)
 	}
-	if diff := cmp.Diff(p, p3, cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := cmp.Diff(p, p3, cmp.Comparer(ordered.EqualSA), cmpopts.IgnoreUnexported(CommandStep{})); diff != "" {
 		t.Errorf("Pipeline JSON round-trip diff (-orig +new):\n%s\njson output:\n%s", diff, jsonOut)
 	}
 
