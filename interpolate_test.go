@@ -38,6 +38,16 @@ func TestInterpolator(t *testing.T) {
 			},
 		},
 		{
+			name:       "interpolates artifact upload paths",
+			runtimeEnv: map[string]string{"OUTPUT": "logs"},
+			input: &Pipeline{Steps: Steps{&CommandStep{
+				Command: "echo ok", ArtifactPaths: []string{"${OUTPUT}/*.txt"},
+			}}},
+			expected: &Pipeline{Steps: Steps{&CommandStep{
+				Command: "echo ok", ArtifactPaths: []string{"logs/*.txt"},
+			}}},
+		},
+		{
 			name:          "case_insensitive_interpolation",
 			caseSensitive: false,
 			runtimeEnv:    map[string]string{"ENV_VAR_FRIEND": "upper_friend"},

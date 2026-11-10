@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/buildkite/go-pipeline/ordered"
@@ -168,6 +169,58 @@ func TestCommandStepUnmarshalJSON_C1ControlCharacters(t *testing.T) {
 		if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSA)); diff != "" {
 			t.Errorf("CommandStep[%d] diff after UnmarshalJSON (-got +want):\n%s", i, diff)
 		}
+	}
+}
+
+func TestCommandStepArtifactPaths(t *testing.T) {
+	for _, tc := range []struct {
+		name, input string
+		want        []string
+	}{
+		{"YAML scalar", "steps:\n  - command: echo ok\n    artifact_paths: 'logs/*.txt;coverage/*.json;;'\n", []string{"logs/*.txt", "coverage/*.json"}},
+		{"YAML list", "steps:\n  - command: echo ok\n    artifact_paths: ['logs/*.txt;', 'coverage/*.json']\n", []string{"logs/*.txt;", "coverage/*.json"}},
+		{"JSON alias", `{"command":"echo ok","artifacts":["logs/*.txt","coverage/*.json"]}`, []string{"logs/*.txt", "coverage/*.json"}},
+		{"JSON scalar", `{"command":"echo ok","artifact_paths":"logs/*.txt;coverage/*.json;"}`, []string{"logs/*.txt", "coverage/*.json"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var step *CommandStep
+			if strings.HasPrefix(tc.input, "steps:") {
+				p, err := Parse(strings.NewReader(tc.input))
+				if err != nil {
+					t.Fatal(err)
+				}
+				step = p.Steps[0].(*CommandStep)
+			} else {
+				step = new(CommandStep)
+				if err := step.UnmarshalJSON([]byte(tc.input)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if diff := cmp.Diff(tc.want, step.ArtifactPaths); diff != "" {
+				t.Errorf("ArtifactPaths (-want +got):\n%s", diff)
+			}
+			if len(step.RemainingFields) != 0 {
+				t.Errorf("RemainingFields = %v, want no artifact paths", step.RemainingFields)
+			}
+			b, err := json.Marshal(step)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var output struct {
+				ArtifactPaths []string `json:"artifact_paths"`
+			}
+			if err := json.Unmarshal(b, &output); err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tc.want, output.ArtifactPaths); diff != "" {
+				t.Errorf("marshaled artifact_paths (-want +got):\n%s", diff)
+			}
+		})
+	}
+
+	step := new(CommandStep)
+	if err := step.UnmarshalJSON([]byte(`{"command":"echo ok","artifact_paths":["logs/*.txt",42]}`)); err == nil {
+		t.Fatal("accepted an artifact path that is not a string")
 	}
 }
 

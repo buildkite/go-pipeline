@@ -53,11 +53,7 @@ func (c *commandStepWithInvariants) SignedFields() (map[string]any, error) {
 	// Opt in only after the backend and verifying agents support this field;
 	// older agents reject signatures with fields they do not recognize.
 	if c.SignArtifactPaths {
-		paths, err := c.ArtifactPaths()
-		if err != nil {
-			return nil, err
-		}
-		object["artifact_paths"] = paths
+		object["artifact_paths"] = strings.Join(c.ArtifactPaths, ";")
 	}
 
 	// Step env overrides pipeline and build env:
@@ -130,11 +126,7 @@ func (c *commandStepWithInvariants) ValuesForFields(fields []string) (map[string
 			out["checkout"] = EmptyToNilPtr(c.Checkout)
 
 		case "artifact_paths":
-			paths, err := c.ArtifactPaths()
-			if err != nil {
-				return nil, err
-			}
-			out["artifact_paths"] = paths
+			out["artifact_paths"] = strings.Join(c.ArtifactPaths, ";")
 
 		default:
 			if name, has := strings.CutPrefix(f, EnvNamespacePrefix); has {
