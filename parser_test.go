@@ -13,13 +13,14 @@ import (
 	"github.com/buildkite/go-pipeline/ordered"
 	"github.com/buildkite/go-pipeline/warning"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
 )
 
 func ptr[T any](x T) *T { return &x }
 
 func diffPipeline(got *Pipeline, want *Pipeline) string {
-	return cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA))
+	return cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA), cmpopts.IgnoreUnexported(CommandStep{}))
 }
 
 func TestParserParsesYAML(t *testing.T) {
@@ -129,7 +130,7 @@ steps:
 		got = append(got, gotPipeline)
 	}
 
-	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA)); diff != "" {
+	if diff := cmp.Diff(got, want, cmp.Comparer(ordered.EqualSS), cmp.Comparer(ordered.EqualSA), cmpopts.IgnoreUnexported(CommandStep{})); diff != "" {
 		t.Errorf("parsed pipelines diff (-got, +want):\n%s", diff)
 	}
 
