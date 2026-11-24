@@ -163,6 +163,31 @@ func (m testECDSASigner) Algorithm() (jwa.KeyAlgorithm, bool) {
 	return m.alg, true
 }
 
+type identifiedSigner struct{ testECDSASigner }
+
+func (identifiedSigner) KeyID() string { return keyID }
+
+func TestVerifyCryptoSignerWithJWKS(t *testing.T) {
+	private, public, err := jwkutil.NewKeyPair(keyID, jwa.ES512())
+	if err != nil {
+		t.Fatal(err)
+	}
+	jwkKey, _ := private.Key(0)
+	var priv ecdsa.PrivateKey
+	if err := jwk.Export(jwkKey, &priv); err != nil {
+		t.Fatal(err)
+	}
+	signer := identifiedSigner{testECDSASigner{privateKey: &priv, publickKey: &priv.PublicKey, alg: jwa.ES512()}}
+	fields := testFields{"command": "echo hello"}
+	sig, err := Sign(t.Context(), signer, fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Verify(t.Context(), sig, public, fields); err != nil {
+		t.Fatalf("verifying with the signer's public JWKS: %v", err)
+	}
+}
+
 func TestSignVerifyCryptoSigner(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()

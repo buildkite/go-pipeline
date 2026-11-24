@@ -97,7 +97,8 @@ type Key interface {
 
 // Sign computes a new signature for object containing values (sf) using a given
 // key. The key can be a jwk.Key or a crypto.Signer. If it is a jwk.Key, the
-// public key thumbprint is logged.
+// public key thumbprint is logged. A crypto.Signer may implement KeyID() string
+// to supply the protected JWS kid used to select its public key from a JWKS.
 func Sign(_ context.Context, key Key, sf SignedFielder, opts ...SignOrVerifyOption) (*pipeline.Signature, error) {
 	options := configureOptions(opts)
 
@@ -153,8 +154,16 @@ func Sign(_ context.Context, key Key, sf SignedFielder, opts ...SignOrVerifyOpti
 		debug(options.logger, "Signed Step: %s checksum: %x", payload, sha256.Sum256(payload))
 	}
 
+	keyOpt := jws.WithKey(alg, key)
+	if signer, ok := key.(interface{ KeyID() string }); ok {
+		headers := jws.NewHeaders()
+		if err := headers.Set(jws.KeyIDKey, signer.KeyID()); err != nil {
+			return nil, fmt.Errorf("setting protected key ID: %w", err)
+		}
+		keyOpt = jws.WithKey(alg, key, jws.WithProtectedHeaders(headers))
+	}
 	sig, err := jws.Sign(nil,
-		jws.WithKey(alg, key),
+		keyOpt,
 		jws.WithDetachedPayload(payload),
 		jws.WithCompact(),
 	)
